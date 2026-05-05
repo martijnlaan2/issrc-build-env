@@ -245,12 +245,6 @@ const
 
   EnabledColors: array[Boolean] of TColor = (clBtnFace, clWindow);
 
-function EscapeAmpersands(const S: String): String;
-begin
-  Result := S;
-  StringChangeEx(Result, '&', '&&', True);
-end;
-
 function TWizardForm.FixLabel(const S: String): String;
 begin
   Result := S;
@@ -948,7 +942,7 @@ begin
 
   AppExeName := PathExtractName(AppExeEdit.Text);
   AppName := AppNameEdit.Text;
-  AppAmpEscapedName := EscapeAmpersands(AppName);
+  AppAmpEscapedName := DoubleAmp(AppName);
 
   if ISPPCheck.Checked then begin
     { Setup ISPP usage. Change the edits to reflect ISPP usage. A bit ugly but for now it works. }
