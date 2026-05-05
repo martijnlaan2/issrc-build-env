@@ -839,12 +839,23 @@ end;
 
 procedure Test_IDispatchInvoke;
 var
-  Dict: Variant;
+  Dict, V: Variant;
 begin
   Dict := CreateOleObject('Scripting.Dictionary');
   Dict.Add('key', 'value');
   CheckEqualsInt64(1, Dict.Count);
   CheckEqualsString('value', Dict.Item('key'));
+
+  V := Dict.Keys;
+  CheckTrue((VarType(V) and varArray) <> 0);
+  CheckEqualsString('key', V[0]);
+  CheckEqualsString('key', VarArrayGet(V, 0));
+
+  V[0] := 'changed';
+  CheckEqualsString('changed', V[0]);
+
+  VarArraySet('again', 0, V);
+  CheckEqualsString('again', V[0]);
 end;
 
 procedure Test_WithScoping;
@@ -1738,7 +1749,8 @@ begin
     - Large record: hidden var-param return path for records > pointer size
     - Mixed Single+Double: tests per-slot SingleBits indexing on x64
     - PAnsiChar empty string: tests nil -> EmptyPchar substitution
-    - SixParams (6 integers): forces register-to-stack spill on both platforms }
+    - SixParams (6 integers): forces register-to-stack spill on both platforms
+    - OpenArray: tests open-array data pointer/high-bound marshalling }
 
   CheckEqualsFloat(1.5, TestInnerfuse_EchoSingle(1.5), 0.0);
   CheckEqualsFloat(1.5e100, TestInnerfuse_EchoDouble(1.5e100), 1e90);
@@ -1762,6 +1774,7 @@ begin
   CheckEqualsString('', TestInnerfuse_EchoPAnsiChar(''));
   CheckEqualsString('hello', TestInnerfuse_EchoPAnsiChar('hello'));
   CheckEqualsInt64(21, TestInnerfuse_SixParams(1, 2, 3, 4, 5, 6));
+  CheckEqualsInt64(10, TestInnerfuse_OpenArray([2, 3, 5]));
 end;
 
 procedure Test_InnerfuseCallParamTypesStdCall;
@@ -2231,9 +2244,9 @@ begin
   Test_CreateCallback_Result := 'called';
 end;
 
-procedure Test_CreateCallback_CBFiveParams(A, B, C, D, E: Integer);
+procedure Test_CreateCallback_CBFiveParams(S: String; A, B, C, D: Integer);
 begin
-  Test_CreateCallback_Result := IntToStr(A) + ',' + IntToStr(B) + ',' + IntToStr(C) + ',' + IntToStr(D) + ',' + IntToStr(E);
+  Test_CreateCallback_Result := S + ',' + IntToStr(A) + ',' + IntToStr(B) + ',' + IntToStr(C) + ',' + IntToStr(D);
 end;
 
 procedure Test_CreateCallback_CBFloat4(A, B, C: Integer; D: Double);
@@ -2270,8 +2283,8 @@ begin
   CheckEqualsString('called', Test_CreateCallback_Result);
 
   Test_CreateCallback_Result := '';
-  TestCreateCallback_Invoke5(CreateCallback(@Test_CreateCallback_CBFiveParams), 1, 2, 3, 4, 5);
-  CheckEqualsString('1,2,3,4,5', Test_CreateCallback_Result);
+  TestCreateCallback_Invoke5(CreateCallback(@Test_CreateCallback_CBFiveParams), 'one', 2, 3, 4, 5);
+  CheckEqualsString('one,2,3,4,5', Test_CreateCallback_Result);
 
   { Note: on x86 CreateCallback does not support callback parameters
     passed by value when their type is larger than 4 bytes (Int64, UInt64,

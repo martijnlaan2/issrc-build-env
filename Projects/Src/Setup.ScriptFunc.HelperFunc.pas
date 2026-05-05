@@ -129,11 +129,12 @@ function TestInnerfuse_EchoLargeRecStdCall(const Value: TTestInnerfuseLargeRec):
 function TestInnerfuse_MixedFloats(A: Single; B: Double; C: Single): Double;
 function TestInnerfuse_SixParams(A, B, C, D, E, F: Integer): Int64;
 function TestInnerfuse_SixParamsStdCall(A, B, C, D, E, F: Integer): Int64; stdcall;
+function TestInnerfuse_OpenArray(const Values: array of Integer): Integer;
 function TestInnerfuse_EchoIntegerSafeCall(Value: Integer): Integer; safecall;
 procedure TestInnerfuse_RaiseExceptionSafeCall; safecall;
 procedure TestInnerfuse_RaiseException;
 procedure TestCreateCallback_Invoke0(Callback: NativeInt);
-procedure TestCreateCallback_Invoke5(Callback: NativeInt; A, B, C, D, E: Integer);
+procedure TestCreateCallback_Invoke5(Callback: NativeInt; const S: String; A, B, C, D: Integer);
 procedure TestCreateCallback_InvokeFloat4(Callback: NativeInt; A, B, C: Integer; D: Double);
 function TestCreateCallback_InvokeReturnInteger(Callback: NativeInt; A, B: Integer): Integer;
 function TestCreateCallback_InvokeReturnDouble(Callback: NativeInt; A, B: Integer): Double;
@@ -934,6 +935,13 @@ begin
   Result := Int64(A) + B + C + D + E + F;
 end;
 
+function TestInnerfuse_OpenArray(const Values: array of Integer): Integer;
+begin
+  Result := 0;
+  for var Value in Values do
+    Inc(Result, Value);
+end;
+
 function TestInnerfuse_EchoIntegerSafeCall(Value: Integer): Integer; safecall;
 begin
   Result := Value;
@@ -951,7 +959,7 @@ end;
 
 type
   TStdCallProc0 = procedure; stdcall;
-  TStdCallProc5 = procedure(A, B, C, D, E: Integer); stdcall;
+  TStdCallProc5 = procedure(S: String; A, B, C, D: Integer); stdcall;
   TStdCallProcFloat4 = procedure(A, B, C: Integer; D: Double); stdcall;
   TStdCallFuncReturnInteger = function(A, B: Integer): Integer; stdcall;
   TStdCallFuncReturnDouble = function(A, B: Integer): Double; stdcall;
@@ -961,9 +969,9 @@ begin
   TStdCallProc0(Callback)();
 end;
 
-procedure TestCreateCallback_Invoke5(Callback: NativeInt; A, B, C, D, E: Integer);
+procedure TestCreateCallback_Invoke5(Callback: NativeInt; const S: String; A, B, C, D: Integer);
 begin
-  TStdCallProc5(Callback)(A, B, C, D, E);
+  TStdCallProc5(Callback)(S, A, B, C, D);
 end;
 
 procedure TestCreateCallback_InvokeFloat4(Callback: NativeInt; A, B, C: Integer; D: Double);

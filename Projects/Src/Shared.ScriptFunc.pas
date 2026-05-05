@@ -53,11 +53,12 @@ var
     'function TestInnerfuse_MixedFloats(A: Single; B: Double; C: Single): Double;',
     'function TestInnerfuse_SixParams(A, B, C, D, E, F: Integer): Int64;',
     'function TestInnerfuse_SixParamsStdCall(A, B, C, D, E, F: Integer): Int64;',
+    'function TestInnerfuse_OpenArray(const Values: array of Integer): Integer;',
     'function TestInnerfuse_EchoIntegerSafeCall(Value: Integer): Integer;',
     'procedure TestInnerfuse_RaiseExceptionSafeCall;',
     'procedure TestInnerfuse_RaiseException;',
     'procedure TestCreateCallback_Invoke0(Callback: NativeInt);',
-    'procedure TestCreateCallback_Invoke5(Callback: NativeInt; A, B, C, D, E: Integer);',
+    'procedure TestCreateCallback_Invoke5(Callback: NativeInt; const S: String; A, B, C, D: Integer);',
     'procedure TestCreateCallback_InvokeFloat4(Callback: NativeInt; A, B, C: Integer; D: Double);',
     'function TestCreateCallback_InvokeReturnInteger(Callback: NativeInt; A, B: Integer): Integer;',
     'function TestCreateCallback_InvokeReturnDouble(Callback: NativeInt; A, B: Integer): Double;'
