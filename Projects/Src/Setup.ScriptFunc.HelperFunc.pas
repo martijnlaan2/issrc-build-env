@@ -135,6 +135,8 @@ procedure TestInnerfuse_RaiseException;
 procedure TestCreateCallback_Invoke0(Callback: NativeInt);
 procedure TestCreateCallback_Invoke5(Callback: NativeInt; A, B, C, D, E: Integer);
 procedure TestCreateCallback_InvokeFloat4(Callback: NativeInt; A, B, C: Integer; D: Double);
+function TestCreateCallback_InvokeReturnInteger(Callback: NativeInt; A, B: Integer): Integer;
+function TestCreateCallback_InvokeReturnDouble(Callback: NativeInt; A, B: Integer): Double;
 
 implementation
 
@@ -951,6 +953,8 @@ type
   TStdCallProc0 = procedure; stdcall;
   TStdCallProc5 = procedure(A, B, C, D, E: Integer); stdcall;
   TStdCallProcFloat4 = procedure(A, B, C: Integer; D: Double); stdcall;
+  TStdCallFuncReturnInteger = function(A, B: Integer): Integer; stdcall;
+  TStdCallFuncReturnDouble = function(A, B: Integer): Double; stdcall;
 
 procedure TestCreateCallback_Invoke0(Callback: NativeInt);
 begin
@@ -965,6 +969,16 @@ end;
 procedure TestCreateCallback_InvokeFloat4(Callback: NativeInt; A, B, C: Integer; D: Double);
 begin
   TStdCallProcFloat4(Callback)(A, B, C, D);
+end;
+
+function TestCreateCallback_InvokeReturnInteger(Callback: NativeInt; A, B: Integer): Integer;
+begin
+  Result := TStdCallFuncReturnInteger(Callback)(A, B);
+end;
+
+function TestCreateCallback_InvokeReturnDouble(Callback: NativeInt; A, B: Integer): Double;
+begin
+  Result := TStdCallFuncReturnDouble(Callback)(A, B);
 end;
 
 end.

@@ -67,8 +67,8 @@ end;
 procedure Test_Lexical;
 begin
   { Keywords not exercisable from [Code]:
-     unit, interface, implementation, uses, finalization, initialization, class,
-     inherited, constructor, destructor, virtual, override, private, protected,
+    unit, interface, implementation, uses, finalization, initialization, class,
+    inherited, constructor, destructor, virtual, override, private, protected,
     public, published, '^' dereference token. }
 
   { Numeric literals }
@@ -87,7 +87,7 @@ begin
   CheckEqualsString('A', #65);
   CheckEqualsString('A', #$41);
   CheckEqualsString('AB', #65#66);
-  CheckEqualsString('a''b', 'a''b');
+  CheckEqualsString('a''b', 'a'#$27'b');
   CheckEqualsInt64($0100, Ord(#$0100));
 
   (* paren-star comment *)
@@ -1491,6 +1491,7 @@ end;
 procedure Test_RegisteredMethods;
 var
   List: TStringList;
+  I: Integer;
 begin
   List := TStringList.Create;
   try
@@ -1525,6 +1526,10 @@ begin
     List.CommaText := 'a,b,c';
     CheckEqualsInt64(3, List.Count);
     CheckEqualsString('b', List.Strings[1]);
+
+    { Virtual method with var Integer output parameter }
+    CheckTrue(List.Find('b', I));
+    CheckEqualsInt64(1, I);
   finally
     List.Free;
   end;
@@ -1798,7 +1803,7 @@ begin
     through InnerfuseCall asm stubs, safecall has no actual exception at the low
     level: the Delphi compiler catches the exception inside the callee and
     returns a failed HRESULT, then InnerfuseCall checks the HRESULT and raises
-    a new script exception from the OLE error info }
+    a new script exception from it }
   Caught := False;
   try
     TestInnerfuse_RaiseExceptionSafeCall;
@@ -2225,6 +2230,16 @@ begin
   Test_CreateCallback_FloatResult := D;
 end;
 
+function Test_CreateCallback_CBReturnInteger(A, B: Integer): Integer;
+begin
+  Result := A + B;
+end;
+
+function Test_CreateCallback_CBReturnDouble(A, B: Integer): Double;
+begin
+  Result := A * 0.1 + B;
+end;
+
 procedure Test_CreateCallback;
 begin
   { Tests CreateCallback, which generates platform-specific machine code
@@ -2234,7 +2249,9 @@ begin
       x64: load Self->RCX, call)
     - 5 params: on x86 tests parameter reversal and register pops;
       on x64 tests register shifting, param4 spill, and stack-to-stack copy
-    - 4th param a float (x64 only): tests Param4IsFloatByValue path }
+    - 4th param a float (x64 only): tests Param4IsFloatByValue path
+    - integer return value: tests return via EAX (x86) / RAX (x64)
+    - double return value: tests return via ST(0) (x86) / XMM0 (x64) }
 
   Test_CreateCallback_Result := '';
   TestCreateCallback_Invoke0(CreateCallback(@Test_CreateCallback_CBNoParams));
@@ -2254,6 +2271,9 @@ begin
   CheckEqualsString('10,20,30', Test_CreateCallback_Result);
   CheckEqualsFloat(4.5, Test_CreateCallback_FloatResult, 0.0);
 #endif
+
+  CheckEqualsInt64(30, TestCreateCallback_InvokeReturnInteger(CreateCallback(@Test_CreateCallback_CBReturnInteger), 10, 20));
+  CheckEqualsFloat(5.3, TestCreateCallback_InvokeReturnDouble(CreateCallback(@Test_CreateCallback_CBReturnDouble), 3, 5), 1e-9);
 end;
 
 procedure Test_TypelessParamFunctions;
