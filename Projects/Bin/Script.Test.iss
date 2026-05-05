@@ -918,12 +918,12 @@ begin
   CheckEqualsInt64(3, 1 + 8 mod 3);
 
   { 'and' is multiplicative, 'or' is additive }
-  CheckTrue(True or True and False); { emits warnings }
-  CheckFalse(False and True or False); { emits warnings }
+  CheckTrue(True or True and False); {$NOWARN}
+  CheckFalse(False and True or False); {$NOWARN}
 
   { 'not' (unary) binds tighter than 'and' (multiplicative) }
-  CheckFalse(not True and True); { emits warning }
-  CheckTrue(not False and True); { emits warning }
+  CheckFalse(not True and True); {$NOWARN}
+  CheckTrue(not False and True); {$NOWARN}
 
   { Relational binds loosest }
   CheckTrue(2 + 3 = 5);

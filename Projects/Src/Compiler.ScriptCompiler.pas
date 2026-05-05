@@ -19,7 +19,7 @@ type
   TScriptCompilerOnUsedLine = procedure(const Filename: String; const Line: Integer; const Position: Cardinal; const IsProcExit: Boolean) of object;
   TScriptCompilerOnUsedVariable = procedure(const Filename: String; const Line, Col, Param1, Param2, Param3: Integer; const Param4: AnsiString) of object;
   TScriptCompilerOnError = procedure(const Msg: String; const ErrorFilename: String; const ErrorLine: Integer) of object;
-  TScriptCompilerOnWarning = procedure(const Msg: String) of object;
+  TScriptCompilerOnWarning = procedure(const Msg: String; const Line: Integer) of object;
 
   TScriptCompiler = class
     private
@@ -361,13 +361,14 @@ begin
   var Line, Col: Integer;
   PSPositionToLineCol(Position, Line, Col);
   var Filename := '';
+  var FileLine := Line;
   if Assigned(FOnLineToLineInfo) then
-    FOnLineToLineInfo(Line, Filename, Line);
+    FOnLineToLineInfo(Line, Filename, FileLine);
   var Msg := '';
   if Filename <> '' then
     Msg := Msg + Filename + ', ';
-  Msg := Msg + Format('Line %d, Column %d: [%s] %s', [Line, Col, WarningType, WarningMessage]);
-  FOnWarning(Msg);
+  Msg := Msg + Format('Line %d, Column %d: [%s] %s', [FileLine, Col, WarningType, WarningMessage]);
+  FOnWarning(Msg, Line);
 end;
 
 procedure TScriptCompiler.AddExport(const Name, Decl: String; const AllowNamingAttribute, Required: Boolean; const RequiredFilename: String; const RequiredLine: LongInt);
