@@ -25,8 +25,9 @@ type
     procedure CallTipsHandleArrowClick(const AMemo: TScintEdit; const Up: Boolean);
     procedure CallTipsHandleCtrlSpace(const AMemo: TScintEdit);
     procedure CallTipsHandleUpdateUI(const AMemo: TScintEdit);
-    class function IsInISPPExpressionContext(const AMemo: TScintEdit;
-      const LinePos, ScanEndPos: Integer): Boolean; static;
+    class function IsInISPPLineContext(const AMemo: TScintEdit;
+      const LinePos, ScanEndPos: Integer;
+      out IsPragmaContext: Boolean): Boolean; static;
     { Private }
     class function _InitiateAutoCompleteOrCallTipAllowedAtPos(const AMemo: TScintEdit;
       const WordStartLinePos, PositionBeforeWordStartPos: Integer;
@@ -57,13 +58,16 @@ begin
     Result := not TInnoSetupStyler.IsCommentOrPascalStringStyle(Style);
 end;
 
-class function TMainFormAutoCompleteAndCallTipsHelper.IsInISPPExpressionContext(
-  const AMemo: TScintEdit; const LinePos, ScanEndPos: Integer): Boolean;
+class function TMainFormAutoCompleteAndCallTipsHelper.IsInISPPLineContext(
+  const AMemo: TScintEdit; const LinePos, ScanEndPos: Integer;
+  out IsPragmaContext: Boolean): Boolean;
 begin
-  { Allow autocompletion if the text before ScanEndPos on the line is
-    "ISPP expression context" because it starts with for example "#define X ",
-    "#define X=", "#:X ", "#:X=", "#emit ", "#=", or "#dim X[" }
+  { Allow autocompletion if the text before ScanEndPos on the line is an
+    ISPP directive context because it starts with for example "#define X ",
+    "#define X=", "#:X ", "#:X=", "#emit ", "#=", "#dim X[" or "#pragma ".
+    IsPragmaContext is set to True for "#pragma ". }
   Result := False;
+  IsPragmaContext := False;
 
   if LinePos >= ScanEndPos then
     Exit;
@@ -99,16 +103,30 @@ begin
       const DirectiveEndPos = AMemo.GetWordEndPosition(Pos, True);
       Directive := AMemo.GetTextRange(Pos, DirectiveEndPos);
       Pos := DirectiveEndPos;
-      ExpectIdent := SameText(Directive, 'define') or SameText(Directive, 'dim') or SameText(Directive, 'redim');
-
-      { Check against the expression-supporting directive set }
-      if not ExpectIdent and not SameText(Directive, 'if') and not SameText(Directive, 'elif') and
-         not SameText(Directive, 'emit') and not SameText(Directive, 'expr') and
-         not SameText(Directive, 'insert') then
-        Exit;
 
       { Require at least one whitespace character after the directive name }
       if (Pos >= ScanEndPos) or (AMemo.GetByteAtPosition(Pos) > ' ') then
+        Exit;
+
+      { Check for #pragma }
+      if SameText(Directive, 'pragma') then begin
+        { #pragma does not support expressions, but only sub-directives like
+          "message", so should check we aren't beyond that already }
+        { Skip whitespace after "pragma" }
+        while (Pos < ScanEndPos) and (AMemo.GetByteAtPosition(Pos) <= ' ') do
+          Pos := AMemo.GetPositionAfter(Pos);
+        { Skip the sub-directive word if any }
+        while (Pos < ScanEndPos) and TInnoSetupStyler.IsISPPIdentChar(AMemo.GetByteAtPosition(Pos)) do
+          Pos := AMemo.GetPositionAfter(Pos);
+        IsPragmaContext := Pos = ScanEndPos;
+        Exit(IsPragmaContext);
+      end;
+      
+      { Check for expression-supporting directives }
+      ExpectIdent := SameText(Directive, 'define') or SameText(Directive, 'dim') or SameText(Directive, 'redim');
+      if not ExpectIdent and not SameText(Directive, 'if') and not SameText(Directive, 'elif') and
+         not SameText(Directive, 'emit') and not SameText(Directive, 'expr') and
+         not SameText(Directive, 'insert') then
         Exit;
     end;
   end;
@@ -195,7 +213,8 @@ begin
   var CharsBefore: Integer;
   var WordList: AnsiString;
 
-  if FMemosStyler.ISPPInstalled and IsInISPPExpressionContext(AMemo, LinePos, CaretPos) then begin
+  var IsPragmaContext: Boolean;
+  if FMemosStyler.ISPPInstalled and IsInISPPLineContext(AMemo, LinePos, CaretPos, IsPragmaContext) and not IsPragmaContext then begin
     { Calculate CharsBefore without using GetWordStartPosition and GetWordEndPosition because '[' is a word char }
     CharsBefore := 0;
     var WordStartPos := CaretPos;
@@ -224,6 +243,26 @@ begin
     end;
     WordList := FMemosStyler.ISPPExpressionWordList;
     AMemo.SetAutoCompleteFillupChars('');
+  end else if FMemosStyler.ISPPInstalled and IsPragmaContext then begin
+    const WordStartPos = AMemo.GetWordStartPosition(CaretPos, True);
+    const WordEndPos = AMemo.GetWordEndPosition(CaretPos, True);
+
+    { Also see below }
+    CharsBefore := CaretPos - WordStartPos;
+    if Key <> #0 then begin
+      if CharsBefore > 1 then
+        Exit;
+      if WordEndPos > CaretPos then
+        Exit;
+
+      { Also see below (scCode) }
+      const PositionBeforeWordStartPos = AMemo.GetPositionBefore(WordStartPos);
+      AMemo.StyleNeeded(PositionBeforeWordStartPos); { Make sure the typed character has been styled }
+      if not _InitiateAutoCompleteOrCallTipAllowedAtPos(AMemo, LinePos, PositionBeforeWordStartPos, True) then
+        Exit;
+    end;
+    WordList := FMemosStyler.ISPPPragmaWordList;
+    AMemo.SetAutoCompleteFillupChars(' ');
   end else begin
     const WordStartPos = AMemo.GetWordStartPosition(CaretPos, True);
     const WordEndPos = AMemo.GetWordEndPosition(CaretPos, True);
@@ -265,7 +304,7 @@ begin
             if (Key = ' ') and OnlyWhiteSpaceBeforeWord(AMemo, LinePos, WordStartPos) then
               Exit;
 
-            { Also see above (ISPP) }
+            { Also see above (ISPP 2*) }
             const PositionBeforeWordStartPos = AMemo.GetPositionBefore(WordStartPos);
             if Key <> #0 then begin
               AMemo.StyleNeeded(PositionBeforeWordStartPos); { Make sure the typed character has been styled }
@@ -442,8 +481,9 @@ begin
 
   const Line = AMemo.GetLineFromPosition(Pos);
   const LinePos = AMemo.GetPositionFromLine(Line);
+  var IsPragmaContext: Boolean;
   const ISPPExpressionContext = FMemosStyler.ISPPInstalled and
-    IsInISPPExpressionContext(AMemo, LinePos, AMemo.GetPositionBefore(Pos));
+    IsInISPPLineContext(AMemo, LinePos, AMemo.GetPositionBefore(Pos), IsPragmaContext) and not IsPragmaContext;
 
   if (not ISPPExpressionContext and (TInnoSetupStyler.GetSectionFromLineState(AMemo.Lines.State[Line]) <> scCode)) or
      ((Key <> #0) and not _InitiateAutoCompleteOrCallTipAllowedAtPos(AMemo,

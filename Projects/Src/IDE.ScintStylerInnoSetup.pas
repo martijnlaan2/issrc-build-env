@@ -25,7 +25,8 @@ const
   awtDirective = 2;
   awtFlagOrSetupDirectiveValue = 3;
   awtPreprocessorDirective = 4;
-  awtConstant = 5;
+  awtPreprocessorSubDirective = 5;
+  awtConstant = 6;
   awtScriptFunction = 10;
   awtScriptType = 11;
   awtScriptVariable = 12;
@@ -98,7 +99,7 @@ type
     FKeywordsWordList, FFlagsWordList: array[TInnoSetupStylerSection] of AnsiString;
     FNoHighlightAtCursorWords: TWordsBySection;
     FFlagsWords: TWordsBySection;
-    FISPPDirectivesWordList, FConstantsWordList: AnsiString;
+    FISPPDirectivesWordList, FISPPPragmaWordList, FConstantsWordList: AnsiString;
     FISPPFunctionsByName: TFunctionDefinitionsByName;
     FISPPExpressionWordList: AnsiString;
     FScriptFunctionsByName: array[Boolean] of TFunctionDefinitionsByName;
@@ -119,6 +120,7 @@ type
     procedure BuildFlagsWordList(const Section: TInnoSetupStylerSection;
      const Flags: array of TScintRawString);
     procedure BuildISPPDirectivesWordList;
+    procedure BuildISPPPragmaWordList;
     procedure BuildISPPExpressionWordList;
     procedure BuildKeywordsWordList(const Section: TInnoSetupStylerSection;
       const Parameters: array of TScintRawString);
@@ -182,6 +184,7 @@ type
     property EventFunctionsWordList[Procedures: Boolean]: AnsiString read GetEventFunctionsWordList;
     property FlagsWordList[Section: TInnoSetupStylerSection]: AnsiString read GetFlagsWordList;
     property ISPPDirectivesWordList: AnsiString read FISPPDirectivesWordList;
+    property ISPPPragmaWordList: AnsiString read FISPPPragmaWordList;
     property ISPPExpressionWordList: AnsiString read FISPPExpressionWordList;
     property ISPPInstalled: Boolean read FISPPInstalled write SetISPPInstalled;
     property KeywordsWordList[Section: TInnoSetupStylerSection]: AnsiString read GetKeywordsWordList;
@@ -363,9 +366,14 @@ type
   end;
 
 var
-  ISPPDirectives: array of TISPPDirective; { Initialized below }
+  ISPPDirectives: array of TISPPDirective; { Initialized below. Note this list is *not* only used to build a word list, but also in HandleCompilerDirective. }
 
 const
+  ISPPPragmaSubDirectives: array of TScintRawString = [
+    'error', 'include', 'inlineend', 'inlinestart', 'message',
+    'option', 'parseroption', 'spansymbol', 'verboselevel', 'warning'
+  ];
+
   { The following and some others below are not used by StyleNeeded and therefore
     simply of type AnsiString instead of TScintRawString }
   ConstantsWithParam: array of AnsiString = [
@@ -924,6 +932,7 @@ begin
   BuildEventFunctionsWordList;
   BuildFlagsWordLists;
   BuildISPPDirectivesWordList;
+  BuildISPPPragmaWordList;
   FISPPFunctionsByName := TFunctionDefinitionsByName.Create(TIStringComparer.Ordinal);
   BuildISPPExpressionWordList;
   BuildKeywordsWordLists;
@@ -1094,6 +1103,18 @@ begin
     for var ISPPDirective in ISPPDirectives do
       AddWordToList(SL, '#' + ISPPDirective.Name, awtPreprocessorDirective);
     FISPPDirectivesWordList := BuildWordList(SL);
+  finally
+    SL.Free;
+  end;
+end;
+
+procedure TInnoSetupStyler.BuildISPPPragmaWordList;
+begin
+  var SL := TStringList.Create;
+  try
+    for var ISPPPragmaSubDirective in ISPPPragmaSubDirectives do
+      AddWordToList(SL, ISPPPragmaSubDirective, awtPreprocessorSubDirective);
+    FISPPPragmaWordList := BuildWordList(SL);
   finally
     SL.Free;
   end;

@@ -94,6 +94,7 @@ For conditions of distribution and use, see <a href="files/is/license.txt">LICEN
 <p>Related changes made in both editions:</p>
 <ul>
   <li>Added new <a href="https://jrsoftware.org/ishelp/index.php?topic=pathredir">System Path Redirection</a> help topic.</li>
+  <li>Added new <a href="https://jrsoftware.org/ishelp/index.php?topic=entrybitness">Entry Bitness</a> help topic.</li>
   <li>Pascal Scripting:
   <ul>
     <li>Removed support function <tt>EnableFsRedirection</tt>. Use new support function <tt>ApplyPathRedirRulesForCurrentProcess</tt> instead, or a 64-bit installer. 32-bit installers can also use <tt>{sysnative}</tt> instead.<br/>
@@ -159,6 +160,7 @@ For conditions of distribution and use, see <a href="files/is/license.txt">LICEN
     <li>The Compiler IDE has been renamed from <tt>Compil32.exe</tt> to <tt>ISIDE.exe</tt>.</li>
     <li>Added autocompletion support for ISPP support functions and predefined variables in ISPP expression directives such as <tt>#define</tt>, <tt>#if</tt>, <tt>#emit</tt>, and <tt>#expr</tt>.<br/>
         Parameter hints and mouseover tooltips showing the prototype of ISPP support functions are now also available on such lines for quick reference to the function's parameter names, types, and order.</li>
+    <li>Added autocompletion support for ISPP <tt>#pragma</tt> sub-directives such as <tt>warning</tt>, <tt>message</tt>, and <tt>option</tt>.</li>
     <li>Fixed autocompletion for section names, constants, and ISPP directives breaking after the mouse hovered over the <tt>[Code]</tt> section.</li>
     <li>Parameter hints are now also updated when using the left and right arrow keys, and after Backspace or Delete.</li>
     <li><i>Find in Files</i>, <i>Replace All</i>, and <i>Select All Find Matches</i> could enter an infinite loop, or miss a valid match at the end of the text, when using a regular expression that matches zero-length text (for example <tt>^</tt> or <tt>\b</tt>).</li>

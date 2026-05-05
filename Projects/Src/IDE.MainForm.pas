@@ -3713,6 +3713,7 @@ begin
           NNT(awtDirective, 'ac\xml-filled'),
           NNT(awtFlagOrSetupDirectiveValue, 'ac\values'),
           NNT(awtPreprocessorDirective, 'ac\symbol-hashtag'),
+          NNT(awtPreprocessorSubDirective, 'ac\symbol-hashtag-arrow-right-2'),
           NNT(awtConstant, 'ac\constant-filled_2'),
           NNT(awtScriptFunction, 'ac\method-filled'),
           NNT(awtScriptType, 'ac\types'),
@@ -4787,7 +4788,8 @@ begin
     const VarOrFuncRange = FindVarOrFuncRange(Pos);
     if VarOrFuncRange.EndPos > VarOrFuncRange.StartPos then begin
       const LinePos = FActiveMemo.GetPositionFromLine(Line);
-      if IsInISPPExpressionContext(FActiveMemo, LinePos, VarOrFuncRange.StartPos) then begin
+      var IsPragmaContext: Boolean;
+      if IsInISPPLineContext(FActiveMemo, LinePos, VarOrFuncRange.StartPos, IsPragmaContext) and not IsPragmaContext then begin
         const Name = FActiveMemo.GetTextRange(VarOrFuncRange.StartPos, VarOrFuncRange.EndPos);
         var Count: Integer;
         const FunctionDefinition = FMemosStyler.GetISPPFunctionDefinition(Name, 0, Count);
