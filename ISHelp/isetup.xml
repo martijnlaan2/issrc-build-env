@@ -77,7 +77,7 @@
     <contentstopic title="Unicode Inno Setup" topic="unicode" />
     <contentstopic title="Non Administrative Install Mode" topic="admininstallmode" />
     <contentstopic title="64-bit Install Mode" topic="32vs64bitinstalls" />
-    <contentstopic title="64-bit Installation Limitations" topic="64bitlimitations" />
+    <contentstopic title="Entry Bitness" topic="entrybitness" />
     <contentstopic title="System Path Redirection" topic="pathredir" />
     <contentstopic title="Architecture Identifiers" topic="archidentifiers" />
     <contentstopic title="Wizard Pages" topic="wizardpages" />
@@ -1576,8 +1576,8 @@ Source: "Readme.txt"; DestDir: "{app}"; Flags: isreadme
 <param name="Source" required="yes">
 <p>The name of the <i>source file</i>. The compiler will prepend the path of your installation's <link topic="sourcedirectorynotes">source directory</link> if you do not specify a fully qualified pathname.</p>
 <p>This can be a wildcard to specify a group of files in a single entry. When a wildcard is used, all files matching it use the same options.</p>
-<p>When the flag <tt>external</tt> is specified but the flag <tt>download</tt> is not, <tt>Source</tt> must be the full pathname of an existing file (or wildcard) on the distribution media or the user's system (e.g. "{src}\license.ini").</p>
-<p>When the flag <tt>external</tt> is specified and the flag <tt>download</tt> is also, <tt>Source</tt> must be the URL of the file to download.</p>
+<p>When the <tt>external</tt> flag is specified but the <tt>download</tt> flag is not, <tt>Source</tt> must be the full pathname of an existing file (or wildcard) on the distribution media or the user's system (e.g., <tt>{src}\license.ini</tt>). <link topic="pathredir">System path redirection</link> is applied to the specified path.</p>
+<p>When the <tt>external</tt> and <tt>download</tt> flags are both specified, <tt>Source</tt> must be the URL of the file to download.</p>
 <p>Constants may only be used when the <tt>external</tt> flag is specified, because the compiler does not do any constant translating itself.</p>
 <examples>
 <pre>
@@ -2699,7 +2699,7 @@ Filename: "{app}\MyProg.exe"; Description: "Launch application"; Flags: postinst
 
 <param name="Filename" required="yes">
 <p>The program to execute, or file/folder to open. If <tt>Filename</tt> is not an executable (.exe or .com) or batch file (.bat or .cmd), you <i>must</i> use the <tt>shellexec</tt> flag on the entry. This parameter can include constants.</p>
-<p><link topic="pathredir">System path redirection</link> is applied to the specified path. Any extended-length paths, also known as super paths, are always converted back to normal paths.</p>
+<p><link topic="pathredir">System path redirection</link> is applied to the specified path when the <tt>shellexec</tt> flag is <i>not</i> specified. Any extended-length paths, also known as super paths, are always converted back to normal paths.</p>
 <example>
 <pre>Filename: "{app}\INIT.EXE"</pre>
 </example>
@@ -2721,7 +2721,7 @@ Filename: "{app}\MyProg.exe"; Description: "Launch application"; Flags: postinst
 
 <param name="WorkingDir">
 <p>The initial current directory for the program. If this parameter is not specified or is blank, it uses the directory from the <tt>Filename</tt> parameter; if <tt>Filename</tt> does not include a path, it will use a default directory. This parameter can include constants.</p>
-<p><link topic="pathredir">System path redirection</link> is applied to the specified path. Any extended-length paths, also known as super paths, are always converted back to normal paths.</p>
+<p><link topic="pathredir">System path redirection</link> is applied to the specified path when the <tt>shellexec</tt> flag is <i>not</i> specified. Any extended-length paths, also known as super paths, are always converted back to normal paths.</p>
 <example>
 <pre>WorkingDir: "{app}"</pre>
 </example>
@@ -3313,61 +3313,100 @@ Filename: "{win}\MyProg.ini"; Section: "InstallSettings"; Key: "InstallPath"; St
 <keyword value="install mode" />
 <body>
 
-<p>An installation can run in one of two modes: 32-bit or 64-bit. 64-bit install mode is selected if the user is running a 64-bit version of Windows and the system's processor architecture is included in the value of the <link topic="setup_architecturesinstallin64bitmode">ArchitecturesInstallIn64BitMode</link> [Setup] section directive. Otherwise, 32-bit install mode is used.</p>
+<p>An installation can run in one of two modes: 32-bit or 64-bit. By default, 32-bit install mode is used. To enable 64-bit install mode, there are two options:</p>
+
+<ul>
+<li>Set <sd>SetupArchitecture</sd> to <tt>x64</tt> (recommended). This builds a 64-bit (x64) installer, and additionally enables 64-bit install mode (by default).</li>
+<li>Alternatively, <sd>ArchitecturesInstallIn64BitMode</sd> may be set to enable 64-bit install mode in a 32-bit installer.</li>
+</ul>
+
+<p>It is also possible to use 32-bit install mode in a 64-bit installer &mdash; see <link topic="64bit">64-bit Inno Setup</link>.</p>
 
 <p>How do the two modes of installation differ? Primarily, the differences lie in where things are installed by default.</p>
 
 <p><b>32-bit install mode</b></p>
 
 <ul>
-<li>The System32 path returned by the <tt>{sys}</tt> constant maps to the 32-bit System directory by default.</li>
+<li>Entries are 32-bit by default &mdash; refer to <link topic="entrybitness">Entry Bitness</link> for details.</li>
 <li>The <tt>{commonpf}</tt> constant is equivalent to <tt>{commonpf32}</tt>.</li>
 <li>The <tt>{commoncf}</tt> constant is equivalent to <tt>{commoncf32}</tt>.</li>
-<li>[Registry] writes to the 32-bit view by default.</li>
 <li>The <tt>{reg:...}</tt> constant reads the 32-bit view by default.</li>
 <li>The <tt>Reg*</tt> [Code] support functions access the 32-bit view by default.</li>
-<li>The <tt>useapppaths</tt> flag of the [Icons] section reads the "App Paths" key in the 32-bit view of the registry.</li>
-<li>The <tt>regserver</tt> and <tt>regtypelib</tt> flags of the [Files] section load and register files inside a 32-bit process by default. Latter requires a <link topic="64bit">32-bit installer</link>.</li>
-<li>The <tt>sharedfile</tt> flag of the [Files] section updates the "SharedDLLs" key in the 32-bit view of the registry by default.</li>
 <li>The Uninstall key is created in the 32-bit view of the registry.</li>
 </ul>
-
-<p>Both 32-bit and 64-bit installers support 32-bit install mode, see <link topic="64bit">64-bit Inno Setup</link>.</p>
 
 <p><b>64-bit install mode</b></p>
 
 <ul>
-<li>The System32 path returned by the <tt>{sys}</tt> constant maps to the 64-bit System directory by default when used in the [Dirs], [Files], [InstallDelete], [Run], [UninstallDelete], and [UninstallRun] sections. This is because Setup/Uninstall temporarily disables <extlink href="http://msdn.microsoft.com/en-us/library/aa384187.aspx">WOW64 file system redirection</extlink> when files/directories are accessed by those sections. Elsewhere, System32 and <tt>{sys}</tt> map to the 32-bit System directory, as is normal in a 32-bit process.</li>
+<li>Entries are 64-bit by default &mdash; refer to <link topic="entrybitness">Entry Bitness</link> for details.</li>
 <li>The <tt>{commonpf}</tt> constant is equivalent to <tt>{commonpf64}</tt>.</li>
 <li>The <tt>{commoncf}</tt> constant is equivalent to <tt>{commoncf64}</tt>.</li>
-<li>[Registry] writes to the 64-bit view by default.</li>
 <li>The <tt>{reg:...}</tt> constant reads the 64-bit view by default.</li>
 <li>The <tt>Reg*</tt> [Code] support functions access the 64-bit view by default.</li>
-<li>The <tt>useapppaths</tt> flag of the [Icons] section reads the "App Paths" key in the 64-bit view of the registry.</li>
-<li>The <tt>regserver</tt> and <tt>regtypelib</tt> flags of the [Files] section load and register files inside a 64-bit process by default. Latter requires a <link topic="64bit">64-bit installer</link>.</li>
-<li>The <tt>sharedfile</tt> flag of the [Files] section updates the "SharedDLLs" key in the 64-bit view of the registry by default.</li>
 <li>The Uninstall key is created in the 64-bit view of the registry.</li>
 </ul>
-
-<p>Both 32-bit and 64-bit installers support 64-bit install mode, see <link topic="64bit">64-bit Inno Setup</link>.</p>
 
 </body>
 </topic>
 
 
 
-<topic name="64bitlimitations" title="64-bit Installation Limitations">
-<keyword value="64-bit Installation Limitations" />
-<keyword value="64-bit install mode" />
+<topic name="entrybitness" title="Entry Bitness">
+<keyword value="Entry Bitness" />
+<keyword value="32-bit entries" />
+<keyword value="64-bit entries" />
 <body>
 
-<p><link topic="setup_setuparchitecture">When Setup is a 32-bit x86 application</link>, there are some limitations to be aware of when utilizing its 64-bit installation features:</p>
+<p>In the sections listed in the table below, entries can be either "32-bit" or "64-bit".</p>
 
-<ul>
+<p>By default, the bitness is the same as Setup/Uninstall's <link topic="32vs64bitinstalls">install mode</link> &mdash; 32-bit in 32-bit install mode, and 64-bit in 64-bit install mode &mdash; but may be overridable on a per-entry basis.</p>
 
-<li>The System32 path returned by the <tt>{sys}</tt> constant does not always map to the 64-bit System directory. When Setup/Uninstall is running in 64-bit install mode, it maps to the 64-bit System directory when used in the [Dirs], [Files], [InstallDelete], [Run], [UninstallDelete], and [UninstallRun] sections because Setup temporarily disables <extlink href="http://msdn.microsoft.com/en-us/library/aa384187.aspx">WOW64 file system redirection</extlink> when files/directories are accessed by those sections. Elsewhere, System32 and <tt>{sys}</tt> map to the 32-bit System directory, as is normal in a 32-bit process.</li>
-
-</ul>
+<indent>
+<table>
+<tr>
+  <th>Section(s)</th>
+  <th>What the entry's bitness affects</th>
+  <th>How to override</th>
+</tr>
+<tr>
+  <td><tt><link topic="dirssection">[Dirs]</link></tt></td>
+  <td><tt>Name</tt> parameter: <link topic="pathredir">System path redirection</link></td>
+  <td>Not possible</td>
+</tr>
+<tr>
+  <td><tt><link topic="filessection">[Files]</link></tt></td>
+  <td>
+    <ul appearance="compact">
+      <li><tt>Source</tt> and <tt>DestDir</tt> parameters: <link topic="pathredir">System path redirection</link></li>
+      <li><tt>regserver</tt> flag: Which <tt>regsvr32.exe</tt> is used to register the file</li>
+      <li><tt>regtypelib</tt> flag: Which registry view the type library is registered in</li>
+      <li><tt>sharedfile</tt> flag: Which registry view's <tt>SharedDLLs</tt> key is updated</li>
+    </ul>
+  </td>
+  <td>Include the <tt>32bit</tt> or <tt>64bit</tt> flag</td>
+</tr>
+<tr>
+  <td><tt><link topic="iconssection">[Icons]</link></tt></td>
+  <td><tt>useapppaths</tt> flag: Which registry view is accessed</td>
+  <td>Not possible</td>
+</tr>
+<tr>
+  <td><tt><link topic="installdeletesection">[InstallDelete]</link></tt><br/><tt><link topic="uninstalldeletesection">[UninstallDelete]</link></tt></td>
+  <td><tt>Name</tt> parameter: <link topic="pathredir">System path redirection</link></td>
+  <td>Not possible</td>
+</tr>
+<tr>
+  <td><tt><link topic="registrysection">[Registry]</link></tt></td>
+  <td>Which registry view is accessed</td>
+  <td>On the <tt>Root</tt> parameter, include a <tt>32</tt> or <tt>64</tt> suffix</td>
+</tr>
+<tr>
+  <td><tt><link topic="runsection">[Run]</link></tt><br/><tt><link topic="runsection">[UninstallRun]</link></tt></td>
+  <td><tt>Filename</tt> and <tt>WorkingDir</tt> parameters: <link topic="pathredir">System path redirection</link></td>
+  <td>Include the <tt>32bit</tt> or <tt>64bit</tt> flag</td>
+</tr>
+</table>
+</indent>
 
 </body>
 </topic>
@@ -3378,13 +3417,13 @@ Filename: "{win}\MyProg.ini"; Section: "InstallSettings"; Key: "InstallPath"; St
 <keyword value="System Path Redirection" />
 <body>
 <p>On 64-bit Windows, there are two "System" directories: one containing 64-bit DLLs/EXEs, called <tt>System32</tt> on disk, and one containing 32-bit DLLs/EXEs, called <tt>SysWOW64</tt> on disk.</p>
-<p>In certain contexts where paths are specified, such as the <tt>DestDir</tt> parameter of the <tt>[Files]</tt> section, <i>system path redirection</i> is applied. Paths starting with <tt>{sys}</tt> (or other value expanding to <tt><i>x</i>:\Windows\System32</tt>) are automatically rewritten if needed so that in <link topic="32vs64bitinstalls">64-bit install mode</link>, it is the 64-bit System directory that is accessed, and in 32-bit install mode, it is the 32-bit System directory that is accessed.</p>
+<p><i>System path redirection</i> is applied to the values of certain parameters that take paths &mdash; see <link topic="entrybitness">Entry Bitness</link> for the full list. Paths starting with <tt>{sys}</tt> (or other value expanding to <tt><i>x</i>:\Windows\System32</tt>) are automatically rewritten if needed so that on 64-bit entries, it is the 64-bit System directory that is accessed, and on 32-bit entries, it is the 32-bit System directory that is accessed.</p>
 <p>No rewriting occurs on systems running 32-bit Windows, as <tt>System32</tt> is the only System directory. <tt>SysWOW64</tt> doesn't exist, and the <tt>Sysnative</tt> alias isn't supported.</p>
 <p>Paths are rewritten according to the following rules:</p>
 <indent>
 <table>
 <tr>
-  <th>Input path bitness<sup>[1]</sup></th>
+  <th><link topic="entrybitness">Entry bitness</link><sup>[1]</sup></th>
   <th>Target process bitness<sup>[2]</sup></th>
   <th>Substitution made</th>
   <th>Explanation</th>
@@ -3426,7 +3465,7 @@ Filename: "{win}\MyProg.ini"; Section: "InstallSettings"; Key: "InstallPath"; St
   <td>64-bit</td>
   <td>64-bit</td>
   <td nowrap=""><tt>System32</tt> &rarr; <i>no change</i></td>
-  <td><tt>System32</tt> is correct as-is when the input path and target process are both 64-bit.</td>
+  <td><tt>System32</tt> is correct as-is when the entry and target process are both 64-bit.</td>
 </tr>
 <tr>
   <td>Any</td>
@@ -3434,11 +3473,11 @@ Filename: "{win}\MyProg.ini"; Section: "InstallSettings"; Key: "InstallPath"; St
   <td nowrap=""><tt>Sysnative</tt> &rarr; <tt>System32</tt></td>
   <td>
     <p>64-bit processes cannot use the <tt>Sysnative</tt> alias; it is only available in 32-bit processes.</p>
-    <p>Although this rule is applied for both 32-bit and 64-bit input paths, <tt>Sysnative</tt> <i>should</i> only be present in 32-bit input paths.</p>
+    <p>Although this rule is applied for both 32-bit and 64-bit entries, <tt>Sysnative</tt> <i>should</i> only be present in 32-bit entries.</p>
   </td>
 </tr>
 </table>
-<p><sup>[1]</sup> By default, the "input path bitness" is the same as Setup/Uninstall's <link topic="32vs64bitinstalls">install mode</link> &mdash; 32-bit in 32-bit install mode, and 64-bit in 64-bit install mode. In the <tt>[Files]</tt> and <tt>[Run]</tt> sections, the path bitness can be overridden on a per-entry basis using the <tt>32bit</tt> and <tt>64bit</tt> flags.</p>
+<p><sup>[1]</sup> With the <tt><link topic="isxfunc_ApplyPathRedirRules">ApplyPathRedirRules</link></tt> support function, the <tt>A64Bit</tt> parameter specifies the "entry bitness".</p>
 <p><sup>[2]</sup> "Target process" is the process where the rewritten path will ultimately be accessed. In most cases, paths are accessed by Setup/Uninstall itself, so the target process bitness is Setup/Uninstall's bitness (as set by <sd>SetupArchitecture</sd>).</p>
 </indent>
 </body>
@@ -6639,7 +6678,6 @@ Or, a boolean expression containing <link topic="archidentifiers">architecture i
 <p>Specifies the architectures on which Setup should enable <link topic="32vs64bitinstalls">64-bit install mode</link>. If this directive is set to a blank value, Setup will always use <link topic="32vs64bitinstalls">32-bit install mode</link>.</p>
 <p>Generally, 64-bit install mode should only be enabled on installers that ship 64-bit binaries (x64 or Arm64).</p>
 <p>Since 64-bit install mode is only supported on systems running 64-bit Windows, the specified expression must never match systems running 32-bit Windows. So, for example, don't set this directive to a value like <tt>x86compatible</tt>, since that <i>will</i> match systems running 32-bit Windows. If the expression does indeed match a system running 32-bit Windows, Setup will display an error message and exit.</p>
-<p>Be sure you have read the <link topic="64bitlimitations">64-bit Installation Limitations</link> topic before setting this directive.</p>
 <p>If your application runs only on 64-bit architectures and you're using <link topic="setup_setuparchitecture">32-bit Setup</link>, you should set <link topic="setup_architecturesallowed">ArchitecturesAllowed</link> to the same value as this directive to prevent Setup from running on 32-bit Windows.</p>
 <example>
 <pre>
