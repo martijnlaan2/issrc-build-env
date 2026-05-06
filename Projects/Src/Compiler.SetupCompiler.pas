@@ -6752,7 +6752,7 @@ begin
   CodeTextLineInfo := TLineInfo.Create;
   CodeTextLineInfo.Filename := LineFilename;
   CodeTextLineInfo.FileLineNumber := LineNumber;
-  CodeTextLineInfo.SuppressWarnings := Pos('{$NOWARN}', Line) <> 0;
+  CodeTextLineInfo.SuppressWarnings := Pos('{$NOWARN}', UpperCase(Line)) <> 0;
   CodeText.AddObject(Line, CodeTextLineInfo);
 end;
 
