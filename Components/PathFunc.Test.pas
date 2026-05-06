@@ -25,6 +25,8 @@ procedure PathFuncRunTests;
   procedure TestPartLengths(const Filename: String;
     const DrivePartFalse, DrivePartTrue, PathPartFalse, PathPartTrue: Integer);
   begin
+    if PathDrivePartLength(Filename) <> DrivePartFalse then
+      raise Exception.CreateFmt('"%s" drive part test failed', [Filename]);
     if PathDrivePartLengthEx(Filename, False) <> DrivePartFalse then
       raise Exception.CreateFmt('"%s" drive part(False) test failed', [Filename]);
     if PathDrivePartLengthEx(Filename, True) <> DrivePartTrue then
@@ -98,6 +100,25 @@ procedure PathFuncRunTests;
     if PathExpand(S, PathExpandResult) <> ExpectedResultFromTwoParamOverload then
       raise Exception.Create('PathExpand test failed');
     if ExpectedResultFromTwoParamOverload and (PathExpandResult <> ExpectedResult) then
+      raise Exception.Create('PathExpand test failed');
+  end;
+
+  procedure TestPathExpandFailure(const S: String);
+  begin
+    var PathExpandResult := 'unchanged';
+    if PathExpand(S, PathExpandResult) then
+      raise Exception.Create('PathExpand test failed');
+    if PathExpandResult <> '' then
+      raise Exception.Create('PathExpand test failed');
+
+    var RaisedPathFuncError := False;
+    try
+      PathExpand(S);
+    except
+      on E: EPathFuncError do
+        RaisedPathFuncError := True;
+    end;
+    if not RaisedPathFuncError then
       raise Exception.Create('PathExpand test failed');
   end;
 
@@ -421,6 +442,7 @@ begin
   TestPartLengths('\\?\UNC\server\share\', 20, 20, 20, 21);
   TestPartLengths('\\?\UNC\server\share\dir', 20, 20, 20, 21);
   TestPartLengths('\\.\UNC\server\share', 20, 20, 20, 20);
+  TestPartLengths('\\.\unc\server\share\dir', 20, 20, 20, 21);
 
   TestRemoveBackslash('', '');
   TestRemoveBackslash('\', '');
@@ -442,6 +464,7 @@ begin
   TestRemoveBackslashUnlessRoot('a\\', 'a');
   TestRemoveBackslashUnlessRoot('c:', 'c:');
   TestRemoveBackslashUnlessRoot('c:\', 'c:\');
+  TestRemoveBackslashUnlessRoot('c:/', 'c:/');
   TestRemoveBackslashUnlessRoot('c:\a', 'c:\a');
   TestRemoveBackslashUnlessRoot('c:\a\', 'c:\a');
   TestRemoveBackslashUnlessRoot('c:\a\\', 'c:\a');
@@ -523,10 +546,13 @@ begin
   TestPathExpand('', '', False);
   TestPathExpand(' ', '', False);
   TestPathExpand('   ', '', False);
-  { This odd behavior comes from GetFullPathName. You'd think they would fail
-    like in the above cases. Only testing to see if the behavior changes. }
+  { Next 2 tests: This odd behavior comes from GetFullPathName. You'd think
+    they would fail like in the above cases. Only testing to see if the
+    behavior changes. }
   TestPathExpand('...', AddBackslash(GetCurrentDir), True);
   TestPathExpand('.. ', AddBackslash(GetCurrentDir), True);
+  TestPathExpand('NUL', '\\.\NUL', True);
+  TestPathExpandFailure(StringOfChar('a', $8000));
 
   TestPathExpandAndNormalizeSlashes('C:\abc\def', 'C:\abc\def');
   TestPathExpandAndNormalizeSlashes('C:\abc\def\', 'C:\abc\def\');
@@ -552,6 +578,7 @@ begin
   TestPathNormalizeSlashes('a/b', 'a\b');
   TestPathNormalizeSlashes('a//b', 'a\b');
   TestPathNormalizeSlashes('///', '\\\'); { 3+ leading slash quirk preserved }
+  TestPathNormalizeSlashes('////server//share', '\\\server\share');
   TestPathNormalizeSlashes('', '');
   TestPathNormalizeSlashes('/', '\');
 
@@ -576,6 +603,7 @@ begin
 
   TestPathStrScan('abc', 'b', 1);
   TestPathStrScan('abc', 'z', -1);
+  TestPathStrScan('abc', #0, 3);
 
   TestAddBackslash('', '');
   TestAddBackslash('a', 'a\');
@@ -597,8 +625,10 @@ begin
   TestPathCompare('abd', 'abc', True, 1);
   TestPathCompare('abc'+#0+'def', 'abc'+#0+'def', True, 0);
   TestPathCompare('abc'+#0+'def', 'abc', True, 1);
+  TestPathCompare(#$00C4, #$00E4, True, 0);
 
   TestPathExtracts('c:\dir\file.txt', 'file.txt', 'c:\dir\', 'c:\dir', 'c:');
+  TestPathExtracts('c:/dir/file.txt', 'file.txt', 'c:/dir/', 'c:/dir', 'c:');
   TestPathExtracts('c:\dir\', '', 'c:\dir\', 'c:\dir', 'c:');
   TestPathExtracts('c:\', '', 'c:\', 'c:\', 'c:');
   TestPathExtracts('C:file', 'file', 'C:', 'C:', 'C:');
@@ -627,6 +657,7 @@ begin
   TestPathHasInvalidCharacters('\\server\share\a', False, False);
   TestPathHasInvalidCharacters('C:', True, False);
   TestPathHasInvalidCharacters('C:\dir', True, False);
+  TestPathHasInvalidCharacters('C:file', True, False);
 
   TestPathHasInvalidCharacters('C:\dir\file', False, True);
   TestPathHasInvalidCharacters('a'+#1+'b', False, True);
@@ -698,16 +729,24 @@ begin
   TestValidateAndCombinePath('c:\dest\', 'my file.txt', 'c:\dest\my file.txt', True);   { spaces in name }
   TestValidateAndCombinePath('c:\dest\', '', '', False);                                { empty }
   TestValidateAndCombinePath('c:\dest\', 'c:\file', '', False);                         { rooted }
+  TestValidateAndCombinePath('c:\dest\', 'c:file', '', False);                          { drive-relative }
   TestValidateAndCombinePath('c:\dest\', 'a/b', '', False);                             { not normalized }
+  TestValidateAndCombinePath('c:\dest\', 'sub\\file.txt', '', False);                   { repeated slash }
   TestValidateAndCombinePath('c:\dest\', 'sub\', '', False);                            { trailing slash }
   TestValidateAndCombinePath('c:\dest\', '..\x', '', False);                            { invalid chars (incl. ..) }
+  TestValidateAndCombinePath('c:\dest\', 'file.', '', False);                           { trailing dot }
+  TestValidateAndCombinePath('c:\dest\', 'file:stream', '', False);                     { stream name }
   TestValidateAndCombinePath('c:\dest\', 'sub\NUL', '', False);                         { reserved name }
   TestValidateAndCombinePath('c:\dest\', 'NUL', '', False);                             { reserved name directly }
+  { Next test fails and is disabled }
+  {TestValidateAndCombinePath('c:\dest\', 'NUL\file.txt', '', False);}                  { reserved name component }
 
+  TestPathConvertNormalToSuperStr('', '');
   TestPathConvertNormalToSuper('C:\dir\file', '\\?\C:\dir\file', True);
   TestPathConvertNormalToSuperStr('C:\dir\file', '\\?\C:\dir\file');
   TestPathConvertNormalToSuper('C:', '\\?\' + PathExpand('C:'), True);
   TestPathConvertNormalToSuper('\\server\share\x', '\\?\UNC\server\share\x', True);
+  TestPathConvertNormalToSuperStr('\\?\UNC\server\share\x', '\\?\UNC\server\share\x');
   TestPathConvertNormalToSuper('\\.\C:\x', '\\?\C:\x', True);
   TestPathConvertNormalToSuper('\\?\C:\x', '\\?\C:\x', True);
   TestPathConvertNormalToSuper('sub\file', '\\?\' + AddBackslash(GetCurrentDir) + 'sub\file', True);
@@ -717,7 +756,9 @@ begin
   TestPathConvertSuperToNormal('\\?\C:', 'C:\');
   TestPathConvertSuperToNormal('\\?\C:\', 'C:\');
   TestPathConvertSuperToNormal('\\?\C:\x', 'C:\x');
+  TestPathConvertSuperToNormal('\\?\C:/x', '\\?\C:/x');
   TestPathConvertSuperToNormal('\\?\UNC\s\sh', '\\s\sh');
+  TestPathConvertSuperToNormal('\\?\GLOBALROOT\Device\HarddiskVolume1\x', '\\?\GLOBALROOT\Device\HarddiskVolume1\x');
   TestPathConvertSuperToNormal('C:\x', 'C:\x');
   TestPathConvertSuperToNormal('\\s\sh', '\\s\sh');
   TestPathConvertSuperToNormal('', '');
