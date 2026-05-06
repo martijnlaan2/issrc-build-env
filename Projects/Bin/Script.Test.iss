@@ -1096,14 +1096,19 @@ end;
 
 procedure Test_IfElse;
 var
-  I: Integer;
+  VTrue, VFalse: Boolean;
+  I, J: Integer;
 begin
-  { Basic if/then/else }
-  if True then I := 1 else I := 2;
-  CheckEqualsInt64(1, I);
+  VTrue := True;
+  VFalse := False;
 
-  if False then I := 10 else I := 20;
-  CheckEqualsInt64(20, I);
+  { Basic if/then/else }
+  if True then I := 1 else I := 0;
+  CheckEqualsInt64(1, I);
+  if VTrue then I := 1 else I := 0;
+  CheckEqualsInt64(1, I);
+  if False or VFalse then I := 1 else I := 0; {$NOWARN}
+  CheckEqualsInt64(0, I);
 
   { Dangling else binds to nearest if }
   I := 0;
@@ -1124,6 +1129,19 @@ begin
   else
     I := 3;
   CheckEqualsInt64(3, I);
+
+  { Redundant parentheses }
+  if (VTrue) then I := 1 else I := 0;
+  CheckEqualsInt64(1, I);
+  if ((VTrue)) then I := 1 else I := 0;
+  CheckEqualsInt64(1, I);
+  if (not (VFalse)) then I := 1 else I := 0;
+  CheckEqualsInt64(1, I);
+  J := 5;
+  if (J > 3) then I := 1 else I := 0;
+  CheckEqualsInt64(1, I);
+  if ((J > 3)) then I := 1 else I := 0;
+  CheckEqualsInt64(1, I);
 end;
 
 procedure Test_WhileLoop;
