@@ -32,6 +32,38 @@ var
     'procedure GetWindowsVersionEx(var Version: TWindowsVersion);'
   ];
 
+  { Internal, used only by Script.Test.iss }
+  TestInnerfuseScriptFuncTable: TScriptTable =
+  [
+    'function TestInnerfuse_EchoSingle(Value: Single): Single;',
+    'function TestInnerfuse_EchoDouble(Value: Double): Double;',
+    'function TestInnerfuse_EchoExtended(Value: Extended): Extended;',
+    'function TestInnerfuse_EchoCurrency(Value: Currency): Currency;',
+    'function TestInnerfuse_EchoInt64(Value: Int64): Int64;',
+    'function TestInnerfuse_EchoSmallRec(Value: TTestInnerfuseSmallRec): TTestInnerfuseSmallRec;',
+    'function TestInnerfuse_EchoLargeRec(Value: TTestInnerfuseLargeRec): TTestInnerfuseLargeRec;',
+    'function TestInnerfuse_EchoPAnsiChar(Value: PAnsiChar): String;',
+    'function TestInnerfuse_EchoSingleStdCall(Value: Single): Single;',
+    'function TestInnerfuse_EchoDoubleStdCall(Value: Double): Double;',
+    'function TestInnerfuse_EchoExtendedStdCall(Value: Extended): Extended;',
+    'function TestInnerfuse_EchoCurrencyStdCall(Value: Currency): Currency;',
+    'function TestInnerfuse_EchoInt64StdCall(Value: Int64): Int64;',
+    'function TestInnerfuse_EchoSmallRecStdCall(Value: TTestInnerfuseSmallRec): TTestInnerfuseSmallRec;',
+    'function TestInnerfuse_EchoLargeRecStdCall(const Value: TTestInnerfuseLargeRec): TTestInnerfuseLargeRec;',
+    'function TestInnerfuse_MixedFloats(A: Single; B: Double; C: Single): Double;',
+    'function TestInnerfuse_SixParams(A, B, C, D, E, F: Integer): Int64;',
+    'function TestInnerfuse_SixParamsStdCall(A, B, C, D, E, F: Integer): Int64;',
+    'function TestInnerfuse_OpenArray(const Values: array of Integer): Integer;',
+    'function TestInnerfuse_EchoIntegerSafeCall(Value: Integer): Integer;',
+    'procedure TestInnerfuse_RaiseExceptionSafeCall;',
+    'procedure TestInnerfuse_RaiseException;',
+    'procedure TestCreateCallback_Invoke0(Callback: NativeInt);',
+    'procedure TestCreateCallback_Invoke5(Callback: NativeInt; const S: String; A, B, C, D: Integer);',
+    'procedure TestCreateCallback_InvokeFloat4(Callback: NativeInt; A, B, C: Integer; D: Double);',
+    'function TestCreateCallback_InvokeReturnInteger(Callback: NativeInt; A, B: Integer): Integer;',
+    'function TestCreateCallback_InvokeReturnDouble(Callback: NativeInt; A, B: Integer): Double;'
+  ];
+
 {$IFDEF ISIDEPROJ}
 
   { These are just for ISIDE and should not be used by ISCmplr or Setup because

@@ -53,6 +53,18 @@ type
     SuiteMask: Word;
   end;
 
+  { Must keep this in synch with Compiler.ScriptFunc.pas - Internal, used only by Script.Test.iss }
+  TTestInnerfuseSmallRec = packed record
+    A: Byte;
+    B: Byte;
+  end;
+
+  { Must keep this in synch with Compiler.ScriptFunc.pas - Internal, used only by Script.Test.iss }
+  TTestInnerfuseLargeRec = packed record
+    A: Integer;
+    B: String;
+  end;
+
 var
   OrigScaleBaseUnitX, OrigScaleBaseUnitY: Integer;
   ScaleBaseUnitX, ScaleBaseUnitY: Integer;
@@ -97,6 +109,35 @@ function SaveStringsToFile(const FileName: String; const Stack: TPSStack;
   const ItemNo: Longint; Append, UTF8, UTF8WithoutBOM: Boolean): Boolean;
 function GetShortName(const LongName: String): String;
 function CreateCallback(const Caller: TPSExec; const P: PPSVariantProcPtr): NativeInt;
+
+{ Internal, used only by Script.Test.iss }
+function TestInnerfuse_EchoSingle(Value: Single): Single;
+function TestInnerfuse_EchoDouble(Value: Double): Double;
+function TestInnerfuse_EchoExtended(Value: Extended): Extended;
+function TestInnerfuse_EchoCurrency(Value: Currency): Currency;
+function TestInnerfuse_EchoInt64(Value: Int64): Int64;
+function TestInnerfuse_EchoSmallRec(Value: TTestInnerfuseSmallRec): TTestInnerfuseSmallRec;
+function TestInnerfuse_EchoLargeRec(Value: TTestInnerfuseLargeRec): TTestInnerfuseLargeRec;
+function TestInnerfuse_EchoPAnsiChar(Value: PAnsiChar): String;
+function TestInnerfuse_EchoSingleStdCall(Value: Single): Single; stdcall;
+function TestInnerfuse_EchoDoubleStdCall(Value: Double): Double; stdcall;
+function TestInnerfuse_EchoExtendedStdCall(Value: Extended): Extended; stdcall;
+function TestInnerfuse_EchoCurrencyStdCall(Value: Currency): Currency; stdcall;
+function TestInnerfuse_EchoInt64StdCall(Value: Int64): Int64; stdcall;
+function TestInnerfuse_EchoSmallRecStdCall(Value: TTestInnerfuseSmallRec): TTestInnerfuseSmallRec; stdcall;
+function TestInnerfuse_EchoLargeRecStdCall(const Value: TTestInnerfuseLargeRec): TTestInnerfuseLargeRec; stdcall;
+function TestInnerfuse_MixedFloats(A: Single; B: Double; C: Single): Double;
+function TestInnerfuse_SixParams(A, B, C, D, E, F: Integer): Int64;
+function TestInnerfuse_SixParamsStdCall(A, B, C, D, E, F: Integer): Int64; stdcall;
+function TestInnerfuse_OpenArray(const Values: array of Integer): Integer;
+function TestInnerfuse_EchoIntegerSafeCall(Value: Integer): Integer; safecall;
+procedure TestInnerfuse_RaiseExceptionSafeCall; safecall;
+procedure TestInnerfuse_RaiseException;
+procedure TestCreateCallback_Invoke0(Callback: NativeInt);
+procedure TestCreateCallback_Invoke5(Callback: NativeInt; const S: String; A, B, C, D: Integer);
+procedure TestCreateCallback_InvokeFloat4(Callback: NativeInt; A, B, C: Integer; D: Double);
+function TestCreateCallback_InvokeReturnInteger(Callback: NativeInt; A, B: Integer): Integer;
+function TestCreateCallback_InvokeReturnDouble(Callback: NativeInt; A, B: Integer): Double;
 
 implementation
 
@@ -695,7 +736,11 @@ begin
     var SwapFirst := 2;
     var SwapLast := ParamCount-1;
 
-    //Reverse the order of parameters from param3 onwards in the stack
+    { Reverse the order of parameters from param3 onwards in the stack
+      Limitation: this reversal code treats every parameter as a single
+      4-byte stack slot. So on x86 CreateCallback does not support
+      callback parameters passed by value when their type is larger than
+      4 bytes (Int64, UInt64, Double, Extended, Currency). }
     while SwapLast > SwapFirst do begin
       Inliner.Mov(ECX, Inliner.Addr(ESP, SwapFirst * 4)); //load the first item of the pair
       Inliner.Mov(EDX, Inliner.Addr(ESP, SwapLast * 4)); //load the last item of the pair
@@ -796,6 +841,152 @@ begin
   finally
     Inliner.Free;
   end;
+end;
+
+function TestInnerfuse_EchoSingle(Value: Single): Single;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_EchoDouble(Value: Double): Double;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_EchoExtended(Value: Extended): Extended;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_EchoCurrency(Value: Currency): Currency;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_EchoInt64(Value: Int64): Int64;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_EchoSmallRec(Value: TTestInnerfuseSmallRec): TTestInnerfuseSmallRec;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_EchoLargeRec(Value: TTestInnerfuseLargeRec): TTestInnerfuseLargeRec;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_EchoPAnsiChar(Value: PAnsiChar): String;
+begin
+  Result := String(AnsiString(Value));
+end;
+
+function TestInnerfuse_EchoSingleStdCall(Value: Single): Single; stdcall;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_EchoDoubleStdCall(Value: Double): Double; stdcall;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_EchoExtendedStdCall(Value: Extended): Extended; stdcall;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_EchoCurrencyStdCall(Value: Currency): Currency; stdcall;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_EchoInt64StdCall(Value: Int64): Int64; stdcall;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_EchoSmallRecStdCall(Value: TTestInnerfuseSmallRec): TTestInnerfuseSmallRec; stdcall;
+begin
+  Result := Value;
+end;
+
+{ const: ROPS pushes a pointer for large records, which only matches Delphi's
+  stdcall when the parameter is const/var (passed by reference) }
+function TestInnerfuse_EchoLargeRecStdCall(const Value: TTestInnerfuseLargeRec): TTestInnerfuseLargeRec; stdcall;
+begin
+  Result := Value;
+end;
+
+function TestInnerfuse_MixedFloats(A: Single; B: Double; C: Single): Double;
+begin
+  Result := A + B + C;
+end;
+
+function TestInnerfuse_SixParams(A, B, C, D, E, F: Integer): Int64;
+begin
+  Result := Int64(A) + B + C + D + E + F;
+end;
+
+function TestInnerfuse_SixParamsStdCall(A, B, C, D, E, F: Integer): Int64; stdcall;
+begin
+  Result := Int64(A) + B + C + D + E + F;
+end;
+
+function TestInnerfuse_OpenArray(const Values: array of Integer): Integer;
+begin
+  Result := 0;
+  for var Value in Values do
+    Inc(Result, Value);
+end;
+
+function TestInnerfuse_EchoIntegerSafeCall(Value: Integer): Integer; safecall;
+begin
+  Result := Value;
+end;
+
+procedure TestInnerfuse_RaiseExceptionSafeCall; safecall;
+begin
+  raise Exception.Create('SafeCall test exception');
+end;
+
+procedure TestInnerfuse_RaiseException;
+begin
+  raise Exception.Create('InnerfuseCall test exception');
+end;
+
+type
+  TStdCallProc0 = procedure; stdcall;
+  TStdCallProc5 = procedure(S: String; A, B, C, D: Integer); stdcall;
+  TStdCallProcFloat4 = procedure(A, B, C: Integer; D: Double); stdcall;
+  TStdCallFuncReturnInteger = function(A, B: Integer): Integer; stdcall;
+  TStdCallFuncReturnDouble = function(A, B: Integer): Double; stdcall;
+
+procedure TestCreateCallback_Invoke0(Callback: NativeInt);
+begin
+  TStdCallProc0(Callback)();
+end;
+
+procedure TestCreateCallback_Invoke5(Callback: NativeInt; const S: String; A, B, C, D: Integer);
+begin
+  TStdCallProc5(Callback)(S, A, B, C, D);
+end;
+
+procedure TestCreateCallback_InvokeFloat4(Callback: NativeInt; A, B, C: Integer; D: Double);
+begin
+  TStdCallProcFloat4(Callback)(A, B, C, D);
+end;
+
+function TestCreateCallback_InvokeReturnInteger(Callback: NativeInt; A, B: Integer): Integer;
+begin
+  Result := TStdCallFuncReturnInteger(Callback)(A, B);
+end;
+
+function TestCreateCallback_InvokeReturnDouble(Callback: NativeInt; A, B: Integer): Double;
+begin
+  Result := TStdCallFuncReturnDouble(Callback)(A, B);
 end;
 
 end.

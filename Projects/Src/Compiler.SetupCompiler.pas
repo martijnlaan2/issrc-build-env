@@ -279,7 +279,7 @@ type
     procedure CodeCompilerOnUsedLine(const Filename: String; const Line: Integer; const Position: Cardinal; const IsProcExit: Boolean);
     procedure CodeCompilerOnUsedVariable(const Filename: String; const Line, Col, Param1, Param2, Param3: Integer; const Param4: AnsiString);
     procedure CodeCompilerOnError(const Msg: String; const ErrorFilename: String; const ErrorLine: Integer);
-    procedure CodeCompilerOnWarning(const Msg: String);
+    procedure CodeCompilerOnWarning(const Msg: String; const Line: Integer);
     procedure CompileCode;
     function FilenameToFileIndex(const AFileName: String): Integer;
     procedure ReadTextFile(const Filename: String; const LangIndex: Integer; var Text: AnsiString);
@@ -344,6 +344,7 @@ type
   public
     FileName: String;
     FileLineNumber: Integer;
+    SuppressWarnings: Boolean;
   end;
 
   TSignTool = class
@@ -6751,6 +6752,7 @@ begin
   CodeTextLineInfo := TLineInfo.Create;
   CodeTextLineInfo.Filename := LineFilename;
   CodeTextLineInfo.FileLineNumber := LineNumber;
+  CodeTextLineInfo.SuppressWarnings := Pos('{$NOWARN}', UpperCase(Line)) <> 0;
   CodeText.AddObject(Line, CodeTextLineInfo);
 end;
 
@@ -6817,8 +6819,11 @@ begin
   AbortCompile(Msg);
 end;
 
-procedure TSetupCompiler.CodeCompilerOnWarning(const Msg: String);
+procedure TSetupCompiler.CodeCompilerOnWarning(const Msg: String; const Line: Integer);
 begin
+  if (Line > 0) and (Line <= CodeText.Count) and
+     TLineInfo(CodeText.Objects[Line-1]).SuppressWarnings then
+    Exit;
   WarningsList.Add(Msg);
 end;
 

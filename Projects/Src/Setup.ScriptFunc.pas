@@ -48,6 +48,8 @@ type
 
   TScriptFuncs = TDictionary<AnsiString, TScriptFuncEx>;
 
+  TTestPSStackHelperProc = function(Value: Integer): Integer of object; { Internal, used only by Script.Test.iss }
+
 var
   ScriptFuncs: TScriptFuncs;
 
@@ -2030,9 +2032,10 @@ var
     end);
   end;
 
-  procedure RegisterDelphiFunction(ProcPtr: Pointer; const Name: AnsiString);
+  procedure RegisterDelphiFunction(ProcPtr: Pointer; const Name: AnsiString;
+    const CC: TPSCallingConvention = cdRegister);
   begin
-    ScriptInterpreter.RegisterDelphiFunction(ProcPtr, Name, cdRegister);
+    ScriptInterpreter.RegisterDelphiFunction(ProcPtr, Name, CC);
     {$IFDEF DEBUG}
     Inc(Count);
     {$ENDIF}
@@ -2088,6 +2091,53 @@ begin
   if Count <> Length(DelphiScriptFuncTable) then
     raise Exception.Create('Count <> Length(DelphiScriptFuncTable)');
   {$ENDIF}
+
+  { The following should register all functions in TestInnerfuseScriptFuncTable
+    Internal, used only by Script.Test.iss }
+  {$IFDEF DEBUG}
+  Count := 0;
+  {$ENDIF}
+  RegisterDelphiFunction(@TestInnerfuse_EchoSingle, 'TestInnerfuse_EchoSingle');
+  RegisterDelphiFunction(@TestInnerfuse_EchoDouble, 'TestInnerfuse_EchoDouble');
+  RegisterDelphiFunction(@TestInnerfuse_EchoExtended, 'TestInnerfuse_EchoExtended');
+  RegisterDelphiFunction(@TestInnerfuse_EchoCurrency, 'TestInnerfuse_EchoCurrency');
+  RegisterDelphiFunction(@TestInnerfuse_EchoInt64, 'TestInnerfuse_EchoInt64');
+  RegisterDelphiFunction(@TestInnerfuse_EchoSmallRec, 'TestInnerfuse_EchoSmallRec');
+  RegisterDelphiFunction(@TestInnerfuse_EchoLargeRec, 'TestInnerfuse_EchoLargeRec');
+  RegisterDelphiFunction(@TestInnerfuse_EchoPAnsiChar, 'TestInnerfuse_EchoPAnsiChar');
+  RegisterDelphiFunction(@TestInnerfuse_EchoSingleStdCall, 'TestInnerfuse_EchoSingleStdCall', cdStdCall);
+  RegisterDelphiFunction(@TestInnerfuse_EchoDoubleStdCall, 'TestInnerfuse_EchoDoubleStdCall', cdStdCall);
+  RegisterDelphiFunction(@TestInnerfuse_EchoExtendedStdCall, 'TestInnerfuse_EchoExtendedStdCall', cdStdCall);
+  RegisterDelphiFunction(@TestInnerfuse_EchoCurrencyStdCall, 'TestInnerfuse_EchoCurrencyStdCall', cdStdCall);
+  RegisterDelphiFunction(@TestInnerfuse_EchoInt64StdCall, 'TestInnerfuse_EchoInt64StdCall', cdStdCall);
+  RegisterDelphiFunction(@TestInnerfuse_EchoSmallRecStdCall, 'TestInnerfuse_EchoSmallRecStdCall', cdStdCall);
+  RegisterDelphiFunction(@TestInnerfuse_EchoLargeRecStdCall, 'TestInnerfuse_EchoLargeRecStdCall', cdStdCall);
+  RegisterDelphiFunction(@TestInnerfuse_MixedFloats, 'TestInnerfuse_MixedFloats');
+  RegisterDelphiFunction(@TestInnerfuse_SixParams, 'TestInnerfuse_SixParams');
+  RegisterDelphiFunction(@TestInnerfuse_SixParamsStdCall, 'TestInnerfuse_SixParamsStdCall', cdStdCall);
+  RegisterDelphiFunction(@TestInnerfuse_OpenArray, 'TestInnerfuse_OpenArray');
+  RegisterDelphiFunction(@TestInnerfuse_EchoIntegerSafeCall, 'TestInnerfuse_EchoIntegerSafeCall', cdSafeCall);
+  RegisterDelphiFunction(@TestInnerfuse_RaiseExceptionSafeCall, 'TestInnerfuse_RaiseExceptionSafeCall', cdSafeCall);
+  RegisterDelphiFunction(@TestInnerfuse_RaiseException, 'TestInnerfuse_RaiseException');
+  RegisterDelphiFunction(@TestCreateCallback_Invoke0, 'TestCreateCallback_Invoke0');
+  RegisterDelphiFunction(@TestCreateCallback_Invoke5, 'TestCreateCallback_Invoke5');
+  RegisterDelphiFunction(@TestCreateCallback_InvokeFloat4, 'TestCreateCallback_InvokeFloat4');
+  RegisterDelphiFunction(@TestCreateCallback_InvokeReturnInteger, 'TestCreateCallback_InvokeReturnInteger');
+  RegisterDelphiFunction(@TestCreateCallback_InvokeReturnDouble, 'TestCreateCallback_InvokeReturnDouble');
+  {$IFDEF DEBUG}
+  if Count <> Length(TestInnerfuseScriptFuncTable) then
+    raise Exception.Create('Count <> Length(TestInnerfuseScriptFuncTable)');
+  {$ENDIF}
+
+  { Internal, used only by Script.Test.iss }
+  RegisterScriptFunc('TestPSStackHelper_InvokeCallback', procedure(const Caller: TPSExec; const OrgName: AnsiString; const Stack: TPSStack; const PStart: Integer)
+  begin
+    var Method := Stack.GetProc(PStart-1, Caller);
+    if Method.Code <> nil then
+      Stack.SetInt(PStart, TTestPSStackHelperProc(Method)(Stack.GetInt(PStart-2)))
+    else
+      Stack.SetInt(PStart, -1);
+  end);
 end;
 
 initialization

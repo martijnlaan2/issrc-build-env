@@ -67,6 +67,7 @@
 <keyword value="Pascal Scripting: Creating the [Code] Section" />
 <keyword value="[Code] section" />
 <keyword value="Code" />
+<keyword value="{$NOWARN}" />
 <body>
 
 <p>The <tt>[Code]</tt> section is an optional section that specifies a Pascal script. A Pascal script can be used to customize Setup or Uninstall in many ways. Note that creating a Pascal script is not easy and requires experience with Inno Setup and knowledge about programming in Pascal or at least a similar programming language.</p>
@@ -74,6 +75,8 @@
 <p>The <i>Code*.iss</i>, <i>UninstallCode*.iss</i>, and <i>AllPagesExample.iss</i> example scripts in the "Examples" subdirectory in your Inno Setup directory contain various example <tt>[Code]</tt> sections. Please study them carefully before trying to create your own Pascal script.</p>
 
 <p>Note: to learn more about the Pascal programming language you may find useful to refer to Marco Cant&#249;'s free Essential Pascal book. See <extlink href="http://www.marcocantu.com/epascal/">http://www.marcocantu.com/epascal/</extlink> and <extlink href="https://www.marcocantu.com/epascal/EssentialPascal.zip">https://www.marcocantu.com/epascal/EssentialPascal.zip</extlink>.</p>
+
+<p>To suppress compiler warnings for a line, include a <tt>{$NOWARN}</tt> marker anywhere on that line. It is recognized even inside comments.</p>
 
 </body>
 </topic>
