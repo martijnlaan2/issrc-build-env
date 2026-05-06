@@ -75,8 +75,11 @@ var
     'function StrToInt(S: String): LongInt;',
     'function StrToInt64Def(S: String; Def: Int64): Int64;',
     'function StrToInt64(S: String): Int64;',
+    'function StrToUInt64Def(S: String; Def: UInt64): UInt64;',
+    'function StrToUInt64(S: String): UInt64;',
     'function StrToFloat(S: String): Extended;',
     'function IntToStr(I: Int64): String;',
+    'function UIntToStr(I: UInt64): String;',
     'function FloatToStr(E: Extended): String;',
     'function Copy(S: AnyString; Index, Count: Integer): String;',
     'function Length(S: AnyString): LongInt;',
@@ -142,7 +145,8 @@ var
     'function ExceptionProc: Cardinal;',
     'function ExceptionPos: Cardinal;',
     'function ExceptionToString(er: TIFException; Param: String): String;',
-    'function Int64ToStr(I: Int64): String;'
+    'function Int64ToStr(I: Int64): String;',
+    'function UInt64ToStr(I: UInt64): String;'
   ]; }
 
 {$ENDIF}

@@ -1119,6 +1119,17 @@ end;
         <remarks><p>Use of <link topic="isxfunc_StrToInt64Def">StrToInt64Def</link> instead of StrToInt64 is recommended.</p></remarks>
       </function>
       <function>
+        <name>StrToUInt64Def</name>
+        <prototype>function StrToUInt64Def(S: String; Def: UInt64): UInt64;</prototype>
+        <description><p>The StrToUInt64Def function converts the string passed in S into an unsigned 64-bit number. If S does not represent a valid unsigned 64-bit number, StrToUInt64Def returns the unsigned 64-bit number passed in Def.</p></description>
+      </function>
+      <function>
+        <name>StrToUInt64</name>
+        <prototype>function StrToUInt64(S: String): UInt64;</prototype>
+        <description><p>The StrToUInt64 function converts the string passed in S into an unsigned 64-bit number. Raises an exception if not successful.</p></description>
+        <remarks><p>Use of <link topic="isxfunc_StrToUInt64Def">StrToUInt64Def</link> instead of StrToUInt64 is recommended.</p></remarks>
+      </function>
+      <function>
         <name>StrToFloat</name>
         <prototype>function StrToFloat(S: String): Extended;</prototype>
         <description><p>The StrToFloat function converts the string passed in S into a floating point number. The character used for the decimal point should always be a dot. Raises an exception if not successful.</p></description>
@@ -1132,6 +1143,11 @@ end;
         <name>IntToStr</name>
         <prototype>function IntToStr(I: Int64): String;</prototype>
         <description><p>The IntToStr function converts a 64-bit number into a string.</p></description>
+      </function>
+      <function>
+        <name>UIntToStr</name>
+        <prototype>function UIntToStr(I: UInt64): String;</prototype>
+        <description><p>The UIntToStr function converts an unsigned 64-bit number into a string.</p></description>
       </function>
       <function>
         <name>FloatToStr</name>
