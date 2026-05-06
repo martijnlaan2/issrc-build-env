@@ -96,10 +96,13 @@ procedure PathFuncRunTests;
     if PathExpand(S) <> ExpectedResult then
       raise Exception.Create('PathExpand test failed');
 
-    var PathExpandResult: String;
+    var PathExpandResult := 'unchanged';
     if PathExpand(S, PathExpandResult) <> ExpectedResultFromTwoParamOverload then
       raise Exception.Create('PathExpand test failed');
-    if ExpectedResultFromTwoParamOverload and (PathExpandResult <> ExpectedResult) then
+    if ExpectedResultFromTwoParamOverload then begin
+      if PathExpandResult <> ExpectedResult then
+        raise Exception.Create('PathExpand test failed');
+    end else if PathExpandResult <> '' then
       raise Exception.Create('PathExpand test failed');
   end;
 
@@ -148,6 +151,15 @@ procedure PathFuncRunTests;
       Result := 0;
   end;
 
+  procedure TestPathStrCompareWithLengths(const S1: String; const S1Length: Integer;
+    const S2: String; const S2Length: Integer; const IgnoreCase: Boolean;
+    const ExpectedSign: Integer);
+  begin
+    if CompareResultSign(PathStrCompare(PChar(S1), S1Length, PChar(S2),
+       S2Length, IgnoreCase)) <> ExpectedSign then
+      raise Exception.Create('PathStrCompare test failed');
+  end;
+
   procedure TestPathStrCompare(const S1, S2: String;
     const IgnoreCase: Boolean; const ExpectedSign: Integer;
     const UseNullTerminatedLengths: Boolean = False);
@@ -161,8 +173,16 @@ procedure PathFuncRunTests;
       S2Length := Length(S2);
     end;
 
-    if CompareResultSign(PathStrCompare(PChar(S1), S1Length, PChar(S2), S2Length, IgnoreCase)) <> ExpectedSign then
-      raise Exception.Create('PathStrCompare test failed');
+    TestPathStrCompareWithLengths(S1, S1Length, S2, S2Length, IgnoreCase, ExpectedSign);
+  end;
+
+  procedure TestPathStrFindWithLengths(const Source: String; const SourceLength: Integer;
+    const Value: String; const ValueLength: Integer; const IgnoreCase: Boolean;
+    const ExpectedIndex: Integer);
+  begin
+    if PathStrFind(PChar(Source), SourceLength, PChar(Value), ValueLength,
+       IgnoreCase) <> ExpectedIndex then
+      raise Exception.Create('PathStrFind test failed');
   end;
 
   procedure TestPathStrFind(const Source, Value: String;
@@ -178,8 +198,7 @@ procedure PathFuncRunTests;
       ValueLength := Length(Value);
     end;
 
-    if PathStrFind(PChar(Source), SourceLength, PChar(Value), ValueLength, IgnoreCase) <> ExpectedIndex then
-      raise Exception.Create('PathStrFind test failed');
+    TestPathStrFindWithLengths(Source, SourceLength, Value, ValueLength, IgnoreCase, ExpectedIndex);
   end;
 
   procedure TestPathStrNextChar(const S: String;
@@ -296,10 +315,13 @@ procedure PathFuncRunTests;
   procedure TestPathConvertNormalToSuper(const Filename, ExpectedSuper: String;
     const ExpectedResult: Boolean);
   begin
-    var SuperFilename: String;
+    var SuperFilename := 'unchanged';
     if PathConvertNormalToSuper(Filename, SuperFilename) <> ExpectedResult then
       raise Exception.Create('PathConvertNormalToSuper test failed');
-    if ExpectedResult and (SuperFilename <> ExpectedSuper) then
+    if ExpectedResult then begin
+      if SuperFilename <> ExpectedSuper then
+        raise Exception.Create('PathConvertNormalToSuper test failed');
+    end else if SuperFilename <> '' then
       raise Exception.Create('PathConvertNormalToSuper test failed');
   end;
 
@@ -379,6 +401,7 @@ begin
 
   TestPartLengths('', 0, 0, 0, 0);
   TestPartLengths('\', 0, 1, 1, 1);
+  TestPartLengths('/', 0, 1, 1, 1);
   TestPartLengths('\a', 0, 1, 1, 1);
   TestPartLengths('\a\', 0, 1, 2, 3);
   TestPartLengths('\a\b', 0, 1, 2, 3);
@@ -423,6 +446,8 @@ begin
   TestPartLengths('\\a\', 4, 4, 4, 4); {*}
   TestPartLengths('\\a\b', 5, 5, 5, 5);
   TestPartLengths('\\a\b\', 5, 5, 5, 6);
+  TestPartLengths('//a/b', 5, 5, 5, 5);
+  TestPartLengths('//a/b/', 5, 5, 5, 6);
   TestPartLengths('\\a\b\c', 5, 5, 5, 6);
   TestPartLengths('\\a\b\c\', 5, 5, 7, 8);
   TestPartLengths('\\a\b\c\d', 5, 5, 7, 8);
@@ -456,6 +481,7 @@ begin
 
   TestRemoveBackslashUnlessRoot('', '');
   TestRemoveBackslashUnlessRoot('\', '\');
+  TestRemoveBackslashUnlessRoot('/', '/');
   TestRemoveBackslashUnlessRoot('\\', '\\'); {*}
   TestRemoveBackslashUnlessRoot('\\\', '\\\'); {*}
   TestRemoveBackslashUnlessRoot('\\\\', '\\\\'); {*}
@@ -472,6 +498,7 @@ begin
   TestRemoveBackslashUnlessRoot('\\a\b', '\\a\b');
   TestRemoveBackslashUnlessRoot('\\a\b\', '\\a\b');
   TestRemoveBackslashUnlessRoot('\\a\b\\', '\\a\b');
+  TestRemoveBackslashUnlessRoot('//a/b/', '//a/b');
 
   TestPathChangeExt('c:', '.txt', 'c:.txt'); {*}  { weird, but same as Delphi's ChangeFileExt }
   TestPathChangeExt('c:\', '.txt', 'c:\.txt'); {*}
@@ -499,6 +526,7 @@ begin
   TestPathExtractExt('\\x.y\a.b\c', '');
   TestPathExtractExt('\\x.y\a.b\c.txt', '.txt');
 
+  TestPathCombine('', '', '');
   TestPathCombine('', 'x', 'x');
   TestPathCombine('a', 'x', 'a\x');
   TestPathCombine('a\', 'x', 'a\x');
@@ -517,6 +545,7 @@ begin
   TestPathCombine('c:\', 'e:x', 'e:x');
   TestPathCombine('c:\', 'e:\x', 'e:\x');
   TestPathCombine('c:\', '\x', '\x');
+  TestPathCombine('c:\', '/x', '/x');
   TestPathCombine('c:\', '\\a\b\c', '\\a\b\c');
   TestPathCombine('c:\', 'ee:x', 'c:\ee:x'); {**}
 
@@ -575,6 +604,7 @@ begin
   TestPathNormalizeSlashes('a/\b', 'a\b');
   TestPathNormalizeSlashes('a\\b', 'a\b');
   TestPathNormalizeSlashes('\\a\\\b', '\\a\b');
+  TestPathNormalizeSlashes('\\', '\\');
   TestPathNormalizeSlashes('a/b', 'a\b');
   TestPathNormalizeSlashes('a//b', 'a\b');
   TestPathNormalizeSlashes('///', '\\\'); { 3+ leading slash quirk preserved }
@@ -587,6 +617,7 @@ begin
   TestPathStrCompare('Test', 'Te', False, 1);
   TestPathStrCompare('Test', 'Tex', False, -1);
   TestPathStrCompare('Hello'+#0+'World', 'Hello', False, 0, True);
+  TestPathStrCompareWithLengths('Hello1', 5, 'Hello2', 5, False, 0);
   TestPathStrCompare('', '', True, 0);
 
   TestPathStrFind('abcABC', 'ABC', True, 0);
@@ -596,7 +627,10 @@ begin
   TestPathStrFind('abcABC', 'xyz', True, -1);
   TestPathStrFind('abc'+#0+'ABC', 'ABC', False, -1, True);
   TestPathStrFind('abc'+#0+'ABC', 'ABC', False, 4);
+  TestPathStrFindWithLengths('abcABCzzz', 9, 'ABCxxx', 3, False, 3);
+  TestPathStrFindWithLengths('abcABCxyz', 6, 'xyz', 3, False, -1);
   TestPathStrFind('abc', '', True, 0);
+  TestPathStrFind('', 'abc', True, -1);
 
   TestPathStrNextChar('A', 0, 1);
   TestPathStrNextChar('A', 1, 1);
@@ -609,6 +643,7 @@ begin
   TestAddBackslash('a', 'a\');
   TestAddBackslash('a\', 'a\');
   TestAddBackslash('a/', 'a/');
+  TestAddBackslash('\', '\');
 
   TestPathSame('abc', 'abc', True);
   TestPathSame('abc', 'ABC', True);
@@ -686,6 +721,7 @@ begin
   TestPathHasInvalidCharacters(' :stream', True, True);
   TestPathHasInvalidCharacters('\:stream', True, True);
   TestPathHasInvalidCharacters('C:\a:b', True, True);
+  TestPathHasInvalidCharacters(' ', False, True);
 
   TestPathComponentIsReservedName('', False);
   TestPathComponentIsReservedName('CON', True);
@@ -801,6 +837,7 @@ begin
 
   TestPathCharIsDriveLetter('a', True);
   TestPathCharIsDriveLetter('Z', True);
+  TestPathCharIsDriveLetter(Chr(Ord('a')-1), False);
   TestPathCharIsDriveLetter('1', False);
 end;
 
