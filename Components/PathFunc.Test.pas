@@ -581,7 +581,9 @@ begin
   TestPathExpand('...', AddBackslash(GetCurrentDir), True);
   TestPathExpand('.. ', AddBackslash(GetCurrentDir), True);
   TestPathExpand('NUL', '\\.\NUL', True);
+  {$IFDEF ISTESTTOOLPROJ}
   TestPathExpandFailure(StringOfChar('a', $8000));
+  {$ENDIF}
 
   TestPathExpandAndNormalizeSlashes('C:\abc\def', 'C:\abc\def');
   TestPathExpandAndNormalizeSlashes('C:\abc\def\', 'C:\abc\def\');
