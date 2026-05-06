@@ -1946,11 +1946,13 @@ begin
   end;
   CheckTrue(Caught);
 
-  { Float divide by zero }
+  { Float divide by zero: may raise an exception or produce INF,
+    depending on the floating-point exception mask }
   Caught := False;
   FloatDivisor := 0.0;
   try
     F := 5.0 / FloatDivisor;
+    Caught := FloatToStr(F) = 'INF';
   except
     Caught := True;
   end;
