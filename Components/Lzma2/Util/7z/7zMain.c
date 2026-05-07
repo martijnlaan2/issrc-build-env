@@ -9,7 +9,7 @@
    -Return res on errors instead of always returning 1
    -Add optional progress reporting with abort option
    -Add optional output of SzArEx_Extract's output buffer sizes
-   -Add support for overwriting read-only files
+   -Add support for overwriting read-only files by removing the read-only attribute instead of always deleting the file
    -Add option to disable terminal checking
    Otherwise unchanged */
 
@@ -456,6 +456,8 @@ void NormalizePath_for_FS(UInt16 *dest, UInt16 *s, BoolInt isDir)
   #define MY_FILE_CODE_PAGE_PARAM
 #endif
 
+#ifndef NO_DELETEFILEALWAYS
+
 #ifdef USE_WINDOWS_FILE
 
 static WRes My_DeleteFileAlways(const UInt16 *path)
@@ -485,6 +487,8 @@ static WRes My_DeleteFileAlways(const UInt16 *path)
   Buf_Free(&buf, &g_Alloc);
   return res;
 }
+
+#endif
 
 #endif
 
@@ -1151,6 +1155,15 @@ int Z7_CDECL mainW(int numargs, WCHAR *args[])
           }
           else
           {
+            #ifdef NO_DELETEFILEALWAYS
+            #ifdef USE_WINDOWS_FILE
+            {
+              const UInt32 existingattrib = GetFileAttributesW((LPCWSTR)destPath);
+              if (existingattrib != INVALID_FILE_ATTRIBUTES && (existingattrib & FILE_ATTRIBUTE_READONLY))
+                SetFileAttributesW((LPCWSTR)destPath, existingattrib & ~FILE_ATTRIBUTE_READONLY);
+            }
+            #endif
+            #else
             {
               // const WRes wres =
               My_DeleteFileAlways(destPath);
@@ -1163,6 +1176,7 @@ int Z7_CDECL mainW(int numargs, WCHAR *args[])
               }
               */
             }
+            #endif
             {
               const WRes wres = OutFile_OpenUtf16(&outFile, destPath);
               if (wres)

@@ -92,6 +92,7 @@ int _fputs(char const* str, FILE* stream);
 #define REPORT_OUTBUFFERSIZE
 #define REPORT_PROGRESS
 #define NO_TERMINAL_CHECK
+#define NO_DELETEFILEALWAYS
 
 #include "../../../../Components/Lzma2/Util/7z/7zMain.c"
 
