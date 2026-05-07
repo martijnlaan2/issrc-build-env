@@ -6011,6 +6011,7 @@ WizardBackImageOpacity=150
 Otherwise, if <link topic="setup_wizardimagefile">WizardImageFile</link> specifies a blank value, then this directive also defaults to <tt>none</tt>.<br/>
 Otherwise, if a custom wizard image is used, then this directive defaults to <tt>window</tt>.<br/>
 Otherwise, if custom style <tt>slate</tt> is used then this directive defaults to <tt>#bcd2e2</tt> (light grayish blue).<br/>
+Otherwise, if custom style <tt>stellar</tt> is used then this directive defaults to <tt>#a7c0e2</tt> (light steel blue).<br/>
 Otherwise, if custom style <tt>zircon</tt> is used then this directive defaults to <tt>#d0eaee</tt> (light grayish cyan).<br/>
 Otherwise, if forced dark mode is used then this directive defaults to <tt>#2e3a3f</tt> (very dark grayish blue).<br/>
 Otherwise, it defaults to <tt>#e8f3f9</tt> (light grayish blue).</p>
@@ -6166,7 +6167,7 @@ WizardBackImageOpacity=150</pre></example>
 <setuptopic directive="WizardStyle">
 <keyword value="Dark mode" />
 <keyword value="Custom style" />
-<setupvalid>One or more of the following, separated by spaces: <br/><tt>classic</tt> <tt>modern</tt><br/><tt>light</tt> <tt>dark</tt> <tt>dynamic</tt><br/><tt>polar</tt> <tt>slate</tt> <tt>windows11</tt> <tt>zircon</tt><br/><tt>excludelightbuttons</tt> <tt>excludelightcontrols</tt><br/><tt>hidebevels</tt><br/><tt>includetitlebar</tt></setupvalid>
+<setupvalid>One or more of the following, separated by spaces: <br/><tt>classic</tt> <tt>modern</tt><br/><tt>light</tt> <tt>dark</tt> <tt>dynamic</tt><br/><tt>polar</tt> <tt>slate</tt> <tt>stellar</tt> <tt>windows11</tt> <tt>zircon</tt><br/><tt>excludelightbuttons</tt> <tt>excludelightcontrols</tt><br/><tt>hidebevels</tt><br/><tt>includetitlebar</tt></setupvalid>
 <setupdefault><tt>classic</tt></setupdefault>
 <body>
 <p>This directive controls the visual style and appearance of Setup and Uninstall.</p>
@@ -6185,6 +6186,7 @@ WizardBackImageOpacity=150</pre></example>
 <ul>
 <li><tt>polar</tt>: Uses light blue instead of gray or white for the light appearance, and dark blue instead of black for the dark appearance.</li>
 <li><tt>slate</tt>: Uses medium gray for both the light and dark appearances.</li>
+<li><tt>stellar</tt>: Alternative light-only style with white foreground text, ideally suited to be combined with a <link topic="setup_wizardbackcolor">custom darker background</link> color or <link topic="setup_wizardbackimagefile">image</link>.</li>
 <li><tt>windows11</tt>: Enables a light counterpart of the built-in dark style.</li>
 <li><tt>zircon</tt>: Alternative light-only style with cyan accents.</li>
 </ul>
@@ -6245,6 +6247,8 @@ WizardBackImageOpacity=150</pre></example>
 <p><tt>modern dark polar</tt><br/><br/><img src="wizardstyle-modern-dark-polar.png"/></p>
 <p><tt>modern slate</tt><br/><br/><img src="wizardstyle-modern-slate.png"/></p>
 <p><tt>modern slate includetitlebar</tt><br/><br/><img src="wizardstyle-modern-slate-includetitlebar.png"/></p>
+<p><tt>modern stellar</tt><br/><br/><img src="wizardstyle-modern-stellar.png"/></p>
+<p><tt>modern stellar includetitlebar</tt><br/><br/><img src="wizardstyle-modern-stellar-includetitlebar.png"/></p>
 <p><tt>modern zircon</tt><br/><br/><img src="wizardstyle-modern-zircon.png"/></p>
 <p><tt>modern zircon includetitlebar</tt><br/><br/><img src="wizardstyle-modern-zircon-includetitlebar.png"/></p>
 <p><b>See also:</b><br/>
@@ -6262,7 +6266,7 @@ WizardBackImageOpacity=150</pre></example>
 <p>This directive specifies a custom VCL Styles file (.vsf) to be used. It is recommended to use only styles that support high DPI.</p>
 <p>When using <link topic="setup_wizardstyle">WizardStyle</link> with <tt>light</tt> or <tt>dynamic</tt> mode, the specified style should always use a light color theme (such as predominantly white or in other light colors). When using <tt>dark</tt>, use a dark color theme (such as predominantly black or in other dark colors).</p>
 <p>Using a custom style file increases the size of Setup, except when using <tt>dark</tt> mode and a style file that is smaller than the built-in one, which is 199 KB before compression.</p>
-<p>Can also be set to <tt>builtin:polar</tt>, <tt>builtin:slate</tt>, or <tt>builtin:zircon</tt> to use one of the built-in custom styles. See <link topic="setup_wizardstyle">WizardStyle</link> for more information.</p>
+<p>Can also be set to <tt>builtin:polar</tt>, <tt>builtin:slate</tt>, <tt>builtin:stellar</tt>, or <tt>builtin:zircon</tt> to use one of the built-in custom styles. See <link topic="setup_wizardstyle">WizardStyle</link> for more information.</p>
 <p>VCL Styles files can be downloaded from sources such as <extlink href="https://getitnow.embarcadero.com/category/styles">GetIt</extlink> (free if 'Subscription' says 'Not Required', requires a Delphi installation to download, which may be a Community Edition for the free styles), and from <extlink href="https://www.delphistyles.com/vcl">DelphiStyles</extlink> (not free).</p>
 <p>FireMonkey (FMX) Styles files are not supported.</p>
 <p><b>See also:</b><br/>

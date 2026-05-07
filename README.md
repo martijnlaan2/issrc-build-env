@@ -313,6 +313,7 @@ cd /d "%BDSCOMMONDIR%"
   Styles\Windows11_Modern_Light.vsf ^
   Styles\Windows11_Polar_Dark.vsf ^
   Styles\Windows11_Polar_Light.vsf ^
+  Styles\Stellar.vsf ^
   Styles\Zircon.vsf
 ```
 

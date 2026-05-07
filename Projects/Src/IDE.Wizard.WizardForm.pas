@@ -2,7 +2,7 @@ unit IDE.Wizard.WizardForm;
 
 {
   Inno Setup
-  Copyright (C) 1997-2025 Jordan Russell
+  Copyright (C) 1997-2026 Jordan Russell
   Portions by Martijn Laan
   For conditions of distribution and use, see LICENSE.TXT.
 
@@ -865,7 +865,7 @@ end;
 
 procedure TWizardForm.WizardStyleComboBoxChange(Sender: TObject);
 begin
-  if (WizardStyleDarkComboBox.Text <> 'light') and ((WizardStyleSubStyleComboBox.Text = 'slate') or (WizardStyleSubStyleComboBox.Text = 'zircon')) then
+  if (WizardStyleDarkComboBox.Text <> 'light') and ((WizardStyleSubStyleComboBox.Text = 'slate') or (WizardStyleSubStyleComboBox.Text = 'stellar') or (WizardStyleSubStyleComboBox.Text = 'zircon')) then
     WizardStyleDarkComboBox.ItemIndex := WizardStyleDarkComboBox.Items.IndexOf('light');
   UpdateWizardStyleImages;
 end;

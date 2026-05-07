@@ -168,6 +168,11 @@ For conditions of distribution and use, see <a href="files/is/license.txt">LICEN
   </li>
   <li><tt>[Setup]</tt> section:
   <ul>
+    <li>A new custom style is now available built-in and directly supported by the <tt>WizardStyle</tt> directive: <tt>stellar</tt>. <tt>stellar</tt> is an alternative light-only style with white foreground text, ideally suited to be combined with a <a href="https://jrsoftware.org/ishelp/index.php?topic=setup_wizardbackcolor">custom darker background</a> color or <a href="https://jrsoftware.org/ishelp/index.php?topic=setup_wizardbackimagefile">image</a>. For example:
+        <pre><code class="innosetup"><span class="key">WizardStyle</span>=modern stellar excludelightcontrols</code></pre>
+        <a href="https://jrsoftware.org/images/is-welcome-stellar-org-150.png">Example screenshot of Setup using the Stellar style, at 150% DPI</a>.<br/>
+        <a href="https://jrsoftware.org/images/is-welcome-stellar-backimage-org-150.png">Example screenshot of Setup using the Stellar style, a custom background image, and the <tt>excludelightcontrols</tt> modifier, at 150% DPI</a>.<br/>
+    </li>
     <li>Directive <tt>AppVerName</tt> now defaults to <tt><i>AppName</i> <i>AppVersion</i></tt> (just a space separating the values) rather than <tt><i>AppName</i> version <i>AppVersion</i></tt> (localized).<br/>
         If you prefer to keep the word "version" (localized), use the <tt>NameAndVersion</tt> custom message: <tt>AppVerName={cm:NameAndVersion,My Program,1.5}</tt></li>
     <li>Directive <tt>ArchiveExtraction</tt> can now also be set to <tt>auto</tt>, the new default, which automatically selects the appropriate method based on entries in the <tt>[Files]</tt> section.<br/>
