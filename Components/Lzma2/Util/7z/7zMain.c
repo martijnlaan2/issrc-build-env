@@ -10,6 +10,7 @@
    -Add optional progress reporting with abort option
    -Add optional output of SzArEx_Extract's output buffer sizes
    -Add support for overwriting read-only files
+   -Add option to disable terminal checking
    Otherwise unchanged */
 
 #include "Precomp.h"
@@ -35,12 +36,14 @@
 #endif
 #endif
 
+#ifndef NO_TERMINAL_CHECK
 #ifdef _WIN32
 // for _isatty()
 #include "../../7zWindows.h"
 #include <io.h>
 #else
 #include <unistd.h> // for isatty()
+#endif
 #endif
 
 #include "../../7z.h"
@@ -66,6 +69,9 @@ static void Print(const char *s)
 }
 
 
+#ifdef NO_TERMINAL_CHECK
+#define MY_IS_TERMINAL(x) False
+#else
 static Z7_FORCE_INLINE BoolInt MY_IS_TERMINAL(FILE *x)
 {
 #ifdef _WIN32
@@ -84,6 +90,7 @@ static Z7_FORCE_INLINE BoolInt MY_IS_TERMINAL(FILE *x)
   return isatty(fileno(x)) != 0;
 #endif
 }
+#endif
 
 static int Buf_EnsureSize(CBuf *dest, size_t size)
 {
