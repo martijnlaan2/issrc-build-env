@@ -66,6 +66,7 @@ uses
 var
   Options: record
     Quiet: Boolean;
+    Wine: Boolean;
   end;
 
   StdOutHandle, StdErrHandle: THandle;
@@ -131,6 +132,7 @@ begin
   PrintErrOutput('Usage:  istesttool [options] [<test-script-filename>]');
   PrintErrOutput('Options:');
   PrintErrOutput('  --quiet, -q Suppresses status messages that are normally printed to standard output');
+  PrintErrOutput('  --wine      Skips tests known to fail on Wine');
   PrintErrOutput('  --help, -?  Prints this information');
   PrintErrOutput('');
 end;
@@ -339,7 +341,7 @@ begin
     ISSigFuncRunTests;
     MD5RunTests;
     ModernColorsRunTests;
-    PathFuncRunTests;
+    PathFuncRunTests(not Options.Wine);
     PBKDF2RunTests;
     SetupPathRedirRunTests;
     SHA1RunTests;
@@ -382,6 +384,8 @@ begin
           Exit;
         end else if (S = '--quiet') or (S = '-q') then begin
           Options.Quiet := True;
+        end else if S = '--wine' then begin
+          Options.Wine := True;
         end else
           RaiseFatalErrorFmt('Unknown option "%s"', [S]);
         ArgList.Delete(J);

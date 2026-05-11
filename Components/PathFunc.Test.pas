@@ -13,14 +13,14 @@ unit PathFunc.Test;
 
 interface
 
-procedure PathFuncRunTests;
+procedure PathFuncRunTests(const IncludeWineIncompatibleTests: Boolean);
 
 implementation
 
 uses
   Windows, SysUtils, PathFunc;
 
-procedure PathFuncRunTests;
+procedure PathFuncRunTests(const IncludeWineIncompatibleTests: Boolean);
 
   procedure TestPartLengths(const Filename: String;
     const DrivePartFalse, DrivePartTrue, PathPartFalse, PathPartTrue: Integer);
@@ -596,12 +596,11 @@ begin
   TestPathExpandAndNormalizeSlashes('\\?\C:\Windows', '\\?\C:\Windows');
   TestPathExpandAndNormalizeSlashes('\\\?\C:\Windows', '\\\?\C:\Windows');
   TestPathExpandAndNormalizeSlashes('\\?\\C:\\Windows', '\\?\C:\Windows');
-  {$IFDEF ISTESTTOOLPROJ}
-  { These fail on Wine which is why they are excluded from self-test }
-  TestPathExpandAndNormalizeSlashes('\\\\?\C:\Windows', '\\\?\C:\Windows');
-  TestPathExpandAndNormalizeSlashes('\\\\\?\C:\Windows', '\\\?\C:\Windows');
-  TestPathExpandAndNormalizeSlashes('\\\?\\C:\\Windows', '\\\?\C:\Windows');
-  {$ENDIF}
+  if IncludeWineIncompatibleTests then begin
+    TestPathExpandAndNormalizeSlashes('\\\\?\C:\Windows', '\\\?\C:\Windows');
+    TestPathExpandAndNormalizeSlashes('\\\\\?\C:\Windows', '\\\?\C:\Windows');
+    TestPathExpandAndNormalizeSlashes('\\\?\\C:\\Windows', '\\\?\C:\Windows');
+  end;
 
   TestPathNormalizeSlashes('a/\b', 'a\b');
   TestPathNormalizeSlashes('a\\b', 'a\b');
@@ -847,7 +846,7 @@ end;
 {$IFNDEF ISTESTTOOLPROJ}
 initialization
   try
-    PathFuncRunTests;
+    PathFuncRunTests(False);
   except on E: Exception do
     begin
       MessageBox(0, PChar(E.Message), '', MB_OK);
