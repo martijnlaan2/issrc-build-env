@@ -3912,20 +3912,18 @@ Source: "MyLibrary.dll"; DestDir: "{sys}"; Flags: 64bit
 
 <topic name="securityenhancements" title="Security Enhancements">
 <keyword value="Security" />
-<keyword value="DLL hijacking" />
-<keyword value="DLL sideloading" />
-<keyword value="RedirectionGuard" />
-<keyword value="DEP" />
-<keyword value="ASLR" />
-<keyword value="encryption" />
-<keyword value="temporary directory" />
+<keyword value="DLL Hijacking Protection" />
+<keyword value="Temporary Directory Security" />
+<keyword value="Symlink Attack Protection" />
+<keyword value="Junction Attack Protection" />
+<keyword value="Supply-Chain Security" />
 <body>
 
 <p>Inno Setup incorporates a wide range of security measures to protect the integrity of the build process, the installer, and the user's system. This topic provides an overview of these measures.</p>
 
 <heading>DLL Hijacking Protection</heading>
 
-<p>DLL hijacking (also known as DLL sideloading) is an attack where a malicious DLL is placed in a location where it will be loaded instead of the legitimate system DLL. Inno Setup uses multiple layers of defense against this:</p>
+<p>DLL hijacking (also known as DLL sideloading) is an attack where a malicious DLL is placed in a location where it will be loaded instead of the legitimate system DLL. Inno Setup uses multiple protections against this:</p>
 
 <ul>
 
@@ -3959,22 +3957,22 @@ Source: "MyLibrary.dll"; DestDir: "{sys}"; Flags: 64bit
 
 <heading>Symlink and Junction Attack Protection (RedirectionGuard)</heading>
 
-<p>Setup and Uninstall enable the Windows RedirectionGuard mitigation by default, which blocks traversal of NTFS junctions and symbolic links created by unprivileged users. This prevents attackers from tricking an elevated installer into creating or modifying files in unintended locations.</p>
+<p>Setup and Uninstall enable the Windows RedirectionGuard mitigation by default, which blocks traversal of NTFS junctions and symbolic links created by non-administrative users. During an administrative install, this prevents attackers from tricking Setup or Uninstall into creating or modifying files in unintended locations.</p>
 
 <p>This is controlled by the <link topic="setup_redirectionguard">RedirectionGuard</link> directive (default: <tt>yes</tt>). When Setup installs with RedirectionGuard enabled, Uninstall also re-enables it. The setup loader resolves SUBST drives and symbolic links before passing paths to Setup, ensuring elevation and RedirectionGuard work correctly together.</p>
 
 <heading>Temporary Directory Security</heading>
 
-<p>Setup and Uninstall create a private temporary directory for their own use, rather than using the system temporary directory directly. This means they are not affected by preexisting files that might be placed there by an attacker. Several additional measures protect these private directories:</p>
+<p>Setup and Uninstall create a private temporary directory for their own use, rather than using the system temporary directory directly. This means they are not affected by existing files that might be placed there by an attacker. Several additional measures protect these private directories:</p>
 
 <ul>
 
 <li>
-<p>Temporary directories are created with restrictive access control lists. When running elevated or under <tt>C:\Windows\Temp</tt>, the current user is limited to read and execute access only, while Administrators and SYSTEM have full access. This prevents unprivileged attackers from reading or modifying the temporary directory contents.</p>
+<p>Temporary directories are created with restrictive permissions. During an administrative install or under <tt>C:\Windows\Temp</tt>, the current user is limited to read and execute access only, while Administrators and SYSTEM have full access. This prevents attackers from reading or modifying the temporary directory contents.</p>
 </li>
 
 <li>
-<p>Temporary directory and file names are generated using a cryptographically secure random number generator, making it infeasible for an attacker to predict or race to create the directory first.</p>
+<p>Temporary directory and file names are generated using a cryptographically secure random number generator (CSPRNG), making it infeasible for an attacker to predict or race to create the directory first.</p>
 </li>
 
 <li>
@@ -4005,7 +4003,7 @@ Source: "MyLibrary.dll"; DestDir: "{sys}"; Flags: 64bit
 
 <heading>Privilege and Elevation Handling</heading>
 
-<p>All Inno Setup executables request no special privileges in their manifest (<tt>asInvoker</tt>). For administrative installs, Setup respawns itself with elevation. This allows Setup to run unprivileged when possible, for example for per-user installations with <link topic="setup_privilegesrequired">PrivilegesRequired</link> set to <tt>lowest</tt>.</p>
+<p>All Inno Setup executables request no special privileges in their manifest (<tt>asInvoker</tt>), allowing non-administrative installs. For administrative installs, Setup respawns itself with elevation instead of requesting it through the manifest, which would not allow features such as <tt>runasoriginaluser</tt> as described below.</p>
 
 <p>The <tt>HKA</tt> registry root and "auto" constants (such as <tt>{autopf}</tt> and <tt>{autoappdata}</tt>) automatically map to machine-wide locations in administrative install mode and per-user locations in non-administrative install mode, reducing privilege-mode mistakes in scripts that support both.</p>
 
@@ -4013,11 +4011,11 @@ Source: "MyLibrary.dll"; DestDir: "{sys}"; Flags: 64bit
 
 <p>When a user clicks a link in text displayed by <link topic="setup_licensefile">LicenseFile</link>, <link topic="setup_infobeforefile">InfoBeforeFile</link>, or <link topic="setup_infoafterfile">InfoAfterFile</link> during an administrative install, Setup tries to launch the target as the original user instead of the current user. This avoids unintentionally starting web browsers with administrative privileges.</p>
 
-<p>For administrative installs, the compiler warns if the script writes to per-user areas, because user-level files and settings should be handled by the application rather than an elevated installer. This is controlled by <link topic="setup_useduserareaswarning">UsedUserAreasWarning</link>.</p>
+<p>For administrative installs, the compiler warns if the script writes to per-user areas, because user-level files and settings should be handled by the application rather than by an administrative install. This is controlled by <link topic="setup_useduserareaswarning">UsedUserAreasWarning</link>.</p>
 
 <heading>File Integrity and Signature Verification</heading>
 
-<p>Inno Setup includes an integrated <link topic="issig">.issig signature system</link> based on ECDSA-P256 and SHA-256 for verifying the integrity and authenticity of files. This can be used to verify files at compile time (via the <tt>issigverify</tt> flag on <link topic="filessection">[Files]</link> section entries), during installation of external files, and at runtime from Pascal Script. The <tt>ISSigAllowedKeys</tt> parameter can restrict which <link topic="issigkeyssection">[ISSigKeys]</link> entries may verify a given file, so that verification is limited to the intended trust anchors instead of accepting any configured key.</p>
+<p>Inno Setup includes an integrated <link topic="issig">.issig signature system</link> based on ECDSA-P256 and SHA-256 for verifying the integrity and authenticity of files. This can be used to verify files at compile time (via the <tt>issigverify</tt> flag on <link topic="filessection">[Files]</link> section entries), during installation of external files, and at runtime from Pascal Script. The <tt>ISSigAllowedKeys</tt> parameter can restrict which <link topic="issigkeyssection">[ISSigKeys]</link> entries may verify a given file, so that only the intended keys are accepted for verification instead of any configured key.</p>
 
 <p>SHA-256 is used for all security-relevant hashing throughout Inno Setup, including file checksums and download verification. The <tt>Hash</tt> parameter on <link topic="filessection">[Files]</link> section entries allows specifying a required SHA-256 hash for external files, which is verified during installation.</p>
 
@@ -4031,7 +4029,7 @@ Source: "MyLibrary.dll"; DestDir: "{sys}"; Flags: 64bit
 
 <heading>Encryption</heading>
 
-<p>When <link topic="setup_encryption">Encryption</link> is enabled, Inno Setup uses 256-bit XChaCha20 for symmetric encryption and <link topic="setup_encryptionkeyderivation">PBKDF2-HMAC-SHA256</link> for key derivation. Encryption salts and nonces are generated using a cryptographically secure random number generator. Sensitive cryptographic key material is zeroed from memory after use.</p>
+<p>When <link topic="setup_encryption">Encryption</link> is enabled, Inno Setup uses 256-bit XChaCha20 for symmetric encryption and <link topic="setup_encryptionkeyderivation">PBKDF2-HMAC-SHA256</link> for key derivation. Encryption salts and nonces are generated using a CSPRNG. Sensitive cryptographic key material is zeroed from memory after use.</p>
 
 <heading>Authenticode (Code Signing) Support</heading>
 
@@ -4056,7 +4054,7 @@ Source: "MyLibrary.dll"; DestDir: "{sys}"; Flags: 64bit
 </li>
 
 <li>
-<p>All security-sensitive random number generation uses a cryptographically secure random number generator, including temporary directory names, encryption salts and nonces, and the Pascal Script <tt>Random</tt> function.</p>
+<p>All security-sensitive random number generation uses a CSPRNG, including temporary directory names, encryption salts and nonces, and the Pascal Script <tt>Random</tt> function.</p>
 </li>
 
 <li>
