@@ -8,15 +8,12 @@ on:
 
 jobs:
   copilot-review:
-    # Only set the topic `has-issrc-build-env-sync-token` if the secret is available
-    if: contains(github.event.repository.topics, 'has-issrc-build-env-sync-token')
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write
+      pull-requests: write # for gh pr
     steps:
       - name: Request Copilot review
         run: gh pr edit "$PR_NUMBER" --repo "$REPOSITORY" --add-reviewer @copilot
         env:
-          GITHUB_TOKEN: ${{ secrets.ISSRC_BUILD_ENV_SYNC_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}

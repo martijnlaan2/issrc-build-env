@@ -12,9 +12,9 @@ jobs:
     if: contains(github.event.repository.topics, 'has-claude-code-oauth-token')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: write
-      id-token: write
+      contents: read       # for actions/checkout
+      pull-requests: write # for gh pr
+      id-token: write      # for OIDC token exchange of claude-code-action
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
