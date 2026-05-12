@@ -35,5 +35,5 @@ jobs:
 
             Keep the review concise and actionable. Do not review trivial or automated changes.
           claude_args: |
-            --allowedTools "Write,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "Read,Write,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
           show_full_output: true
