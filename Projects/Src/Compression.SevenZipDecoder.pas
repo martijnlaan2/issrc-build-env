@@ -62,8 +62,9 @@ function IS_7zDec(const fileName: PChar; const fullPaths: Bool): Integer; cdecl;
 function {$IFNDEF WIN64} __CreateDirectoryW {$ELSE} _CreateDirectoryW {$ENDIF}(
   lpPathName: LPCWSTR;
   lpSecurityAttributes: PSecurityAttributes): BOOL; cdecl;
+var
+  ExpandedDir: String;
 begin
-  var ExpandedDir: String;
   if ValidateAndCombinePath(State.ExpandedDestDir, lpPathName, ExpandedDir) then
     Result := CreateDirectory(PChar(ExpandedDir), lpSecurityAttributes)
   else begin
