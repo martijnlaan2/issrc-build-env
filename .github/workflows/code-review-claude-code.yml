@@ -30,7 +30,7 @@ jobs:
             Steps:
             1. Run `gh pr diff ${{ github.event.pull_request.number }}` to get the changes.
             2. Analyze the diff for bugs, security issues, and style problems. Focus only on the changed lines, not pre-existing issues.
-            3. Check CLAUDE.md and AGENTS.md for project-specific guidelines and verify compliance.
+            3. Read CLAUDE.md and AGENTS.md in full for project-specific guidelines and verify compliance.
             4. If there are issues, write the review to a file named review.md in the current directory, then post it using `gh pr comment ${{ github.event.pull_request.number }} -F review.md`. If there are no issues, do nothing.
 
             Keep the review concise and actionable. Do not review trivial or automated changes.

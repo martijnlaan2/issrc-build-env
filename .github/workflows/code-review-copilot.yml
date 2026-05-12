@@ -15,6 +15,8 @@ jobs:
       pull-requests: write
     steps:
       - name: Request Copilot review
-        run: gh pr edit ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --add-reviewer @copilot
+        run: gh pr edit "$PR_NUMBER" --repo "$REPOSITORY" --add-reviewer @copilot
         env:
           GITHUB_TOKEN: ${{ secrets.ISSRC_BUILD_ENV_SYNC_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
