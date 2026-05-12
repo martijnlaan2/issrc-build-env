@@ -1,4 +1,4 @@
-name: Claude Code Review
+name: code-review-claude-code
 
 on:
   pull_request:
@@ -22,6 +22,8 @@ jobs:
           fetch-depth: 1
       - name: Run Claude Code Review
         uses: anthropics/claude-code-action@v1
+        env:
+          CLAUDE_CODE_EFFORT_LEVEL: max
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
@@ -35,6 +37,6 @@ jobs:
 
             Keep the review concise and actionable. Do not review trivial or automated changes.
           claude_args: |
-            --model opus --effort max
+            --model opus
             --allowedTools "Read,Write,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
           show_full_output: true

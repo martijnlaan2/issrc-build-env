@@ -1,4 +1,4 @@
-name: Copilot Review
+name: code-review-copilot
 
 on:
   pull_request:
