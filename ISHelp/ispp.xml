@@ -106,17 +106,23 @@
 						</cases>
 					</define>
 					<define id="by-val-arg">
-						<opt><nt name="type-id"/></opt><nt>ident</nt><opt><txt>=</txt><nt>expr</nt></opt>
+						<variant><opt><nt name="value-type-id"/></opt><nt>ident</nt><opt><txt>=</txt><nt>expr</nt></opt></variant>
+						<variant><nt name="func-or-array-type-id"/><nt>ident</nt></variant>
 					</define>
 					<define id="by-ref-arg">
-						<opt><nt name="type-id"/></opt><txt>*</txt><nt>ident</nt>
+						<opt><nt name="value-type-id"/></opt><txt>*</txt><nt>ident</nt>
 					</define>
-					<define id="type-id">
+					<define id="value-type-id">
 						<cases>
 							<case><txt>any</txt></case>
 							<case><txt>int</txt></case>
 							<case><txt>str</txt></case>
+						</cases>
+					</define>
+					<define id="func-or-array-type-id">
+						<cases>
 							<case><txt>func</txt></case>
+							<case><txt>array</txt></case>
 						</cases>
 					</define>
 					<define id="locality" inline="yes">
@@ -129,7 +135,13 @@
 				</syntax>
 				<description>
 					<p>The first syntax ("variable-definition") defines a variable named <tt>ident</tt>, or assigns a value to an element of an array named <tt>ident</tt> (use &dim; instead of <tt>define</tt> to define the array variable itself). If none of the <tt>public</tt>, <tt>protected</tt>, or <tt>private</tt> keywords are specified, default <link href="visibility">visibility</link> is assumed.</p>
-					<p>The second syntax ("macro-definition") defines <link href="macros">a user defined function</link> named <tt>ident</tt>. When defining a user defined function there must be no whitespace between the name and opening parenthesis, otherwise it will be treated as variable declaration.</p>
+					<p>The second syntax ("macro-definition") defines <link href="macros">a user defined function</link> named <tt>ident</tt>. Note:</p>
+					<ul>
+						<li>There must be no whitespace between the name and opening parenthesis, otherwise it will be treated as variable declaration.</li>
+						<li>Formal parameters may be preceded by a type-id: <tt>any</tt>, <tt>int</tt>, <tt>str</tt>, <tt>func</tt>, or <tt>array</tt>.</li>
+						<li>Default values may be specified only for parameters with no type-id or with type-id: <tt>any</tt>, <tt>int</tt>, or <tt>str</tt>.</li>
+						<li>The <tt>func</tt> type-id declares that the parameter accepts a user defined function or built-in function, and the <tt>array</tt> type-id declares that it accepts an array variable. When calling such a user defined function, the actual parameter for a <tt>func</tt> or <tt>array</tt> parameter must be specified using the <tt>@</tt> operator (for example, <tt>@MyFunc</tt> or <tt>@MyArray</tt>). Also see <link href="macros">User Defined Functions</link>.</li>
+					</ul>
 					<p>The third syntax ("default-visibility-set") sets the default <link href="visibility">visibility</link> of further variable and user defined function definitions in this file. If no visibility declaration occurs in a file, public visibility is assumed by default.</p>
 				</description>
 				<section title="Examples">
@@ -961,6 +973,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				</section>
 				<description>
 					<p>Writes specified value to an INI file. Parameter 1 is the name of the INI file, parameter 2 &dash; the name of a section in the INI file, parameter 3 &dash; the name of a key in the section. Last parameter should be set to the value you wish to be written to the INI file, it can be of any type.</p>
+					<p>A compiler error will be raised if the write fails.</p>
 				</description>
 			</topic>
 			<topic id="ReadReg">
@@ -971,6 +984,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				<description>
 					<p>Reads the value of the specified registry key. First parameter is the root key, such as HKEY_LOCAL_MACHINE, HKEY_LOCAL_MACHINE_32 or HKEY_LOCAL_MACHINE_64. Constants for use with this parameter are declared in &builtins; accompanying ISPP. Second parameter specifies a subkey. Third parameter specifies the name of the value, if this parameter is omitted, a default value is assumed. Last optional parameter may be used to specify the default value that will be returned on failure.</p>
 					<p>Note that this function can return a value of any type depending on the type of actual value in the registry.</p>
+					<p>A compiler error will be raised if an invalid root key is specified or if 64-bit registry keys are requested on 32-bit Windows.</p>
 				</description>
 			</topic>
 			<topic id="Exec">
@@ -1050,6 +1064,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				</section>
 				<description>
 					<p>Saves &curtrans; to the specified file.</p>
+					<p>A compiler error will be raised if the save fails.</p>
 				</description>
 				<section title="Example">
 					<pre>
@@ -1164,19 +1179,19 @@ The first group of options (<tt>option</tt>) controls the general options, while
 			<topic id="DeleteFileNow">
 				<title>DeleteFileNow</title>
 				<section title="Prototype">
-					<pre><line><b>void</b> DeleteFileNow(<b>str</b> FileName)</line></pre>
+					<pre><line><b>int</b> DeleteFileNow(<b>str</b> FileName)</line></pre>
 				</section>
 				<description>
-					<p>Deletes the specified file. Does not return anything. Also see <tt><link href="DeleteFile">DeleteFile</link></tt>.</p>
+					<p>Deletes the specified file. Returns non-zero value if successful. Also see <tt><link href="DeleteFile">DeleteFile</link></tt>.</p>
 				</description>
 			</topic>
 			<topic id="CopyFile">
 				<title>CopyFile</title>
 				<section title="Prototype">
-					<pre><line><b>void</b> CopyFile(<b>str</b> ExistingFile, <b>str</b> NewFile)</line></pre>
+					<pre><line><b>int</b> CopyFile(<b>str</b> ExistingFile, <b>str</b> NewFile)</line></pre>
 				</section>
 				<description>
-					<p>Copies ExistingFile to NewFile, preserving time stamp and file attributes. If NewFile already exists, it will be overwritten.</p>
+					<p>Copies ExistingFile to NewFile, preserving time stamp and file attributes. If NewFile already exists, it will be overwritten. Returns non-zero value if successful.</p>
 				</description>
 			</topic>
 			<topic id="FindFirst">
@@ -1300,6 +1315,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				</section>
 				<description>
 					<p>Resets the file pointer to zero, so the subsequent call to <tt><link href="FileRead">FileRead</link></tt> will read the first line of the file. The only parameter should be the file handle returned by <tt><link href="FileOpen">FileOpen</link></tt>.</p>
+					<p>A compiler error will be raised if the reset fails.</p>
 				</description>
 			</topic>
 			<topic id="FileEof">
@@ -1327,7 +1343,8 @@ The first group of options (<tt>option</tt>) controls the general options, while
 					<pre><line><b>int</b> SaveStringToFile(<b>str</b> Filename, <b>str</b> S, <b>int</b>? Append, <b>int</b>? UTF8)</line></pre>
 				</section>
 				<description>
-          <p>Saves the specified string to the specified file. If Append is non-zero or omitted and the specified file already exists, it will be appended to instead of overwritten. If UTF8 is non-zero or omitted, the string will be saved with UTF-8 encoding and a BOM instead of ASCII encoding. Returns non-zero if successful, or zero otherwise.</p>
+          <p>Saves the specified string to the specified file. If Append is non-zero or omitted and the specified file already exists, it will be appended to instead of overwritten. If UTF8 is non-zero or omitted, the string will be saved with UTF-8 encoding and a BOM instead of ASCII encoding. Returns non-zero if successful, or zero if the file can't be opened for writing.</p>
+          <p>A compiler error will be raised if writing to the file fails after it has been opened.</p>
           <p>This function does not automatically write a line break before or after the string. If Append is non-zero or omitted and the existing file did not end in a line break, the function will effectively append to the existing last line. To avoid this you can put line break characters (using <tt><link href="predefinedvars">NewLine</link></tt>) before and/or after your string.</p>
 				</description>
 				<section title="Example">
@@ -1393,6 +1410,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				<description>
 					<p>Returns the date and time of the specified file as a string using the specified formatting.</p>
 					<p>The first parameter is the file name. The second parameter denotes the format string. The third and fourth parameters are optional and denote the DateSeparator and TimeSeparator parameters as explained in the <link href="GetDateTimeString">GetDateTimeString</link> topic.</p>
+					<p>A compiler error will be raised if the date and time of the specified file can't be read.</p>
 				</description>
 				<section title="Example">
 					<pre>
@@ -1440,6 +1458,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				</section>
 				<description>
 					<p>Gets the MD5 sum of the specified file, as a string.</p>
+					<p>A compiler error will be raised if the specified file can't be read.</p>
 				</description>
 			</topic>
 			<topic id="GetSHA1OfString">
@@ -1479,6 +1498,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				</section>
 				<description>
 					<p>Gets the SHA-1 hash of the specified file, as a string.</p>
+					<p>A compiler error will be raised if the specified file can't be read.</p>
 				</description>
 			</topic>
 			<topic id="GetSHA256OfString">
@@ -1518,6 +1538,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				</section>
 				<description>
 					<p>Gets the SHA-256 hash of the specified file, as a string.</p>
+					<p>A compiler error will be raised if the specified file can't be read.</p>
 				</description>
 			</topic>
 			<topic id="Format">
@@ -1527,7 +1548,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				</section>
 				<description>
 					<p>Formats the string Format using the series of arguments that follow it. Formatting is controlled by the format string Format; the results are returned as a string. Each argument must be an integer or a string.</p>
-					<p>An exception will be raised if an invalid format string is specified, too few arguments are passed, or if any arguments are of the wrong type.</p>
+					<p>A compiler error will be raised if an invalid format string is specified, too few arguments are passed, or if any arguments are of the wrong type.</p>
 					<p>Note: unlike the Pascal Scripting's <tt>Format</tt> function, arguments are passed directly instead of in an array.</p>
 				</description>
 				<section title="Example">
@@ -2098,6 +2119,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				</section>
 				<description>
 					<p>Returns non-zero if the specified file is a non-32-bit PE image, zero otherwise.</p>
+					<p>A compiler error will be raised if the specified file can't be read.</p>
 				</description>
 			</topic>
 			<topic id="EmitLanguagesSection">
@@ -2133,13 +2155,29 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				<p>The formal syntax of a user defined function is provided in &define; and &builtins; contains many example functions.</p>
         <p>Please note that there must be no space between the function name and opening parenthesis.</p>
         <p>The formal parameter list can be empty, in which case the function takes no parameters. Without parentheses, a variable is defined instead of a user defined function.</p>
-				<p>Actual parameters for parameters declared as by-reference must be modifiable l-values (in other words, other defined variables or expressions that evaluate to l-values). If the expression modifies by-reference parameter, the variable that is passed as this parameter gets modified. By-value parameters can also be modified by the expression (using assignment operators), but this modification doesn't affect the value of a variable which could be passed as this parameter.</p>
+				<p>Actual parameters for parameters declared as by-reference (<tt>*</tt>) must be modifiable l-values (in other words, other defined variables or expressions that evaluate to l-values). If the expression modifies by-reference parameter, the variable that is passed as this parameter gets modified. By-value parameters can also be modified by the expression (using assignment operators), but this modification doesn't affect the value of a variable which could be passed as this parameter.</p>
 				<p>Though a user defined function can only contain one expression, sequential evaluation operators (comma), assignment operators (simple and compound) and conditional operators (<tt>?:</tt>) can be used to build more complicated functions.</p>
       </description>
+			<section title="Function and array parameters">
+				<p>A parameter declared with the <tt>func</tt> type-id accepts a user defined function or built-in function. A parameter declared with the <tt>array</tt> type-id accepts an array variable. When calling a user defined function that has such a parameter, the actual parameter must be specified using the <tt>@</tt> operator followed by the name of the identifier to pass. For example:</p>
+				<pre>
+					<line>#define Apply(func Callback, str Value) Callback(Value)</line>
+					<line>#define Decorate(str S) "(" + S + ")"</line>
+					<line>#emit Apply(@Decorate, "hello") ; emits "(hello)"</line>
+				</pre>
+				<p>And:</p>
+				<pre>
+					<line>#dim MyData[3] {10, 20, 30}</line>
+					<line>#define Sum3(array A) A[0] + A[1] + A[2]</line>
+					<line>#emit Sum3(@MyData) ; emits 60</line>
+					<line>#define GetDim(array A) <link href="dimof">DimOf</link>(A)</line>
+					<line>#emit GetDim(@MyData) ; emits 3</line>
+				</pre>
+			</section>
 			<section title="Local array">
         <p>In context of the expression, an additional array named <tt>Local</tt> is valid. Its elements can be used for temporary storage and reusing values in sequential expressions. Values stored in <tt>Local</tt> array are neither preserved from call to call (including recursive), nor are they accessible from anywhere except the expression.</p>
         <pre>
-          <line>#define DeleteToFirstPeriod(str *S) /* user defined function declaration */ \</line>
+          <line>#define DeleteToFirstPeriod(str *S) /* S is by-reference */ \</line>
           <line>&dsp;Local[1] = <link href="copy">Copy</link>(S, 1, (Local[0] = <link href="pos">Pos</link>(".", S)) - 1), \</line>
           <line>&dsp;S = Copy(S, Local[0] + 1), \</line>
           <line>&dsp;Local[1]</line>
@@ -2163,7 +2201,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 			</description>
 			<section title="Differences between C and ISPP expression syntax">
 				<ul>
-					<li>ISPP does not support a number of operators (reference, dereference, namespace resolution, member selection, etc.).</li>
+					<li>ISPP does not support a number of operators (dereference, namespace resolution, member selection, etc.). The <tt>@</tt> operator is supported for passing identifiers to <tt>func</tt> and <tt>array</tt> parameters (see <link href="macros">User Defined Functions</link>).</li>
 					<li>ISPP treats an identifier and the equality sign as a name of an parameter, if it is used in parameter list.</li>
 					<li>Arithmetic division operator (slash) performs integer division, since ISPP does not support floating point math.</li>
 					<li>ISPP does not check for validity of expressions in certain cases. For example, in conditional expression, "true" operand can be of string type, whereas "false" operand can be of integer type.</li>

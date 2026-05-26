@@ -26,6 +26,7 @@ uses
   ISPP.IdentMan in 'Src\ISPP.IdentMan.pas',
   ISPP.Sessions in 'Src\ISPP.Sessions.pas',
   ISPP.CTokenizer in 'Src\ISPP.CTokenizer.pas',
+  ISPP.CTokenizer.Test in 'Src\ISPP.CTokenizer.Test.pas',
   ISPP.Base in 'Src\ISPP.Base.pas',
   PathFunc in '..\Components\PathFunc.pas',
   Shared.CommonFunc in 'Src\Shared.CommonFunc.pas',

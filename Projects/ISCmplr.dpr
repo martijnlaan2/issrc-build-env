@@ -18,6 +18,7 @@ uses
   Compiler.SetupCompiler in 'Src\Compiler.SetupCompiler.pas',
   Compiler.Messages in 'Src\Compiler.Messages.pas',
   Compiler.StringLists in 'Src\Compiler.StringLists.pas',
+  Compiler.StringLists.Test in 'Src\Compiler.StringLists.Test.pas',
   Compiler.CompressionHandler in 'Src\Compiler.CompressionHandler.pas',
   Compiler.HelperFunc in 'Src\Compiler.HelperFunc.pas',
   Compiler.BuiltinPreproc in 'Src\Compiler.BuiltinPreproc.pas',
