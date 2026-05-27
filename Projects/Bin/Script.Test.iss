@@ -1,7 +1,7 @@
 #ifndef arch
   #define arch "x64"
 #endif
-
+//
 [Setup]
 AppName=Script.Test
 AppVersion=1.0
@@ -12,7 +12,6 @@ SetupArchitecture={#arch}
 PrivilegesRequired=lowest
 
 #include "Script.ISPP.Test.iss"
-
 #include "Script.ROPS.Test.iss"
 
 [Code]
