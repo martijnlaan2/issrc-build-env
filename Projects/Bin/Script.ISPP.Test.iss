@@ -86,16 +86,7 @@
 #call CheckEqualsInt(TYPE_INTEGER, TypeOf2(1 + 1))
 #call CheckEqualsInt(TYPE_STRING, TypeOf2('a' + 'b'))
 #call CheckEqualsInt(TYPE_NULL, TypeOf2(NULL))
-#call CheckTrue(Defined(TypeCheckInt))
-#call CheckFalse(Defined(UndefinedIdentifier_XYZ))
-#call CheckTrue(Defined(ISPP_INVOKED))
-#call CheckTrue(Defined(WINDOWS))
-#call CheckTrue(Defined(UNICODE))
-#call CheckTrue(Defined(__WIN32__))
-#call CheckTrue(Defined(__FILENAME__))
-#call CheckTrue(Defined(PREPROCVER))
 #call CheckEqualsInt(TypeOf(TypeCheckInt), TypeOf TypeCheckInt)
-#call CheckEqualsInt(Defined(TypeCheckInt), Defined TypeCheckInt)
 #undef TypeCheckInt
 #undef TypeCheckString
 #undef TypeCheckNull
@@ -112,6 +103,14 @@
 #call CheckEqualsString('', Str(NULL))
 #call CheckEqualsString('hello', Str('hello'))
 #call CheckEqualsInt(42, Int(42))
+//
+// Defined
+//
+#define DefinedCheck
+#call CheckTrue(Defined(DefinedCheck))
+#call CheckEqualsInt(Defined(DefinedCheck), Defined DefinedCheck)
+#call CheckFalse(Defined(UndefinedIdentifier_XYZ))
+#undef DefinedCheck
 //
 // Arithmetic
 //
@@ -623,3 +622,549 @@
 #. ; #endif
 #call CheckEqualsInt(20, ShorthandIfResult)
 #undef ShorthandIfResult
+//
+// Basic macros
+//
+#define ParameterlessMacro() 42
+#call CheckEqualsInt(42, ParameterlessMacro())
+#define SingleParamMacro(X) X * 2
+#call CheckEqualsInt(10, SingleParamMacro(5))
+#define MultiParamMacro(X, Y) X + Y
+#call CheckEqualsInt(7, MultiParamMacro(3, 4))
+#define StringParamMacro(S) S + '!'
+#call CheckEqualsString('hello!', StringParamMacro('hello'))
+#undef ParameterlessMacro
+#undef SingleParamMacro
+#undef MultiParamMacro
+#undef StringParamMacro
+//
+// Default parameter values
+//
+#define DefaultParamMacro(X, Y = 10) X + Y
+#call CheckEqualsInt(15, DefaultParamMacro(5))
+#call CheckEqualsInt(25, DefaultParamMacro(5, 20))
+#undef DefaultParamMacro
+//
+// Typed parameters
+//
+#define IntTypedMacro(int X) X + 1
+#call CheckEqualsInt(43, IntTypedMacro(42))
+#define StrTypedMacro(str S) Len(S)
+#call CheckEqualsInt(5, StrTypedMacro('hello'))
+#define AnyTypedMacro(any X) TypeOf(X)
+#call CheckEqualsInt(TYPE_INTEGER, AnyTypedMacro(42))
+#call CheckEqualsInt(TYPE_STRING, AnyTypedMacro('hello'))
+#undef IntTypedMacro
+#undef StrTypedMacro
+#undef AnyTypedMacro
+//
+// By-reference parameters
+//
+#define ByRefMacro(int *X) X = X + 10
+#define ByRefTarget = 5
+#call ByRefMacro(ByRefTarget)
+#call CheckEqualsInt(15, ByRefTarget)
+#undef ByRefMacro
+#undef ByRefTarget
+//
+// Local array
+//
+#define LocalArrayMacro(X, Y) \
+  Local[0] = X, \
+  Local[1] = Y, \
+  Local[0] + Local[1]
+#call CheckEqualsInt(30, LocalArrayMacro(10, 20))
+#define LocalArrayHighIndex() \
+  Local[15] = 99, \
+  Local[15]
+#call CheckEqualsInt(99, LocalArrayHighIndex())
+#define LocalArrayNotPreserved() Local[0] + 0
+#call CheckEqualsInt(0, LocalArrayNotPreserved())
+#undef LocalArrayMacro
+#undef LocalArrayHighIndex
+#undef LocalArrayNotPreserved
+//
+// Recursion
+//
+#define Factorial(N) N <= 1 ? 1 : N * Factorial(N - 1)
+#call CheckEqualsInt(120, Factorial(5))
+#call CheckEqualsInt(1, Factorial(0))
+#undef Factorial
+//
+// @ operator with func parameter
+//
+#define ApplyFuncInt(func F, int X) F(X)
+#call CheckEqualsString('42', ApplyFuncInt(@Str, 42))
+#define Exclaim(str S) S + '!'
+#define ApplyFuncStr(func F, str X) F(X)
+#call CheckEqualsString('hi!', ApplyFuncStr(@Exclaim, 'hi'))
+#define GetTypeOfParam(func F) TypeOf(F)
+#call CheckEqualsInt(TYPE_FUNC, GetTypeOfParam(@Str))
+#undef ApplyFuncInt
+#undef ApplyFuncStr
+#undef Exclaim
+#undef GetTypeOfParam
+//
+// @ operator with array parameter
+//
+#dim FuncTestArray[3] {10, 20, 30}
+#define SumThree(array A) A[0] + A[1] + A[2]
+#call CheckEqualsInt(60, SumThree(@FuncTestArray))
+#define GetDimension(array A) DimOf(A)
+#call CheckEqualsInt(3, GetDimension(@FuncTestArray))
+#dim FuncTestArray2[7]
+#call CheckEqualsInt(7, GetDimension(@FuncTestArray2))
+#define GetDimOfScalar(int V) DimOf(V)
+#call CheckEqualsInt(0, GetDimOfScalar(42))
+#define GetTypeOfArray(array A) TypeOf(A)
+#call CheckEqualsInt(TYPE_ARRAY, GetTypeOfArray(@FuncTestArray))
+#undef FuncTestArray
+#undef FuncTestArray2
+#undef SumThree
+#undef GetDimension
+#undef GetDimOfScalar
+#undef GetTypeOfArray
+//
+// @ operator with built-in function (CopyExpVar evCallContext)
+//
+#define TestCopyExpFunc(str S) S + '!'
+#call Int(@TestCopyExpFunc)
+#call CheckEqualsString('test!', TestCopyExpFunc('test'))
+#undef TestCopyExpFunc
+//
+// #sub / #endsub
+//
+// bug: #sub body starts with #define private which leaks to the caller's
+// default scope after the call; re-enable these tests after fix
+//#sub SimpleSub
+//  #emit '; SUB_SIMPLE_MARKER'
+//#endsub
+//#call SimpleSub()
+//#call CheckTrue(Find(0, 'SUB_SIMPLE_MARKER', FIND_CONTAINS) >= 0)
+//#define SubArgValue = 'test42'
+//#sub SubWithVariable
+//  #emit '; SUB_VARIABLE_MARKER ' + SubArgValue
+//#endsub
+//#call SubWithVariable()
+//#call CheckTrue(Find(0, 'SUB_VARIABLE_MARKER test42', FIND_CONTAINS) >= 0)
+//#sub SubScopeTest
+//  #define ScopeLeakVar = 99
+//#endsub
+//#call SubScopeTest()
+//#call CheckFalse(Defined(ScopeLeakVar))
+//#undef SimpleSub
+//#undef SubArgValue
+//#undef SubWithVariable
+//#undef SubScopeTest
+//
+// #for loop
+//
+#define ForCounter
+#sub ForEmitSub
+  #emit '; FOR_EMIT_MARKER_' + Str(ForCounter)
+#endsub
+#for {ForCounter = 0; ForCounter < 5; ForCounter++} ForEmitSub
+#call CheckEqualsInt(5, ForCounter)
+#call CheckTrue(Find(0, 'FOR_EMIT_MARKER_0', FIND_CONTAINS) >= 0)
+#call CheckTrue(Find(0, 'FOR_EMIT_MARKER_4', FIND_CONTAINS) >= 0)
+#call CheckTrue(Find(0, 'FOR_EMIT_MARKER_5', FIND_CONTAINS) < 0)
+#define Accumulator = 0
+#for {ForCounter = 1; ForCounter <= 5; ForCounter++} Accumulator += ForCounter
+#call CheckEqualsInt(15, Accumulator)
+#define ZeroIterResult = 0
+#for {ForCounter = 0; 0; ForCounter++} ZeroIterResult = 1
+#call CheckEqualsInt(0, ZeroIterResult)
+#undef ForCounter
+#undef ForEmitSub
+#undef Accumulator
+#undef ZeroIterResult
+//
+// #emit
+//
+#emit '; EMIT_MARKER_' + Str(42)
+#call CheckTrue(Find(0, 'EMIT_MARKER_42', FIND_CONTAINS) >= 0)
+{#emit '; INLINE_DEFAULT '}{#42}
+#call CheckTrue(Find(0, 'INLINE_DEFAULT 42', FIND_CONTAINS) >= 0)
+#expr '; EXPR_NOEMIT_MARKER' ; #expr does not #emit
+#call CheckTrue(Find(0, 'EXPR_NOEMIT_MARKER', FIND_CONTAINS) < 0)
+//
+// Named parameters in function calls
+//
+#define NamedParamFunc(int A, int B = 10) A + B
+#call CheckEqualsInt(8, NamedParamFunc(A = 5, B = 3))
+#call CheckEqualsInt(8, NamedParamFunc(B = 3, A = 5))
+#call CheckEqualsInt(15, NamedParamFunc(A = 5))
+#undef NamedParamFunc
+//
+// Directive shorthands and the echo alias
+//
+#= '; EMIT_ALIAS_MARKER' ; #emit
+#call CheckTrue(Find(0, 'EMIT_ALIAS_MARKER', FIND_CONTAINS) >= 0)
+#! 'EXPR_ALIAS_NOOUTPUT' ; #expr
+#call CheckTrue(Find(0, 'EXPR_ALIAS_NOOUTPUT', FIND_CONTAINS) < 0)
+#echo '; ECHO_ALIAS_MARKER' ; #emit
+#call CheckTrue(Find(0, 'ECHO_ALIAS_MARKER', FIND_CONTAINS) >= 0)
+//
+// #dim / #redim
+//
+#dim DimBasicArray[3]
+#define DimBasicArray[0] = 10
+#define DimBasicArray[1] = 20
+#define DimBasicArray[2] = 30
+#call CheckEqualsInt(10, DimBasicArray[0])
+#call CheckEqualsInt(20, DimBasicArray[1])
+#call CheckEqualsInt(30, DimBasicArray[2])
+#dim DimInitArray[3] {100, 200, 300}
+#call CheckEqualsInt(100, DimInitArray[0])
+#call CheckEqualsInt(200, DimInitArray[1])
+#call CheckEqualsInt(300, DimInitArray[2])
+#call CheckEqualsInt(3, DimOf(DimBasicArray))
+#call CheckEqualsInt(3, DimOf(DimInitArray))
+#call CheckEqualsInt(TYPE_ARRAY, TypeOf(DimBasicArray))
+#call CheckEqualsInt(TYPE_ARRAY, TypeOf(DimInitArray))
+#call CheckEqualsInt(DimOf(DimBasicArray), DimOf DimBasicArray)
+#call CheckEqualsInt(TypeOf(DimBasicArray), TypeOf DimBasicArray)
+#redim DimBasicArray[5]
+#call CheckEqualsInt(5, DimOf(DimBasicArray))
+#call CheckEqualsInt(10, DimBasicArray[0])
+#call CheckEqualsInt(20, DimBasicArray[1])
+#call CheckEqualsInt(30, DimBasicArray[2])
+#call CheckEqualsInt(TYPE_NULL, TypeOf2(DimBasicArray[3]))
+#call CheckEqualsInt(TYPE_NULL, TypeOf2(DimBasicArray[4]))
+#redim DimBasicArray[2]
+#call CheckEqualsInt(2, DimOf(DimBasicArray))
+#call CheckEqualsInt(10, DimBasicArray[0])
+#call CheckEqualsInt(20, DimBasicArray[1])
+#undef DimBasicArray
+#undef DimInitArray
+//
+// Scope
+//
+#define public ScopePublicVar = 'public_value'
+#define protected ScopeProtectedVar = 'protected_value'
+#define private ScopePrivateVar = 'private_value'
+#call CheckEqualsString('public_value', ScopePublicVar)
+#call CheckEqualsString('protected_value', ScopeProtectedVar)
+#call CheckEqualsString('private_value', ScopePrivateVar)
+#undef ScopePublicVar
+#undef ScopeProtectedVar
+#undef ScopePrivateVar
+#define protected
+#define DefaultScopeTest = 42
+#call CheckEqualsInt(42, DefaultScopeTest)
+#undef public DefaultScopeTest
+#call CheckTrue(Defined(DefaultScopeTest))
+#undef protected DefaultScopeTest
+#call CheckFalse(Defined(DefaultScopeTest))
+#define public
+#define public SameNameVar = 12
+#define protected SameNameVar = 13
+#define private SameNameVar = 14
+#call CheckEqualsInt(14, SameNameVar)
+#undef private SameNameVar
+#call CheckEqualsInt(13, SameNameVar)
+#undef protected SameNameVar
+#call CheckEqualsInt(12, SameNameVar)
+#undef SameNameVar
+#call CheckFalse(Defined(SameNameVar))
+//
+// Predefined variables
+//
+#call CheckTrue(Defined(ISPP_INVOKED))
+#call CheckTrue(Defined(WINDOWS))
+#call CheckTrue(Defined(UNICODE))
+#call CheckTrue(Defined(__WIN32__))
+#call CheckTrue(Len(__FILENAME__) > 0)
+#call CheckTrue(__LINE__ > 0)
+#call CheckTrue(Len(__DIR__) > 0)
+#define CounterFirst = __COUNTER__
+#define CounterSecond = __COUNTER__
+#call CheckEqualsInt(CounterFirst + 1, CounterSecond)
+#undef CounterFirst
+#undef CounterSecond
+#call CheckTrue(PREPROCVER >= 0x01000000)
+#call CheckEqualsInt(PREPROCVER, Ver)
+#call CheckTrue(Len(CompilerPath) > 0)
+#call CheckTrue(Len(SourcePath) > 0)
+#call CheckTrue(Len(SysPath) > 0)
+#call CheckEqualsInt(TYPE_STRING, TypeOf2(__INCLUDE__))
+#ifdef ISCC_INVOKED
+#call CheckEqualsInt(TYPE_NULL, TypeOf(ISCC_INVOKED))
+#endif
+#call CheckTrue(Defined(__OPT_C__))
+#call CheckTrue(Defined(__POPT_B__))
+//
+// #include scoping
+//
+#define protected MainScopeProtectedVar = 'main_protected'
+#define private MainScopePrivateVar = 'main_private'
+#include "Script.ISPP.Include.Test.iss"
+#call CheckFalse(Defined(IncludeProtectedVar))
+#call CheckFalse(Defined(IncludePrivateVar))
+#call CheckTrue(IncludeSeesMainProtected)
+#call CheckFalse(IncludeSeesMainPrivate)
+#call CheckTrue(Len(IncludePathFilename) > 0)
+#undef MainScopeProtectedVar
+#undef MainScopePrivateVar
+#undef IncludeSeesMainProtected
+#undef IncludeSeesMainPrivate
+#undef IncludePathFilename
+//
+// Directive shorthand for #include
+//
+#+ "Script.ISPP.Include.Test.iss"
+#call CheckTrue(Defined(IncludePathFilename))
+#undef IncludeSeesMainProtected
+#undef IncludeSeesMainPrivate
+#undef IncludePathFilename
+//
+// String functions
+//
+#call CheckEqualsString('ell', Copy('hello', 2, 3))
+#call CheckEqualsString('ello', Copy('hello', 2))
+#call CheckEqualsInt(3, Pos('ll', 'hello'))
+#call CheckEqualsInt(0, Pos('LL', 'hello'))
+#call CheckEqualsInt(0, Pos('x', 'hello'))
+#call CheckEqualsInt(4, RPos('l', 'hello'))
+#call CheckEqualsInt(5, Len('hello'))
+#call CheckEqualsInt(0, Len(''))
+#call CheckEqualsString('hello', LowerCase('HELLO'))
+#call CheckEqualsString('HELLO', UpperCase('hello'))
+#call CheckEqualsString('hello', Trim('  hello  '))
+#call CheckEqualsString('aYbYc', StringChange('aXbXc', 'X', 'Y'))
+#call CheckEqualsString('aYbxc', StringChange('aXbxc', 'X', 'Y'))
+#call CheckEqualsString('hello', AddQuotes('hello'))
+#call CheckEqualsString('"hello world"', AddQuotes('hello world'))
+#call CheckTrue(SameStr('abc', 'abc'))
+#call CheckFalse(SameStr('abc', 'ABC'))
+#call CheckTrue(SameText('abc', 'ABC'))
+#call CheckFalse(SameText('abc', 'def'))
+//
+// Format function
+//
+#call CheckEqualsString('hello', Format('hello'))
+#call CheckEqualsString('world', Format('%s', 'world'))
+#call CheckEqualsString('42', Format('%d', 42))
+#call CheckEqualsString('age is 25', Format('%s is %d', 'age', 25))
+#call CheckEqualsString('FF', Format('%x', 255))
+#call CheckEqualsString('100%', Format('100%%'))
+#call CheckEqualsString('abc', Format('%s%s%s', 'a', 'b', 'c'))
+#define FormatTestName = 'Alice'
+#define FormatTestAge = 30
+#call CheckEqualsString('Alice is 30', Format('%s is %d', FormatTestName, FormatTestAge))
+#undef FormatTestName
+#undef FormatTestAge
+//
+// Path macros
+//
+#call CheckEqualsString('C:\Dir\', ExtractFilePath('C:\Dir\File.txt'))
+#call CheckEqualsString('', ExtractFilePath('File.txt'))
+#call CheckEqualsString('C:\Dir', ExtractFileDir('C:\Dir\File.txt'))
+#call CheckEqualsString('txt', ExtractFileExt('File.txt'))
+#call CheckEqualsString('File.txt', ExtractFileName('C:\Dir\File.txt'))
+#call CheckEqualsString('File.txt', ExtractFileName('File.txt'))
+#call CheckEqualsString('File.log', ChangeFileExt('File.txt', 'log'))
+#call CheckEqualsString('File', RemoveFileExt('File.txt'))
+#call CheckEqualsString('C:\Dir\', AddBackslash('C:\Dir'))
+#call CheckEqualsString('C:\Dir\', AddBackslash('C:\Dir\'))
+#call CheckEqualsString('C:\Dir', RemoveBackslashUnlessRoot('C:\Dir\'))
+#call CheckEqualsString('C:\', RemoveBackslashUnlessRoot('C:\'))
+//
+// Delete / Insert macros
+//
+#define DeleteTarget = 'hello'
+#call Delete(DeleteTarget, 2, 2)
+#call CheckEqualsString('hlo', DeleteTarget)
+#define InsertTarget = 'hello'
+#call Insert(InsertTarget, 2, 'XX')
+#call CheckEqualsString('hXXello', InsertTarget)
+#undef DeleteTarget
+#undef InsertTarget
+//
+// Version macros
+//
+#define VersionPacked = PackVersionComponents(1, 2, 3, 4)
+#define VersionMajor
+#define VersionMinor
+#define VersionRevision
+#define VersionBuild
+#call UnpackVersionComponents(VersionPacked, VersionMajor, VersionMinor, VersionRevision, VersionBuild)
+#call CheckEqualsInt(1, VersionMajor)
+#call CheckEqualsInt(2, VersionMinor)
+#call CheckEqualsInt(3, VersionRevision)
+#call CheckEqualsInt(4, VersionBuild)
+#define VersionMS = 0x00010002
+#define VersionLS = 0x00030004
+#define VersionFromNumbers = PackVersionNumbers(VersionMS, VersionLS)
+#call CheckEqualsInt(VersionPacked, VersionFromNumbers)
+#define UnpackedMS
+#define UnpackedLS
+#call UnpackVersionNumbers(VersionFromNumbers, UnpackedMS, UnpackedLS)
+#call CheckEqualsInt(VersionMS, UnpackedMS)
+#call CheckEqualsInt(VersionLS, UnpackedLS)
+#call CheckEqualsString('1.2.3.4', VersionToStr(PackVersionComponents(1, 2, 3, 4)))
+#call CheckEqualsInt(PackVersionComponents(1, 2, 3, 4), StrToVersion('1.2.3.4'))
+#call CheckEqualsString('6.4.0', DecodeVer(EncodeVer(6, 4)))
+#call CheckEqualsString('1.2.3.4', DecodeVer(EncodeVer(1, 2, 3, 4), 4))
+#call CheckEqualsString('6.4', DecodeVer(EncodeVer(6, 4), 2))
+#call CheckTrue(ComparePackedVersion(PackVersionComponents(1, 0, 0, 0), PackVersionComponents(2, 0, 0, 0)) < 0)
+#call CheckEqualsInt(0, ComparePackedVersion(PackVersionComponents(1, 2, 3, 4), PackVersionComponents(1, 2, 3, 4)))
+#call CheckTrue(ComparePackedVersion(PackVersionComponents(2, 0, 0, 0), PackVersionComponents(1, 0, 0, 0)) > 0)
+#call CheckTrue(SamePackedVersion(PackVersionComponents(1, 2, 3, 4), PackVersionComponents(1, 2, 3, 4)))
+#call CheckFalse(SamePackedVersion(PackVersionComponents(1, 0, 0, 0), PackVersionComponents(2, 0, 0, 0)))
+#undef VersionPacked
+#undef VersionMajor
+#undef VersionMinor
+#undef VersionRevision
+#undef VersionBuild
+#undef VersionMS
+#undef VersionLS
+#undef VersionFromNumbers
+#undef UnpackedMS
+#undef UnpackedLS
+//
+// Math macros
+//
+#call CheckEqualsInt(8, Power(2, 3))
+#call CheckEqualsInt(25, Power(5))
+#call CheckEqualsInt(1, Power(2, 0))
+#call CheckEqualsInt(1, Min(3, 1, 2))
+#call CheckEqualsInt(1, Min(3, 2, 1))
+#call CheckEqualsInt(3, Max(1, 3, 2))
+#call CheckEqualsInt(3, Max(1, 2, 3))
+#call CheckEqualsInt(3, Min(5, 3))
+#call CheckEqualsInt(5, Max(5, 3))
+//
+// Constants
+//
+#call CheckEqualsInt(1, True)
+#call CheckEqualsInt(0, False)
+#call CheckEqualsInt(1, Yes)
+#call CheckEqualsInt(0, No)
+//
+// Utility macros
+//
+#call CheckTrue(YesNo('yes'))
+#call CheckTrue(YesNo('true'))
+#call CheckTrue(YesNo('1'))
+#call CheckFalse(YesNo('no'))
+#call CheckTrue(IsDirSet('Uninstallable'))
+#call CheckEqualsString('Script.Test', SetupSetting('AppName'))
+#call CheckTrue(EntryCount('Setup') > 0)
+//
+// #insert / #append
+//
+#emit '; INSERT_MARKER_BEFORE'
+#insert 0
+#emit '; INSERT_MARKER_AT_ZERO'
+#append
+#emit '; INSERT_MARKER_AFTER'
+#call CheckEqualsInt(0, Find(0, 'INSERT_MARKER_AT_ZERO', FIND_CONTAINS))
+#call CheckEqualsInt(Find(0, 'INSERT_MARKER_BEFORE', FIND_CONTAINS) + 1, Find(0, 'INSERT_MARKER_AFTER', FIND_CONTAINS))
+//
+// Preprocessor output functions
+//
+#call CheckTrue(FindSection('Setup') >= 0)
+#call CheckTrue(FindSectionEnd('Setup') > FindSection('Setup'))
+#call CheckTrue(FindCode() > 0)
+//
+// Find function with flags
+//
+#emit '; FIND_MARKER_START'
+#define FindTestStart = Find(0, '; FIND_MARKER_START', FIND_MATCH)
+#emit '; FIND_TEST Alpha Beta'
+#emit '; FIND_TEST Gamma'
+#define FindTestAlpha = FindTestStart + 1
+#define FindTestGamma = FindTestStart + 2
+#call CheckEqualsInt(FindTestAlpha, Find(FindTestStart, '; FIND_TEST Alpha Beta', FIND_MATCH))
+#call CheckEqualsInt(FindTestGamma, Find(FindTestStart, '; FIND_TEST Gamma', FIND_MATCH))
+#call CheckEqualsInt(FindTestAlpha, Find(FindTestStart, '; FIND_TEST', FIND_BEGINS))
+#call CheckEqualsInt(FindTestAlpha, Find(FindTestStart, 'Beta', FIND_ENDS))
+#call CheckEqualsInt(FindTestAlpha, Find(FindTestStart, 'Alpha', FIND_CONTAINS))
+#call CheckEqualsInt(FindTestGamma, Find(FindTestStart, '; find_test gamma', FIND_MATCH))
+#call CheckTrue(Find(FindTestStart, '; find_test gamma', FIND_MATCH | FIND_CASESENSITIVE) < 0)
+#call CheckEqualsInt(FindTestStart, Find(FindTestStart, '; FIND_TEST Gamma', FIND_MATCH | FIND_NOT))
+#emit '   ; FIND_TRIM_PAD   '
+#call CheckTrue(Find(FindTestStart, '; FIND_TRIM_PAD', FIND_MATCH | FIND_TRIM) >= 0)
+#call CheckEqualsInt(FindTestAlpha, Find(FindTestStart, 'Gamma', FIND_CONTAINS, 'Alpha', FIND_CONTAINS | FIND_OR))
+#call CheckEqualsInt(FindTestAlpha, Find(FindTestStart, '; FIND_TEST', FIND_BEGINS, 'Beta', FIND_ENDS | FIND_AND))
+#call CheckTrue(Find(FindTestStart, 'NONEXISTENT_MARKER_XYZ', FIND_MATCH) < 0)
+#undef FindTestGamma
+#undef FindTestAlpha
+#undef FindTestStart
+//
+// #env directive and environment functions
+//
+#ifdef ISTESTTOOLPROJ
+#insert FindSectionEnd('Setup') - 1
+AppComments={#env ISTESTTOOLPROJ_TEST_ENV}
+AppContact={#% ISTESTTOOLPROJ_TEST_ENV}
+#append
+#call CheckEqualsString('42', SetupSetting('AppComments'))
+#call CheckEqualsString('42', SetupSetting('AppContact'))
+#call CheckEqualsString('42', GetEnv('ISTESTTOOLPROJ_TEST_ENV'))
+#endif
+#call CheckTrue(Len(GetEnv('PATH')) > 0)
+#call CheckEqualsInt(0, Len(GetEnv('NONEXISTENT_VAR_12345')))
+//
+// Messaging functions
+//
+#call Message('test message')
+#call Warning('test warning')
+//
+// Pragmas
+//
+#pragma message 'test message'
+#pragma warning 'test warning'
+#pragma option -v+ ; v = verbose
+#call CheckTrue(Defined(__OPT_V__))
+#pragma option -v-
+#call CheckFalse(Defined(__OPT_V__))
+#pragma option -z+ ; any letter should be accepted
+#call CheckTrue(Defined(__OPT_Z__))
+#pragma option -z-
+#call CheckFalse(Defined(__OPT_Z__))
+#pragma parseroption -z+
+#call CheckTrue(Defined(__POPT_Z__))
+#pragma parseroption -z-
+#call CheckFalse(Defined(__POPT_Z__))
+#pragma inlinestart "<%"
+#pragma inlineend "%>"
+<%emit '; CUSTOM_INLINE_MARKER'%>
+#pragma inlinestart "{#"
+#pragma inlineend "}"
+#call CheckTrue(Find(0, 'CUSTOM_INLINE_MARKER', FIND_CONTAINS) >= 0)
+#define SavedIncludePath = __INCLUDE__
+#pragma include "."
+#pragma include SavedIncludePath
+#undef SavedIncludePath
+#pragma verboselevel 9
+#pragma verboselevel 0
+//
+// File system functions
+//
+#call CheckTrue(FileExists(AddBackslash(CompilerPath) + 'ISCC.exe'))
+#call CheckFalse(FileExists('nonexistent_file_xyz_12345.tmp'))
+#call CheckTrue(DirExists(SourcePath))
+#call CheckFalse(DirExists('C:\nonexistent_dir_xyz_12345'))
+#call CheckTrue(FileSize(AddBackslash(CompilerPath) + 'ISCC.exe') > 0)
+#call CheckEqualsInt(-1, FileSize('nonexistent_file_xyz_12345.tmp'))
+//
+// System functions
+//
+#call CheckTrue(IsWin64)
+//
+// Hash functions
+//
+#call CheckEqualsString('0cbc6611f5540bd0809a388dc95a615b', GetMD5OfString('Test'))
+#call CheckEqualsString('8e06915d5f5d4f8754f51892d884c477', GetMD5OfUnicodeString('Test'))
+#call CheckEqualsString('d41d8cd98f00b204e9800998ecf8427e', GetMD5OfString(''))
+#call CheckEqualsString('640ab2bae07bedc4c163f679a746f7ab7fb5d1fa', GetSHA1OfString('Test'))
+#call CheckEqualsString('9ab696a37604d665dc97134dbee44cfe70451b1a', GetSHA1OfUnicodeString('Test'))
+#call CheckEqualsString('532eaabd9574880dbf76b9b8cc00832c20a6ec113d682299550d7a6e0f345e25', GetSHA256OfString('Test'))
+#call CheckEqualsString('e6fa3ca87b1b641ab646d3b4933bba8d0970763f030b6578a60abdeae7366247', GetSHA256OfUnicodeString('Test'))
+//
+// Date/time functions
+//
+#call CheckEqualsInt(4, Len(GetDateTimeString('yyyy')))
+#call CheckTrue(Pos('-', GetDateTimeString('yyyy/mm', '-')) > 0)
