@@ -49,6 +49,7 @@ type
     procedure ElseInstruction;
     procedure EndIfInstruction;
     function Include: Boolean;
+    function OuterInclude: Boolean;
     procedure Resolved;
   end;
 
@@ -365,7 +366,7 @@ begin
                 ProcessPreprocCommand(Command, S, DirectiveOffset));
             pcElseIf:
               FStack.ElseIfInstruction(FStack.Last.Fired or
-                (FStack.Include or not FStack.Last.BlockState) and
+                FStack.OuterInclude and
                 ProcessPreprocCommand(Command, S, DirectiveOffset));
             pcElse: FStack.ElseInstruction;
             pcEndIf: FStack.EndIfInstruction
@@ -515,7 +516,7 @@ begin
             ProcessPreprocCommand(Command, S, DStart - LineStart));
         pcElseIf:
           LineStack.ElseIfInstruction(LineStack.Last.Fired or
-            (LineStack.Include or not LineStack.Last.BlockState) and
+            LineStack.OuterInclude and
             ProcessPreprocCommand(Command, S, DStart - LineStart));
         pcElse: LineStack.ElseInstruction;
         pcEndIf: LineStack.EndIfInstruction;
@@ -1262,6 +1263,14 @@ begin
   end;
 end;
 
+function TConditionalTranslationStack.OuterInclude: Boolean;
+begin
+  for var I := Count - 2 downto 0 do
+    if not TConditionalBlockInfo(List[I]).BlockState then
+      Exit(False);
+  Result := True;
+end;
+
 procedure TConditionalTranslationStack.Resolved;
 begin
   if Count > 0 then
@@ -1357,9 +1366,9 @@ type
   private
     FPreproc: TPreprocessor;
     FBody: TStrings;
-    FScopeUpdated: Boolean;
+    FLocalsEnsured: Boolean;
     FIndex: Integer;
-    procedure UpdateScope;
+    procedure EnsureLocals;
   public
     constructor Create(Proprocessor: TPreprocessor; ProcBody: TStrings);
     procedure Add(const Name: String; const Value: TIsppVariant);
@@ -1799,7 +1808,7 @@ end;
 procedure TProcCallContext.Add(const Name: String;
   const Value: TIsppVariant);
 begin
-  UpdateScope;
+  EnsureLocals;
   if Name <> '' then
     FPreproc.FIdentManager.DefineVariable(Name, -1, Value, dsPrivate);
   FPreproc.FIdentManager.DefineVariable(SLocal, FIndex, Value, dsPrivate);
@@ -1808,11 +1817,13 @@ end;
 
 function TProcCallContext.Call: TIsppVariant;
 begin
-  UpdateScope;
+  EnsureLocals;
+  const SavedScope = FPreproc.GetDefaultScope;
   try
     FPreproc.ExecProc(FBody);
   finally
-    FPreproc.FIdentManager.EndLocal
+    FPreproc.FIdentManager.EndLocal;
+    FPreproc.SetDefaultScope(SavedScope);
   end;
 end;
 
@@ -1833,16 +1844,13 @@ begin
   Result := agsParenteses;
 end;
 
-procedure TProcCallContext.UpdateScope;
-var
-  ReDim: Boolean;
+procedure TProcCallContext.EnsureLocals;
 begin
-  if not FScopeUpdated then
-  begin
+  if not FLocalsEnsured then begin
     FPreproc.FIdentManager.BeginLocal;
-    ReDim := False;
+    var ReDim := False;
     FPreproc.FIdentManager.DimVariable(SLocal, 16, dsPrivate, ReDim);
-    FScopeUpdated := True;
+    FLocalsEnsured := True;
   end;
 end;
 
