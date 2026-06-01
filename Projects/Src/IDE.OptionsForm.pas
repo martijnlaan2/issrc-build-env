@@ -78,7 +78,7 @@ type
 implementation
 
 uses
-  Shared.CommonFunc.Vcl, Shared.CommonFunc, IDE.HelperFunc, IDE.FileAssocFunc, IDE.Messages;
+  Shared.CommonFunc.Vcl, Shared.CommonFunc, IDE.HelperFunc, IDE.FileAssocFunc, IDE.Messages, IDE.LocalizeFunc;
 
 {$R *.DFM}
 
@@ -88,17 +88,17 @@ begin
   InitFormTheme(Self);
 
   { Order must match IDE.HelperFunc.TKeyMappingType }
-  KeyMappingComboBox.Items.Add('Classic');
-  KeyMappingComboBox.Items.Add('Visual Studio / Visual Studio Code');
+  KeyMappingComboBox.Items.Add(LStr(SOptionsKeyMappingDelphi));
+  KeyMappingComboBox.Items.Add(LStr(SOptionsKeyMappingVisualStudio));
 
   { Order must match TIDEScintKeyMappingType }
-  MemoKeyMappingComboBox.Items.Add('Classic / Visual Studio');
-  MemoKeyMappingComboBox.Items.Add('Visual Studio Code');
+  MemoKeyMappingComboBox.Items.Add(LStr(SOptionsMemoKeyMappingDefault));
+  MemoKeyMappingComboBox.Items.Add(LStr(SOptionsMemoKeyMappingVSCode));
 
   { Order must match TThemeType }
-  ThemeComboBox.Items.Add('Light');
-  ThemeComboBox.Items.Add('Dark');
-  ThemeComboBox.Items.Add('Classic');
+  ThemeComboBox.Items.Add(LStr(SOptionsThemeLight));
+  ThemeComboBox.Items.Add(LStr(SOptionsThemeDark));
+  ThemeComboBox.Items.Add(LStr(SOptionsThemeClassic));
 end;
 
 procedure TOptionsForm.FormShow(Sender: TObject);
@@ -112,13 +112,12 @@ end;
 
 procedure TOptionsForm.AssocButtonClick(Sender: TObject);
 const
-  UserStrings: array [Boolean] of String = ('the current user', 'all users');
+  SuccessMessages: array [Boolean] of String = (SAssocSuccessCurrentUser, SAssocSuccessAllUsers);
 var
   AllUsers: Boolean;
 begin
   if RegisterISSFileAssociation(True, AllUsers) then
-    MsgBox(Format(SAssocSuccess, [UserStrings[AllUsers], NewParamStr(0)]),
-      SAssocTitle, mbInformation, MB_OK);
+    MsgBox(LStrFmt(SuccessMessages[AllUsers], [NewParamStr(0)]), LStr(SAssocTitle), mbInformation, MB_OK);
 end;
 
 procedure TOptionsForm.ChangeFontButtonClick(Sender: TObject);

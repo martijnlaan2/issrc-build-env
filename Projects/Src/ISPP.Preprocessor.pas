@@ -56,7 +56,7 @@ type
   TPreprocessorCommand = (pcError, pcIf, pcIfDef, pcIfNDef, pcIfExist,
     pcIfNExist, pcElseIf, pcElse, pcEndIf, pcDefine, pcUndef, pcInclude,
     pcErrorDir, pcPragma, pcEmit, pcEnv, pcFile, pcExpr, pcInsert,
-    pcAppend, pcDim, pcSub, pcEndSub, pcEndLoop, pcFor, pcReDim);
+    pcAppend, pcDim, pcSub, pcEndSub, pcFor, pcReDim);
 
   TDropGarbageProc = procedure(Item: Pointer);
 
@@ -83,7 +83,6 @@ type
     FStack: TConditionalTranslationStack;
     FIdentManager: TIdentManager;
     FInProcBody: Boolean;
-    FInForBody: Boolean;
     FProcs: TStringList;
     FGarbageCollection: TList;
     procedure DropGarbage;
@@ -162,12 +161,12 @@ const
     ('', 'if', 'ifdef', 'ifndef', 'ifexist', 'ifnexist', 'elif', 'else',
      'endif', 'define', 'undef', 'include', 'error', 'pragma',
      'emit', 'env', 'file', 'expr', 'insert', 'append', 'dim', 'sub', 'endsub',
-     'endloop', 'for', 'redim');
+     'for', 'redim');
   PpCmdSynonyms: array[TPreprocessorCommand] of Char =
     (#0, '?', #0, #0, #0, #0, #0, '^',
      '.', ':', #0, '+', #0, #0,
      '=', '%', #0, '!', #0, #0, #0, #0, #0,
-     #0, #0, #0);
+     #0, #0);
 
 function GetEnv(const EnvVar: String): String;
 
@@ -365,9 +364,9 @@ begin
               FStack.IfInstruction(FStack.Include and
                 ProcessPreprocCommand(Command, S, DirectiveOffset));
             pcElseIf:
-              FStack.ElseIfInstruction(FStack.Last.Fired or
-                FStack.OuterInclude and
-                ProcessPreprocCommand(Command, S, DirectiveOffset));
+              FStack.ElseIfInstruction((FStack.AtLeast(1) and FStack.Last.Fired) or
+                (FStack.OuterInclude and
+                 ProcessPreprocCommand(Command, S, DirectiveOffset)));
             pcElse: FStack.ElseInstruction;
             pcEndIf: FStack.EndIfInstruction
             else
@@ -515,9 +514,9 @@ begin
           LineStack.IfInstruction(LineStack.Include and
             ProcessPreprocCommand(Command, S, DStart - LineStart));
         pcElseIf:
-          LineStack.ElseIfInstruction(LineStack.Last.Fired or
-            LineStack.OuterInclude and
-            ProcessPreprocCommand(Command, S, DStart - LineStart));
+          LineStack.ElseIfInstruction((LineStack.AtLeast(1) and LineStack.Last.Fired) or
+            (LineStack.OuterInclude and
+             ProcessPreprocCommand(Command, S, DStart - LineStart)));
         pcElse: LineStack.ElseInstruction;
         pcEndIf: LineStack.EndIfInstruction;
       else
@@ -943,8 +942,8 @@ function TPreprocessor.ProcessPreprocCommand(Command: TPreprocessorCommand;
   var
     ProcName: string;
   begin
-    if FInForBody or FInProcBody then
-      RaiseError('Nested procedure declaration and compound loops not allowed');
+    if FInProcBody then
+      RaiseError('Nested procedure declaration not allowed');
     FInProcBody := True;
     Parser.NextTokenExpect([tkIdent]);
     ProcName := Parser.TokenString;
