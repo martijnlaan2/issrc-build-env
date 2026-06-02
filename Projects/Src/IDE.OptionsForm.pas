@@ -13,10 +13,12 @@ interface
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  UIStateForm, StdCtrls, ExtCtrls, NewGroupBox, NewStaticText;
+  StdCtrls, ExtCtrls,
+  NewGroupBox, NewStaticText,
+  IDE.IDEForm;
 
 type
-  TOptionsForm = class(TUIStateForm)
+  TOptionsForm = class(TIDEForm)
     OKButton: TButton;
     CancelButton: TButton;
     GroupBox1: TNewGroupBox;
@@ -84,21 +86,18 @@ uses
 
 procedure TOptionsForm.FormCreate(Sender: TObject);
 begin
-  InitFormFont(Self);
-  InitFormTheme(Self);
-
   { Order must match IDE.HelperFunc.TKeyMappingType }
-  KeyMappingComboBox.Items.Add(LStr(SOptionsKeyMappingDelphi));
-  KeyMappingComboBox.Items.Add(LStr(SOptionsKeyMappingVisualStudio));
+  KeyMappingComboBox.Items.Add(LFmtMessage(SOptionsKeyMappingDelphi));
+  KeyMappingComboBox.Items.Add(LFmtMessage(SOptionsKeyMappingVisualStudio));
 
   { Order must match TIDEScintKeyMappingType }
-  MemoKeyMappingComboBox.Items.Add(LStr(SOptionsMemoKeyMappingDefault));
-  MemoKeyMappingComboBox.Items.Add(LStr(SOptionsMemoKeyMappingVSCode));
+  MemoKeyMappingComboBox.Items.Add(LFmtMessage(SOptionsMemoKeyMappingDefault));
+  MemoKeyMappingComboBox.Items.Add(LFmtMessage(SOptionsMemoKeyMappingVSCode));
 
   { Order must match TThemeType }
-  ThemeComboBox.Items.Add(LStr(SOptionsThemeLight));
-  ThemeComboBox.Items.Add(LStr(SOptionsThemeDark));
-  ThemeComboBox.Items.Add(LStr(SOptionsThemeClassic));
+  ThemeComboBox.Items.Add(LFmtMessage(SOptionsThemeLight));
+  ThemeComboBox.Items.Add(LFmtMessage(SOptionsThemeDark));
+  ThemeComboBox.Items.Add(LFmtMessage(SOptionsThemeClassic));
 end;
 
 procedure TOptionsForm.FormShow(Sender: TObject);
@@ -117,7 +116,8 @@ var
   AllUsers: Boolean;
 begin
   if RegisterISSFileAssociation(True, AllUsers) then
-    MsgBox(LStrFmt(SuccessMessages[AllUsers], [NewParamStr(0)]), LStr(SAssocTitle), mbInformation, MB_OK);
+    MsgBox(LFmtMessage(SuccessMessages[AllUsers], [SLitIssExt, NewParamStr(0)]),
+      LFmtMessage(SAssocTitle), mbInformation, MB_OK);
 end;
 
 procedure TOptionsForm.ChangeFontButtonClick(Sender: TObject);

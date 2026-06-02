@@ -14,9 +14,10 @@ interface
 uses
   Classes;
 
-function LStr(const Str: String; const AllowEmpty: Boolean = False): String;
-function LStrFmt(const Str: String; const Args: array of const;
-  const AllowEmpty: Boolean = False): String;
+function LFmtMessage(const Str: String; const AllowEmpty: Boolean = False): String; overload;
+function LFmtMessage(const Str: String; const Args: array of const;
+  const AllowEmpty: Boolean = False): String; overload;
+
 procedure LocalizeComponent(const Component: TComponent);
 
 implementation
@@ -25,21 +26,72 @@ uses
   SysUtils, Controls, StdCtrls, Menus,
   NewTabSet;
 
-function LStr(const Str: String; const AllowEmpty: Boolean): String;
+function FmtIDEMessage(S: PChar; const Args: array of const): String;
+{ Same Setup's FmtMessage, but takes an array of const and replaces %n }
+
+  function ArgToStr(const Arg: TVarRec): String;
+  begin
+    case Arg.VType of
+      vtInteger: Result := IntToStr(Arg.VInteger);
+      vtInt64: Result := IntToStr(Arg.VInt64^);
+      vtChar: Result := Char(Arg.VChar);
+      vtWideChar: Result := Arg.VWideChar;
+      vtString: Result := String(Arg.VString^);
+      vtAnsiString: Result := String(AnsiString(Arg.VAnsiString));
+      vtWideString: Result := WideString(Arg.VWideString);
+      vtUnicodeString: Result := UnicodeString(Arg.VUnicodeString);
+    else
+      raise Exception.Create('Internal error: Unexpected Arg.VType');
+    end;
+  end;
+
+begin
+  Result := '';
+  if S = nil then Exit;
+  while True do begin
+    var P := StrScan(S, '%');
+    if P = nil then begin
+      Result := Result + S;
+      Break;
+    end;
+    if P <> S then begin
+      var Z: String;
+      SetString(Z, S, P - S);
+      Result := Result + Z;
+      S := P;
+    end;
+    Inc(P);
+    if CharInSet(P^, ['1'..'9']) and (Ord(P^) - Ord('1') <= High(Args)) then begin
+      Result := Result + ArgToStr(Args[Ord(P^) - Ord('1')]);
+      Inc(S, 2);
+    end else if P^ = 'n' then begin
+      Result := Result + #13#10;
+      Inc(S, 2);
+    end else begin
+      Result := Result + '%';
+      Inc(S);
+      if P^ = '%' then
+        Inc(S);
+    end;
+  end;
+end;
+
+function LFmtMessage(const Str: String; const AllowEmpty: Boolean): String;
+begin
+  Result := LFmtMessage(Str, [], AllowEmpty);
+end;
+
+function LFmtMessage(const Str: String; const Args: array of const;
+  const AllowEmpty: Boolean): String;
 begin
   if Str = '' then begin
     if AllowEmpty then
       Exit('')
     else
-      raise Exception.Create('Internal error: LStr called with empty string');
+      raise Exception.Create('Internal error: LFmtMessage called with empty string');
   end;
   Result := Str; { Temporary }
-end;
-
-function LStrFmt(const Str: String; const Args: array of const;
-  const AllowEmpty: Boolean): String;
-begin
-  Result := Format(LStr(Str, AllowEmpty), Args);
+  Result := FmtIDEMessage(PChar(Result), Args);
 end;
 
 type
@@ -47,30 +99,45 @@ type
 
 procedure LocalizeComponent(const Component: TComponent);
 
-  procedure LocalizeStrings(const Strings: TStrings);
+  function LocalizeStrings(const Strings: TStrings): Boolean;
   begin
-    Strings.BeginUpdate;
+    const NewStrings = TStringList.Create;
     try
-      for var I := 0 to Strings.Count-1 do
-        if Strings[I] <> '' then
-          Strings[I] := LStr(Strings[I]);
+      NewStrings.Assign(Strings);
+      Result := False;
+      for var I := 0 to NewStrings.Count-1 do begin
+        const LocalizedString = LFmtMessage(NewStrings[I], True);
+        if LocalizedString <> NewStrings[I] then begin
+          NewStrings[I] := LocalizedString;
+          Result := True;
+        end;
+      end;
+      if Result then
+        Strings.Assign(NewStrings);
     finally
-      Strings.EndUpdate;
+      NewStrings.Free;
     end;
+  end;
+
+  procedure LocalizeComboBox(const ComboBox: TComboBox);
+  begin
+    const ItemIndex = ComboBox.ItemIndex;
+    if LocalizeStrings(ComboBox.Items) then
+      ComboBox.ItemIndex := ItemIndex;
   end;
 
 begin
   if Component is TControl then begin
     const Control = TControl(Component);
     if Control.Hint <> '' then
-      Control.Hint := LStr(Control.Hint);
+      Control.Hint := LFmtMessage(Control.Hint);
 
     const ControlAccess = TControlAccess(Control);
     if ControlAccess.Text <> '' then { This is both Caption and Text }
-      ControlAccess.Text := LStr(ControlAccess.Text);
+      ControlAccess.Text := LFmtMessage(ControlAccess.Text);
 
     if Component is TComboBox then
-      LocalizeStrings(TComboBox(Component).Items)
+      LocalizeComboBox(TComboBox(Component))
     else if Component is TNewTabSet then begin
       LocalizeStrings(TNewTabSet(Component).Tabs);
       LocalizeStrings(TNewTabSet(Component).Hints);
@@ -79,9 +146,9 @@ begin
   end else if Component is TMenuItem then begin
     const MenuItem = TMenuItem(Component);
     if MenuItem.Caption <> '' then
-      MenuItem.Caption := LStr(MenuItem.Caption);
+      MenuItem.Caption := LFmtMessage(MenuItem.Caption);
     if MenuItem.Hint <> '' then
-      MenuItem.Hint := LStr(MenuItem.Hint);
+      MenuItem.Hint := LFmtMessage(MenuItem.Hint);
   end;
 
   for var I := 0 to Component.ComponentCount-1 do

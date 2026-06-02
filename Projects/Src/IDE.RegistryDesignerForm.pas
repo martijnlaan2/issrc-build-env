@@ -16,10 +16,11 @@ interface
 uses
   SysUtils, Classes,
   Forms, Controls, StdCtrls, ExtCtrls,
-  IDE.Wizard.WizardFormRegistryHelper, NewStaticText, BitmapButton;
+  NewStaticText, BitmapButton,
+  IDE.Wizard.WizardFormRegistryHelper, IDE.IDEForm;
 
 type
-  TRegistryDesignerForm = class(TForm)
+  TRegistryDesignerForm = class(TIDEForm)
     Panel1: TPanel;
     Bevel1: TBevel;
     InsertButton: TButton;
@@ -58,19 +59,16 @@ procedure TRegistryDesignerForm.SetPrivilegesRequired(
   const Value: TPrivilegesRequired);
 begin
   if Value = prAdmin then
-    PrivilegesRequiredLabel.Caption := LStrFmt(SRegistryDesignerScriptHas, ['PrivilegesRequired=admin'])
+    PrivilegesRequiredLabel.Caption := LFmtMessage(SRegistryDesignerScriptHas, ['PrivilegesRequired=admin'])
   else if Value = prLowest then
-    PrivilegesRequiredLabel.Caption := LStrFmt(SRegistryDesignerScriptHas, ['PrivilegesRequired=lowest'])
+    PrivilegesRequiredLabel.Caption := LFmtMessage(SRegistryDesignerScriptHas, ['PrivilegesRequired=lowest'])
   else
-    PrivilegesRequiredLabel.Caption := LStrFmt(SRegistryDesignerScriptHasSet, ['PrivilegesRequiredOverridesAllowed']);
+    PrivilegesRequiredLabel.Caption := LFmtMessage(SRegistryDesignerScriptHasSet, ['PrivilegesRequiredOverridesAllowed']);
   FRegistryHelper.PrivilegesRequired := Value;
 end;
 
 procedure TRegistryDesignerForm.FormCreate(Sender: TObject);
 begin
-  InitFormFont(Self);
-  InitFormTheme(Self);
-
   FRegistryHelper := TWizardFormRegistryHelper.Create(Self, AppRegistryFileEdit,
     AppRegistryFileButton, AppRegistryUninsDeleteKeyCheck,
     AppRegistryUninsDeleteKeyIfEmptyCheck, AppRegistryUninsDeleteValueCheck,

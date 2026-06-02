@@ -13,13 +13,15 @@ interface
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  UIStateForm, StdCtrls, ExtCtrls, BitmapButton, BitmapImage, NewGroupBox;
+  StdCtrls, ExtCtrls,
+  BitmapButton, BitmapImage, NewGroupBox,
+  IDE.IDEForm;
 
 type
   TStartupFormResult = (srNone, srEmpty, srWizard, srOpenFile, srOpenDialog,
     srOpenDialogExamples);
 
-  TStartupForm = class(TUIStateForm)
+  TStartupForm = class(TIDEForm)
     OKButton: TButton;
     CancelButton: TButton;
     GroupBox1: TNewGroupBox;
@@ -101,9 +103,6 @@ procedure TStartupForm.FormCreate(Sender: TObject);
 begin
   FResult := srNone;
 
-  InitFormFont(Self);
-  InitFormTheme(Self);
-
   if IsLicensed then begin
     DonateBitBtn.Visible := False;
     const DiffX = MailingListBitBtn.Left - DonateBitBtn.Left;
@@ -120,8 +119,8 @@ begin
 
   UpdateImages;
 
-  OpenListBox.Items.Add(LStr(SCompilerExampleScripts));
-  OpenListBox.Items.Add(LStr(SCompilerMoreFiles));
+  OpenListBox.Items.Add(LFmtMessage(SCompilerExampleScripts));
+  OpenListBox.Items.Add(LFmtMessage(SCompilerMoreFiles));
   OpenListBox.ItemIndex := 0;
   UpdateHorizontalExtent(OpenListBox);
 

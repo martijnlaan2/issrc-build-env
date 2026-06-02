@@ -59,6 +59,7 @@ uses
   TaskbarProgressFunc in '..\Components\TaskbarProgressFunc.pas',
   IDE.HtmlHelpFunc in 'Src\IDE.HtmlHelpFunc.pas',
   UIStateForm in '..\Components\UIStateForm.pas',
+  IDE.IDEForm in 'Src\IDE.IDEForm.pas',
   Shared.LangOptionsSectionDirectives in 'Src\Shared.LangOptionsSectionDirectives.pas',
   Shared.SetupMessageIDs in 'Src\Shared.SetupMessageIDs.pas',
   Shared.SetupSectionDirectives in 'Src\Shared.SetupSectionDirectives.pas',
@@ -179,7 +180,19 @@ procedure CheckParams;
 
   procedure Error;
   begin
-    MessageBox(0, PChar(LStr(SCompilerCommandLineHelp3)), PChar(LStr(SCompilerFormCaption)),
+    const CommandLineHelp = '%0:s' + SNewLine2 +
+      'iside /cc <%1:s>' + SNewLine +
+      'iside /wizard <%2:s> <%1:s>' + SNewLine2 +
+      '%3:s' + SNewLine +
+      'iside /cc c:\isetup\sample32\sample1.iss' + SNewLine +
+      'iside /cc "C:\Inno Setup\Sample32\%4:s.iss"' + SNewLine +
+      'iside /wizard "%5:s" c:\temp.iss';
+    MessageBox(0, PChar(Format(CommandLineHelp,
+      [LFmtMessage(SCompilerCommandLineHelpUsage), LFmtMessage(SCompilerCommandLineHelpScriptFile),
+       LFmtMessage(SCompilerCommandLineHelpWizardName), LFmtMessage(SCompilerCommandLineHelpExamples),
+       LFmtMessage(SCompilerCommandLineHelpMyScript),
+       LFmtMessage(SCompilerCommandLineHelpMyScriptWizard)])),
+      PChar(LFmtMessage(SCompilerFormCaption)),
       MB_OK or MB_ICONEXCLAMATION);
     Halt(1);
   end;
@@ -236,7 +249,7 @@ begin
     InitISCmplrLibrary;
   except
     begin
-      MessageBox(0, PChar(LStrFmt(SCompilerLibraryLoadError, [ISCmplrDLL, GetExceptMessage])
+      MessageBox(0, PChar(LFmtMessage(SCompilerLibraryLoadError, [ISCmplrDLL, GetExceptMessage])
         {$IFDEF DEBUG} + #13#10#13#10'Did you build the ISCmplr project?' {$ENDIF}), nil, MB_OK or MB_ICONSTOP);
       Halt(3);
     end;
@@ -247,7 +260,7 @@ begin
     InitIsscintLibrary;
   except
     begin
-      MessageBox(0, PChar(LStrFmt(SCompilerLibraryLoadError, [IsscintDLL, GetExceptMessage])
+      MessageBox(0, PChar(LFmtMessage(SCompilerLibraryLoadError, [IsscintDLL, GetExceptMessage])
         {$IFDEF DEBUG} + #13#10#13#10'Did you run Projects\Bin\synch-isfiles.bat as instructed in README.md?' {$ENDIF}), nil, MB_OK or MB_ICONSTOP);
       Halt(4);
     end;
@@ -275,7 +288,7 @@ begin
     if CommandLineWizard then
       Title := CommandLineWizardName
     else
-      Title := LStr(SCompilerFormCaption);
+      Title := LFmtMessage(SCompilerFormCaption);
   end;
 
   { Don't allow VCL Styles to style menus using owner drawing. Instead we get native dark menus

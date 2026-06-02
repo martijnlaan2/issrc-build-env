@@ -32,7 +32,7 @@ type
     procedure UpdateRunMenu;
     procedure UpdateRunMenu2(const Menu: TMenuItem);
     procedure UpdateBreakPointsMenu(const Menu: TMenuItem);
-    procedure UpdateTargetMenu;
+    procedure UpdateTargetMenuItems;
     { Private }
     procedure _UpdateMenuBitmapsIfNeeded;
     procedure _ApplyMenuBitmapsAndNewShortCutText(const ParentMenuItem: TMenuItem);
@@ -324,11 +324,11 @@ end;
 procedure TMainFormUpdateMenuHelper.UpdateNewMainFileButtons;
 begin
   if FOptions.UseWizard then begin
-    FNewMainFile.Caption := LStr(SMenuNewWithWizard);
+    FNewMainFile.Caption := LFmtMessage(SMenuNewWithWizard);
     FNewMainFile.OnClick := FNewMainFileUserWizardClick;
     NewMainFileButton.OnClick := FNewMainFileUserWizardClick;
   end else begin
-    FNewMainFile.Caption := LStr(SMenuNew);
+    FNewMainFile.Caption := LFmtMessage(SMenuNew);
     FNewMainFile.OnClick := FNewMainFileClick;
     NewMainFileButton.OnClick := FNewMainFileClick;
   end;
@@ -512,7 +512,7 @@ begin
   _ApplyMenuBitmapsAndNewShortCutText(Menu);
 end;
 
-procedure TMainFormUpdateMenuHelper.UpdateTargetMenu;
+procedure TMainFormUpdateMenuHelper.UpdateTargetMenuItems;
 begin
   if FDebugTarget = dtSetup then begin
     RTargetSetup.Checked := True;
