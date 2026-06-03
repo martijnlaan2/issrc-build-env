@@ -396,7 +396,7 @@ object WizardForm: TWizardForm
         Height = 53
         Anchors = [akLeft, akTop, akRight]
         AutoSize = False
-        Caption = 'Welcome to the [name]'
+        Caption = 'Welcome to the %1'
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clWindowText
         Font.Height = -16
@@ -433,7 +433,7 @@ object WizardForm: TWizardForm
         Caption = 
           'Not all features of Inno Setup are covered by this wizard. See t' +
           'he documentation for details on creating Inno Setup script files' +
-          '.'#13#13'Click Next to continue, or Cancel to exit this wizard.'
+          '.%n%nClick Next to continue, or Cancel to exit this wizard.'
         TabOrder = 2
         WordWrap = True
       end
@@ -682,7 +682,7 @@ object WizardForm: TWizardForm
             Width = 89
             Height = 23
             Anchors = [akTop, akRight]
-            Caption = '&Add file(s)...'
+            Caption = '&Add File(s)...'
             TabOrder = 7
           end
           object AppFilesEditButton: TButton
@@ -736,7 +736,7 @@ object WizardForm: TWizardForm
             Width = 89
             Height = 23
             Anchors = [akTop, akRight]
-            Caption = 'Add fol&der...'
+            Caption = 'Add Fol&der...'
             TabOrder = 8
           end
           object NoAppExeCheck: TCheckBox
@@ -980,7 +980,7 @@ object WizardForm: TWizardForm
             Width = 89
             Height = 23
             Anchors = [akTop, akRight]
-            Caption = 'Br&owse...'
+            Caption = '*'
             TabOrder = 5
             OnClick = FileButtonClick
           end
@@ -998,7 +998,7 @@ object WizardForm: TWizardForm
             Width = 89
             Height = 23
             Anchors = [akTop, akRight]
-            Caption = 'Bro&wse...'
+            Caption = '*'
             TabOrder = 8
             OnClick = FileButtonClick
           end
@@ -1066,7 +1066,6 @@ object WizardForm: TWizardForm
             Width = 20
             Height = 20
             Anchors = [akTop, akRight]
-            Caption = 'Help'
             TabOrder = 9
           end
           object AppRegistryFileLabel: TNewStaticText
@@ -1076,7 +1075,7 @@ object WizardForm: TWizardForm
             Height = 16
             Anchors = [akLeft, akTop, akRight]
             AutoSize = False
-            Caption = '&Windows registry file (.reg) to import:'
+            Caption = '&Windows registry file (.%1) to import:'
             FocusControl = AppRegistryFileEdit
             TabOrder = 0
           end
@@ -1183,7 +1182,7 @@ object WizardForm: TWizardForm
             Width = 89
             Height = 23
             Anchors = [akTop, akRight]
-            Caption = '&Select all'
+            Caption = 'Select &All'
             TabOrder = 2
             OnClick = AllLanguagesButtonClick
           end
@@ -1193,7 +1192,7 @@ object WizardForm: TWizardForm
             Width = 89
             Height = 23
             Anchors = [akTop, akRight]
-            Caption = '&Deselect all'
+            Caption = '&Deselect All'
             TabOrder = 3
             OnClick = NoLanguagesButtonClick
           end
@@ -1289,7 +1288,7 @@ object WizardForm: TWizardForm
             Width = 89
             Height = 23
             Anchors = [akTop, akRight]
-            Caption = 'Bro&wse...'
+            Caption = '*'
             TabOrder = 7
             OnClick = FileButtonClick
           end
@@ -1355,13 +1354,8 @@ object WizardForm: TWizardForm
             Style = csDropDownList
             Anchors = [akLeft, akTop, akRight]
             DropDownCount = 12
-            ItemIndex = 1
             TabOrder = 1
-            Text = 'modern'
             OnChange = WizardStyleComboBoxChange
-            Items.Strings = (
-              'classic'
-              'modern')
           end
           object WizardStyleDarkComboBox: TComboBox
             Left = 173
@@ -1371,14 +1365,8 @@ object WizardForm: TWizardForm
             Style = csDropDownList
             Anchors = [akTop, akRight]
             DropDownCount = 12
-            ItemIndex = 2
             TabOrder = 2
-            Text = 'dynamic'
             OnChange = WizardStyleComboBoxChange
-            Items.Strings = (
-              'light'
-              'dark'
-              'dynamic')
           end
           object WizardStyleSubStyleComboBox: TComboBox
             Left = 311
@@ -1388,17 +1376,8 @@ object WizardForm: TWizardForm
             Style = csDropDownList
             Anchors = [akTop, akRight]
             DropDownCount = 12
-            ItemIndex = 0
             TabOrder = 3
-            Text = 'default'
             OnChange = WizardStyleComboBoxChange
-            Items.Strings = (
-              'default'
-              'polar'
-              'slate'
-              'stellar'
-              'windows11'
-              'zircon')
           end
         end
         object ISPPPage: TNewNotebookPage
@@ -1644,8 +1623,8 @@ object WizardForm: TWizardForm
         Anchors = [akLeft, akTop, akRight]
         AutoSize = False
         Caption = 
-          'You have successfully completed the [name].'#13#13'To close this wizar' +
-          'd and generate the new script file, click Finish.'
+          'You have successfully completed the %1.%n%nTo close this wizard ' +
+          'and generate the new script file, click Finish.'
         ShowAccelChar = False
         TabOrder = 0
         WordWrap = True

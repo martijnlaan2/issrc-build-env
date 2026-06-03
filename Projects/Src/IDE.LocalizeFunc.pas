@@ -27,7 +27,11 @@ uses
   NewTabSet;
 
 function FmtIDEMessage(S: PChar; const Args: array of const): String;
-{ Same Setup's FmtMessage, but takes an array of const and replaces %n }
+{ Same as Setup's FmtMessage, but takes an array of const and replaces %n.
+  Important property: %1, %2, etc. with no matching argument stay
+  unchanged, so it is possible to first call FmtIDEMessage on a string
+  without supplying the arguments, and then later call it a second
+  time. This is used for .dfm strings having %1, etc. }
 
   function ArgToStr(const Arg: TVarRec): String;
   begin
@@ -119,7 +123,7 @@ procedure LocalizeComponent(const Component: TComponent);
     end;
   end;
 
-  procedure LocalizeComboBox(const ComboBox: TComboBox);
+  procedure LocalizeComboBox(const ComboBox: TCustomComboBox);
   begin
     const ItemIndex = ComboBox.ItemIndex;
     if LocalizeStrings(ComboBox.Items) then
@@ -136,8 +140,10 @@ begin
     if ControlAccess.Text <> '' then { This is both Caption and Text }
       ControlAccess.Text := LFmtMessage(ControlAccess.Text);
 
-    if Component is TComboBox then
-      LocalizeComboBox(TComboBox(Component))
+    { Of the following, only TNewTabSet.Tabs is currently actually
+      prefilled in the .dfm files }
+    if Component is TCustomComboBox then
+      LocalizeComboBox(TCustomComboBox(Component))
     else if Component is TNewTabSet then begin
       LocalizeStrings(TNewTabSet(Component).Tabs);
       LocalizeStrings(TNewTabSet(Component).Hints);

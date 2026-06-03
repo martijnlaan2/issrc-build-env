@@ -2,7 +2,7 @@ object FilesDesignerForm: TFilesDesignerForm
   Left = 624
   Top = 375
   BorderStyle = bsDialog
-  Caption = '[Files] Entries Designer'
+  Caption = '%1 Entries Designer'
   ClientHeight = 403
   ClientWidth = 575
   Color = clBtnFace
@@ -36,7 +36,7 @@ object FilesDesignerForm: TFilesDesignerForm
       Top = 11
       Width = 75
       Height = 25
-      Caption = 'Insert'
+      Caption = '&Insert'
       Default = True
       ModalResult = 1
       TabOrder = 0
@@ -74,7 +74,7 @@ object FilesDesignerForm: TFilesDesignerForm
     Top = 79
     Width = 89
     Height = 23
-    Caption = 'Add fol&der...'
+    Caption = 'Add Fol&der...'
     TabOrder = 3
   end
   object AppFilesAddButton: TButton
@@ -82,7 +82,7 @@ object FilesDesignerForm: TFilesDesignerForm
     Top = 50
     Width = 89
     Height = 23
-    Caption = '&Add file(s)...'
+    Caption = '&Add File(s)...'
     TabOrder = 4
   end
   object AppFilesListBox: TDropListBox
@@ -109,7 +109,7 @@ object FilesDesignerForm: TFilesDesignerForm
     Top = 8
     Width = 253
     Height = 17
-    Caption = '&Script has CreateAppDir=no'
+    Caption = '*'
     TabOrder = 8
   end
   object AppFilesAddDownloadButton: TButton
@@ -117,7 +117,7 @@ object FilesDesignerForm: TFilesDesignerForm
     Top = 106
     Width = 89
     Height = 23
-    Caption = 'Do&wnload...'
+    Caption = 'D&ownload...'
     TabOrder = 6
   end
 end

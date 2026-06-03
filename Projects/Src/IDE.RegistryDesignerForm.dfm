@@ -2,7 +2,7 @@ object RegistryDesignerForm: TRegistryDesignerForm
   Left = 298
   Top = 273
   BorderStyle = bsDialog
-  Caption = '[Registry] Entries Designer'
+  Caption = '%1 Entries Designer'
   ClientHeight = 347
   ClientWidth = 496
   Color = clBtnFace
@@ -12,6 +12,7 @@ object RegistryDesignerForm: TRegistryDesignerForm
   Font.Name = 'MS Sans Serif'
   Font.Style = []
   Position = poScreenCenter
+  ShowHint = True
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   DesignSize = (
@@ -24,7 +25,6 @@ object RegistryDesignerForm: TRegistryDesignerForm
     Width = 20
     Height = 20
     Anchors = [akTop, akRight]
-    Caption = 'Help'
     TabOrder = 9
   end
   object Panel1: TPanel
@@ -53,7 +53,7 @@ object RegistryDesignerForm: TRegistryDesignerForm
       Width = 75
       Height = 25
       Anchors = [akRight, akBottom]
-      Caption = 'Insert'
+      Caption = '&Insert'
       Default = True
       ModalResult = 1
       TabOrder = 0
@@ -83,9 +83,9 @@ object RegistryDesignerForm: TRegistryDesignerForm
   object AppRegistryFileLabel: TNewStaticText
     Left = 8
     Top = 18
-    Width = 170
+    Width = 169
     Height = 14
-    Caption = '&Windows registry file (.reg) to import:'
+    Caption = '&Windows registry file (.%1) to import:'
     FocusControl = AppRegistryFileEdit
     TabOrder = 0
   end
@@ -103,7 +103,7 @@ object RegistryDesignerForm: TRegistryDesignerForm
     Width = 75
     Height = 25
     Anchors = [akTop, akRight]
-    Caption = '&Browse...'
+    Caption = 'B&rowse...'
     TabOrder = 2
   end
   object AppRegistrySettingsLabel: TNewStaticText

@@ -294,6 +294,17 @@ procedure TWizardForm.FormCreate(Sender: TObject);
 var
   I: Integer;
 begin
+  { Finish localization: LocalizeComponent translated every property, but some
+    still contain an unfilled %1 etc., which we now replace }
+  AppRegistryFileLabel.Caption := LFmtMessage(AppRegistryFileLabel.Caption, [SLitRegExt]);
+  WelcomeLabel1.Caption := LFmtMessage(WelcomeLabel1.Caption, ['[name]']);
+  FinishedLabel.Caption := LFmtMessage(FinishedLabel.Caption, ['[name]']);
+  { These are not set in the .dfm because that would duplicate a message,
+    one with and one without the accel char }
+  AppInfoBeforeFileButton.Caption := RemoveAccelChar(AppLicenseFileButton.Caption);
+  AppInfoAfterFileButton.Caption := RemoveAccelChar(AppLicenseFileButton.Caption);
+  SetupIconFileButton.Caption := RemoveAccelChar(OutputDirButton.Caption);
+
   FResult := wrNone;
 
   FWizardName := LFmtMessage(SWizardDefaultName);
@@ -311,7 +322,7 @@ begin
   FLanguages.Sorted := False;
   FLanguages.Insert(0, LanguagesDefaultIsl);
 
-  if not ThemeStyled then
+  if not FormThemeActive then
     OuterNotebook.Color := InitFormThemeGetBkColor(True);
 
   if FontExists('Segoe UI') then begin
@@ -387,6 +398,14 @@ begin
   OutputBaseFileNameEdit.Text := 'mysetup';
   EncryptionCheck.Checked := True;
   EncryptionCheck.Enabled := False;
+
+  { WizardStyle }
+  WizardStyleMainComboBox.Items.AddStrings(['classic', 'modern']);
+  WizardStyleMainComboBox.ItemIndex := 1;
+  WizardStyleDarkComboBox.Items.AddStrings(['light', 'dark', 'dynamic']);
+  WizardStyleDarkComboBox.ItemIndex := 2;
+  WizardStyleSubStyleComboBox.Items.AddStrings(['default', 'polar', 'slate', 'stellar', 'windows11', 'zircon']);
+  WizardStyleSubStyleComboBox.ItemIndex := 0;
 
   { ISPP }
   ISPPLabel.Caption := FixLabel(LFmtMessage(SWizardISPPLabel, ['[name]', '#define']));
@@ -1059,7 +1078,7 @@ begin
     FFilesHelper.AddScript(Files, HasExtractArchive);
     if HasExtractArchive then begin
       Setup := Setup + 'ArchiveExtraction=full' + SNewLine;
-      Setup := Setup + SLitComment + LFmtMessage(SWizardScriptCommentArchiveExtractionEnhanced, ['ArchiveExtraction=enhanced']) + SNewLine;
+      Setup := Setup + SLitComment + LFmtMessage(SWizardScriptCommentArchiveExtractionEnhanced, ['ArchiveExtraction=enhanced', SLit7zExt]) + SNewLine;
       Setup := Setup + SLitComment + LFmtMessage(SWizardScriptCommentArchiveExtractionEnhancedNoPassword, ['ArchiveExtraction=enhanced/nopassword']) + SNewLine;
     end;
 

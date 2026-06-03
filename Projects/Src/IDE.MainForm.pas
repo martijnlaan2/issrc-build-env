@@ -996,6 +996,27 @@ begin
   LocalizeComponent(Self);
   InitFormFont(Self);
 
+  { Finish localization: LocalizeComponent translated every property, but some
+    still contain an unfilled %1 etc., which we now replace }
+  NewMainFileButton.Hint := LFmtMessage(NewMainFileButton.Hint, [NewShortCutToText(FNewMainFile.ShortCut)]);
+  OpenMainFileButton.Hint := LFmtMessage(OpenMainFileButton.Hint, [NewShortCutToText(FOpenMainFile.ShortCut)]);
+  SaveButton.Hint := LFmtMessage(SaveButton.Hint, [NewShortCutToText(FSave.ShortCut)]);
+  StopCompileButton.Hint := LFmtMessage(StopCompileButton.Hint, [NewShortCutToText(ShortCut(VK_ESCAPE, []))]);
+  TargetSetupButton.Hint := LFmtMessage(TargetSetupButton.Hint, [NewShortCutToText(RTargetSetup.ShortCut)]);
+  TargetUninstallButton.Hint := LFmtMessage(TargetUninstallButton.Hint, [NewShortCutToText(RTargetUninstall.ShortCut)]);
+  HelpButton.Hint := LFmtMessage(HelpButton.Hint, [NewShortCutToText(ShortCut(VK_F1, []))]);
+  TFilesDesigner.Caption := LFmtMessage(TFilesDesigner.Caption, ['[F&iles]']);
+  TRegistryDesigner.Caption := LFmtMessage(TRegistryDesigner.Caption, ['[&Registry]']);
+  TMsgBoxDesigner.Caption := LFmtMessage(TMsgBoxDesigner.Caption, ['&MsgBox/TaskDialogMsgBox']);
+  { These are not set in the .dfm because that would duplicate a message,
+    one with and one without the accel char }
+  PauseButton.Hint := RemoveAccelChar(RPause.Caption);
+  UpdatePanelDonateBitBtn.Caption := RemoveAccelChar(HDonate.Caption);
+  OutputTabSet.Tabs[tiCompilerOutput] := RemoveAccelChar(VCompilerOutput.Caption);
+  OutputTabSet.Tabs[tiDebugOutput] := RemoveAccelChar(VDebugOutput.Caption);
+  OutputTabSet.Tabs[tiDebugCallStack] := RemoveAccelChar(VDebugCallStack.Caption);
+  OutputTabSet.Tabs[tiFindResults] := RemoveAccelChar(VFindResults.Caption);
+
   FHighContrastActive := HighContrastActive; { Just checking once at startup }
   if FHighContrastActive then begin
     { If UseVisualStyle is False (LWS_USEVISUALSTYLE is off) the regular text of the label does not
@@ -2334,7 +2355,7 @@ begin
     end;
 
     StartTime := GetTickCount;
-    StatusMessage(smkStartEnd, SLitStatusEventPrefix + LFmtMessage(SCompilerStatusStarting, [TimeToStr(Time)]));
+    StatusMessage(smkStartEnd, SLitStatusEventPrefix + LFmtMessage(SCompilerStatusStarting, ['  ', TimeToStr(Time)]));
     StatusMessage(smkStartEnd, '');
     FCompiling := True;
     FCompileWantAbort := False;
@@ -2374,7 +2395,7 @@ begin
     end;
     ElapsedTime := GetTickCount - StartTime;
     ElapsedSeconds := ElapsedTime div 1000;
-    StatusMessage(smkStartEnd, SLitStatusEventPrefix + LFmtMessage(SCompilerStatusFinished, [TimeToStr(Time),
+    StatusMessage(smkStartEnd, SLitStatusEventPrefix + LFmtMessage(SCompilerStatusFinished, ['  ', TimeToStr(Time),
       Format('%.2u%s%.2u%s%.3u', [ElapsedSeconds div 60, FormatSettings.TimeSeparator,
         ElapsedSeconds mod 60, FormatSettings.DecimalSeparator, ElapsedTime mod 1000])]));
   finally
@@ -5904,7 +5925,7 @@ begin
   if FDebugTarget = dtSetup then
     S := S + SNewLine2 + LFmtMessage(SCompilerTerminateProcessSetupNote, [LFmtMessage(DebugTargetStrings[FDebugTarget])]);
 
-  if MsgBox(S, LFmtMessage(SCompilerTerminateTitle), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) <> IDYES then
+  if MsgBox(S, RemoveAccelChar(RTerminate.Caption), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) <> IDYES then
     Exit;
   CheckIfTerminated;
   if FDebugging then begin
