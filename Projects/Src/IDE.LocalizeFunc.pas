@@ -21,7 +21,7 @@ type
 
   TIDELanguage = (ilEnglish, ilDutch, ilGerman, ilJapanese);
 
-procedure InitLocalization(const Lang: TIDELanguage);
+procedure InitLocalization(const Lang: TIDELanguage; const Reverse: Boolean = False);
 
 function LFmtMessage(const Str: String; const AllowEmpty: Boolean = False): String; overload;
 function LFmtMessage(const Str: String; const Args: array of const;
@@ -37,18 +37,22 @@ implementation
 
 uses
   SysUtils, Controls, StdCtrls, Menus, Generics.Collections,
-  NewTabSet,
+  NewTabSet, ScintEdit,
   IDE.LocalizeFunc.Dutch, IDE.LocalizeFunc.German, IDE.LocalizeFunc.Japanese;
 
 var
   TranslationDictionary: TDictionary<String, String>;
 
-procedure InitLocalization(const Lang: TIDELanguage);
+procedure InitLocalization(const Lang: TIDELanguage; const Reverse: Boolean);
 
   procedure AddTranslations(const Translations: array of TTranslationPair);
   begin
-    for var I := Low(Translations) to High(Translations) do
-      TranslationDictionary.AddOrSetValue(Translations[I].English, Translations[I].Localized);
+    for var I := Low(Translations) to High(Translations) do begin
+      if Reverse then
+        TranslationDictionary.AddOrSetValue(Translations[I].Localized, Translations[I].English)
+      else
+        TranslationDictionary.AddOrSetValue(Translations[I].English, Translations[I].Localized);
+    end;
   end;
 
 begin
@@ -215,12 +219,15 @@ procedure LocalizeComponent(const Component: TComponent);
 begin
   if Component is TControl then begin
     const Control = TControl(Component);
-    if Control.Hint <> '' then
-      Control.Hint := LFmtMessage(Control.Hint);
 
-    const ControlAccess = TControlAccess(Control);
-    if ControlAccess.Text <> '' then { This is both Caption and Text }
-      ControlAccess.Text := LFmtMessage(ControlAccess.Text);
+    if not (Control is TScintEdit) then begin
+      if Control.Hint <> '' then
+        Control.Hint := LFmtMessage(Control.Hint);
+
+      const ControlAccess = TControlAccess(Control);
+      if ControlAccess.Text <> '' then { This is both Caption and Text }
+        ControlAccess.Text := LFmtMessage(ControlAccess.Text);
+    end;
 
     { Of the following, only TNewTabSet.Tabs is currently actually
       prefilled in the .dfm files }
