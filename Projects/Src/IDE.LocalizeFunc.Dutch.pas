@@ -15,7 +15,7 @@ uses
   IDE.LocalizeFunc;
 
 const
-  DutchIDETranslations: array [0..500] of TTranslationPair = (
+  DutchIDETranslations: array [0..499] of TTranslationPair = (
     (English: 'Command line usage:'; Localized: 'Opdrachtregelgebruik:'),
     (English: 'Examples:'; Localized: 'Voorbeelden:'),
     (English: 'script file'; Localized: 'scriptbestand'),
@@ -274,7 +274,7 @@ const
     (English: 'Add Fol&der...'; Localized: '&Map toevoegen...'),
     (English: '&Add File(s)...'; Localized: 'Bestand(en) &toevoegen...'),
     (English: '&Files:'; Localized: '&Bestanden:'),
-    (English: 'D&ownload...'; Localized: '&Downloaden...'),
+    (English: 'Add D&ownload...'; Localized: '&Download toevoegen...'),
     (English: 'Go to File'; Localized: 'Ga naar bestand'),
     (English: 'Enter Commercial License Key'; Localized: 'Commerciële licentiesleutel invoeren'),
     (English: 'Paste your license key below'; Localized: 'Plak hieronder uw licentiesleutel'),
@@ -473,8 +473,7 @@ const
     (English: '&Include empty subfolders'; Localized: '&Lege submappen opnemen'),
     (English: '&Extract archive'; Localized: '&Archief uitpakken'),
     (English: 'Welcome to the %1'; Localized: 'Welkom bij de %1'),
-    (English: 'This wizard will guide you through the process of creating a new Inno Setup script file. The results will be used to generate a new script file which can be compiled directly or saved on disk for later use.'; Localized: 'Deze wizard begeleidt u bij het maken van een nieuw Inno Setup-scriptbestand. De resultaten worden gebruikt om een nieuw scriptbestand te genereren dat direct kan worden gecompileerd of op schijf kan worden opgeslagen voor later gebruik.'),
-    (English: 'Not all features of Inno Setup are covered by this wizard. See the documentation for details on creating Inno Setup script files.%n%nClick Next to continue, or Cancel to exit this wizard.'; Localized: 'Niet alle functies van Inno Setup worden door deze wizard behandeld. Raadpleeg de documentatie voor details over het maken van Inno Setup-scriptbestanden.%n%nKlik op Volgende om door te gaan of op Annuleren om deze wizard af te sluiten.'),
+    (English: 'This wizard will guide you through the process of creating a new Inno Setup script file. The results will be used to generate a new script file which can be compiled directly or saved on disk for later use.%n%nNot all features of Inno Setup are covered by this wizard. See the documentation for details on creating Inno Setup script files.%n%nClick Next to continue, or Cancel to exit this wizard.'; Localized: 'Deze wizard begeleidt u bij het maken van een nieuw Inno Setup-scriptbestand. De resultaten worden gebruikt om een nieuw scriptbestand te genereren dat direct kan worden gecompileerd of op schijf kan worden opgeslagen voor later gebruik.%n%nNiet alle functies van Inno Setup worden door deze wizard behandeld. Raadpleeg de documentatie voor details over het maken van Inno Setup-scriptbestanden.%n%nKlik op Volgende om door te gaan of op Annuleren om deze wizard af te sluiten.'),
     (English: 'Application na&me:'; Localized: 'Toepassings&naam:'),
     (English: 'Application &version:'; Localized: 'Toepassings&versie:'),
     (English: 'Application &publisher:'; Localized: 'Toepassings&uitgever:'),
@@ -498,7 +497,7 @@ const
     (English: 'Allow user to create a deskto&p shortcut'; Localized: 'Gebruiker mag een &bureaubladsnelkoppeling maken'),
     (English: 'Create an &Uninstall shortcut in the Start Menu folder'; Localized: 'Een snelkoppeling naar het &verwijderprogramma maken in de map van het menu Start'),
     (English: 'Create an &Internet shortcut in the Start Menu folder'; Localized: 'Een &internetsnelkoppeling maken in de map van het menu Start'),
-    (English: '&Create a shortcut to the main executable in the Start Menu Programs folder'; Localized: 'Een &snelkoppeling naar het hoofduitvoerbare bestand maken in de map Programma''s van het menu Start'),
+    (English: '&Create a shortcut to the main executable in the Start Menu Programs folder'; Localized: 'Een &snelkoppeling naar het hoofduitvoerbare bestand maken in het menu Start'),
     (English: '&License file:'; Localized: '&Licentiebestand:'),
     (English: '&Information file shown before installation:'; Localized: '&Informatiebestand dat vóór installatie wordt getoond:'),
     (English: 'Information file shown &after installation:'; Localized: 'Informatiebestand dat na installatie wordt &getoond:'),

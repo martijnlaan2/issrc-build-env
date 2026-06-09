@@ -50,8 +50,9 @@ type
 implementation
 
 uses
-  Windows, Messages, SysUtils, Dialogs,
-  Shared.CommonFunc.Vcl, IDE.InputQueryMemoForm, IDE.HelperFunc,
+  Windows, Messages, SysUtils,
+  Shared.CommonFunc.Vcl,
+  IDE.InputQueryForm, IDE.InputQueryMemoForm, IDE.HelperFunc,
   IDE.HtmlHelpFunc, IDE.Messages, IDE.LocalizeFunc;
 
 {$R *.DFM}
@@ -80,6 +81,10 @@ end;
 
 procedure TSignToolsForm.FormCreate(Sender: TObject);
 begin
+  { Finish localization }
+  SizeSideButtons([AddButton, EditButton, RemoveButton], SignToolsListBox);
+  SizeBottomButtons(OKButton, CancelButton);
+
   FSignTools := TStringList.Create();
 end;
 
@@ -115,7 +120,7 @@ var
 begin
   Result := False;
 
-  if InputQuery(Caption, LFmtMessage(SSignToolNamePrompt), SignToolName) then begin
+  if InputQueryEdit(Caption, LFmtMessage(SSignToolNamePrompt), SignToolName) then begin
     if (SignToolName = '') or (Pos('=', SignToolName) <> 0) then begin
       MsgBox(LFmtMessage(SSignToolInvalidName), Caption, mbCriticalError, MB_OK);
       Exit;

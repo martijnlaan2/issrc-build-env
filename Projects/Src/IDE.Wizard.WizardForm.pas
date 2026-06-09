@@ -56,7 +56,6 @@ type
     FinishedImage: TBitmapImage;
     WelcomeLabel2: TNewStaticText;
     EmptyCheck: TCheckBox;
-    WelcomeLabel3: TNewStaticText;
     AppNameLabel: TNewStaticText;
     AppNameEdit: TEdit;
     AppVersionLabel: TNewStaticText;
@@ -291,14 +290,39 @@ procedure TWizardForm.FormCreate(Sender: TObject);
     end;
   end;
 
+  procedure SetWidestNextCaption;
+  begin
+    { CurPageChanged will override this again }
+    const FinishCaption = LFmtMessage(SWizardFinishButton);
+    const NextCaption = LFmtMessage(SWizardNextButton);
+    if CalculateButtonWidth([FinishCaption]) > CalculateButtonWidth([NextCaption]) then
+      NextButton.Caption := FinishCaption
+    else
+      NextButton.Caption := NextCaption;
+  end;
+
 var
   I: Integer;
 begin
-  { Finish localization: LocalizeComponent translated every property, but some
-    still contain an unfilled %1 etc., which we now replace }
-  AppRegistryFileLabel.Caption := LFmtMessage(AppRegistryFileLabel.Caption, [SLitRegExt]);
+  { Finish localization - also done per page below }
   WelcomeLabel1.Caption := LFmtMessage(WelcomeLabel1.Caption, ['[name]']);
   FinishedLabel.Caption := LFmtMessage(FinishedLabel.Caption, ['[name]']);
+  SetWidestNextCaption;
+  var W := SizeBottomButtons(NextButton, CancelButton, [BackButton]);
+  BackButton.Width := W;
+  BackButton.Left := NextButton.Left - W;
+  { Size all browse buttons and resize all page-wide edits and comboboxes to keep a
+    consistent right edge }
+  const OldW = AppRegistryFileButton.Width;
+  W := SizeSideButtons([AppExeButton, AppLicenseFileButton, AppInfoBeforeFileButton,
+    AppInfoAfterFileButton, AppRegistryFileButton, SetupIconFileButton, OutputDirButton],
+    [AppNameEdit, AppVersionEdit, AppPublisherEdit, AppURLEdit, AppRootDirComboBox,
+    AppRootDirEdit, AppDirNameEdit, AppExeEdit, AppAssocNameEdit, AppAssocExtEdit,
+    AppGroupNameEdit, AppLicenseFileEdit, AppInfoBeforeFileEdit, AppInfoAfterFileEdit,
+    AppRegistryFileEdit, AppRegistryMinVerEdit, OutputDirEdit, OutputBaseFileNameEdit,
+    SetupIconFileEdit, PasswordEdit]);
+  const Diff = W - OldW;
+  AppRegistryMinVerDocBitBtn.Left := AppRegistryMinVerDocBitBtn.Left - Diff;
   { These are not set in the .dfm because that would duplicate a message,
     one with and one without the accel char }
   AppInfoBeforeFileButton.Caption := RemoveAccelChar(AppLicenseFileButton.Caption);
@@ -371,6 +395,8 @@ begin
   NotDisableDirPageCheck.Checked := True;
 
   { AppFiles }
+  SizeSideButtons([AppFilesAddButton, AppFilesAddDirButton,
+    AppFilesAddDownloadButton, AppFilesEditButton, AppFilesRemoveButton], AppFilesListBox);
   AppExeEdit.Text := PathExtractPath(NewParamStr(0)) + 'Examples\MyProg-x64.exe';
   AppExeRunCheck.Checked := True;
 
@@ -385,8 +411,12 @@ begin
 
   { PrivilegesRequired }
   PrivilegesRequiredAdminRadioButton.Checked := True;
+  
+  { AppRegistry }
+  AppRegistryFileLabel.Caption := LFmtMessage(AppRegistryFileLabel.Caption, [SLitRegExt]);
 
   { Languages }
+  SizeSideButtons([AllLanguagesButton, NoLanguagesButton], LanguagesList);
   for I := 0 to FLanguages.Count-1 do begin
     if FLanguages[I] <> LanguagesDefaultIsl then
       LanguagesList.AddCheckBox(SpaceLanguageName(PathChangeExt(FLanguages[I], '')), '', 0, False, True, False, True, TObject(I))
