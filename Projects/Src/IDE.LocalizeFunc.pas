@@ -19,7 +19,7 @@ type
     English, Localized: String;
   end;
 
-  TIDELanguage = (ilEnglish, ilDutch, ilGerman, ilJapanese);
+  TIDELanguage = (ilEnglish, ilCzech, ilDutch, ilGerman, ilJapanese);
 
 procedure InitLocalization(const Lang: TIDELanguage; const Reverse: Boolean = False);
 
@@ -38,10 +38,25 @@ implementation
 uses
   SysUtils, Controls, StdCtrls, Menus, Generics.Collections,
   NewTabSet, ScintEdit,
-  IDE.LocalizeFunc.Dutch, IDE.LocalizeFunc.German, IDE.LocalizeFunc.Japanese;
+  IDE.LocalizeFunc.Czech, IDE.LocalizeFunc.Dutch, IDE.LocalizeFunc.German,
+  IDE.LocalizeFunc.Japanese;
 
 var
   TranslationDictionary: TDictionary<String, String>;
+  ResourceStringHookInstalled: Boolean;
+  OrgLoadResStringFunc: function(ResStringRec: PResStringRec): String;
+
+function TranslateMessage(const Str: String): String;
+begin
+  if not Assigned(TranslationDictionary) or
+     not TranslationDictionary.TryGetValue(Str, Result) then
+    Result := Str;
+end;
+
+function NewLoadResStringFunc(ResStringRec: PResStringRec): String;
+begin
+  Result := TranslateMessage(OrgLoadResStringFunc(ResStringRec));
+end;
 
 procedure InitLocalization(const Lang: TIDELanguage; const Reverse: Boolean);
 
@@ -55,13 +70,24 @@ procedure InitLocalization(const Lang: TIDELanguage; const Reverse: Boolean);
     end;
   end;
 
+  procedure InstallResourceStringHook;
+  begin
+    if not ResourceStringHookInstalled and Assigned(LoadResStringFunc) then begin
+      OrgLoadResStringFunc := LoadResStringFunc;
+      LoadResStringFunc := NewLoadResStringFunc;
+      ResourceStringHookInstalled := True;
+    end;
+  end;
+
 begin
   TranslationDictionary.Clear;
   case Lang of
+    ilCzech: AddTranslations(CzechIDETranslations);
     ilDutch: AddTranslations(DutchIDETranslations);
     ilGerman: AddTranslations(GermanIDETranslations);
     ilJapanese: AddTranslations(JapaneseIDETranslations);
   end;
+  InstallResourceStringHook;
 end;
 
 function FmtIDEMessage(S: PChar; const Args: array of const): String;
@@ -139,9 +165,7 @@ function LFmtMessage(const Str: String; const Args: array of const;
 begin
   if not CheckMessageStr(Str, AllowEmpty) then
     Exit('');
-  if not Assigned(TranslationDictionary) or
-     not TranslationDictionary.TryGetValue(Str, Result) then
-    Result := Str;
+  Result := TranslateMessage(Str);
   Result := FmtIDEMessage(PChar(Result), Args);
 end;
 
@@ -168,6 +192,7 @@ function LFmtMessage(const Language: TIDELanguage; const Str: String;
   function GetTranslationForLanguage(out Localized: String): Boolean;
   begin
     case Language of
+      ilCzech: Result := GetTranslationFrom(CzechIDETranslations, Localized);
       ilDutch: Result := GetTranslationFrom(DutchIDETranslations, Localized);
       ilGerman: Result := GetTranslationFrom(GermanIDETranslations, Localized);
       ilJapanese: Result := GetTranslationFrom(JapaneseIDETranslations, Localized);
@@ -253,5 +278,7 @@ end;
 initialization
   TranslationDictionary := TDictionary<String, String>.Create;
 finalization
+  if ResourceStringHookInstalled then
+    LoadResStringFunc := OrgLoadResStringFunc;
   TranslationDictionary.Free;
 end.

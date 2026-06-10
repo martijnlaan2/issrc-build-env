@@ -15,7 +15,7 @@ uses
   IDE.LocalizeFunc;
 
 const
-  JapaneseIDETranslations: array [0..499] of TTranslationPair = (
+  JapaneseIDETranslations: array [0..495] of TTranslationPair = (
     (English: 'Command line usage:'; Localized: 'コマンドラインの使用法:'),
     (English: 'Examples:'; Localized: '使用例:'),
     (English: 'script file'; Localized: 'スクリプトファイル'),
@@ -390,16 +390,12 @@ const
     (English: '%1 Call Designer'; Localized: '%1 呼び出しデザイナー'),
     (English: 'Instruction'; Localized: '指示'),
     (English: 'Message'; Localized: 'メッセージ'),
-    (English: 'Text Button1'; Localized: 'ボタン 1 のテキスト'),
-    (English: 'Button2'; Localized: 'ボタン 2'),
-    (English: 'Button3'; Localized: 'ボタン 3'),
-    (English: ' Message '; Localized: ' メッセージ '),
-    (English: ' Type'; Localized: ' 種類'),
+    (English: 'Buttons'; Localized: 'ボタン'),
+    (English: ' Type '; Localized: ' 種類 '),
     (English: 'Suppressible'; Localized: '抑制可能'),
     (English: ' Flags '; Localized: ' フラグ '),
     (English: 'Default button'; Localized: '既定のボタン'),
     (English: ' Icon '; Localized: ' アイコン '),
-    (English: ' Buttons '; Localized: ' ボタン '),
     (English: ' Return values '; Localized: ' 戻り値 '),
     (English: '&Preview'; Localized: 'プレビュー(&P)'),
     (English: 'Options'; Localized: 'オプション'),
@@ -411,7 +407,7 @@ const
     (English: 'Allow &Undo after save'; Localized: '保存後に元に戻すことを許可(&U)'),
     (English: 'Display &full path in title bar'; Localized: 'タイトル バーに完全なパスを表示(&F)'),
     (English: '&Pause on exceptions'; Localized: '例外発生時に一時停止(&P)'),
-    (English: 'Always &launch Setup/Uninstall as administrator'; Localized: 'セットアップ/アンインストールを常に管理者として起動(&L)'),
+    (English: '&Launch Setup/Uninstall as administrator'; Localized: 'セットアップ/アンインストールを管理者として起動(&L)'),
     (English: 'Colori&ze "Compiler Output" view'; Localized: '「コンパイラー出力」ビューに色を付ける(&Z)'),
     (English: 'Automatically open %1 files'; Localized: '%1 ファイルを自動的に開く'),
     (English: 'Automatically show preprocessor output'; Localized: 'プリプロセッサー出力を自動的に表示'),
@@ -497,7 +493,7 @@ const
     (English: 'Allow user to create a deskto&p shortcut'; Localized: 'ユーザーがデスクトップショートカットを作成できるようにする(&P)'),
     (English: 'Create an &Uninstall shortcut in the Start Menu folder'; Localized: 'スタートメニューフォルダーにアンインストールのショートカットを作成(&U)'),
     (English: 'Create an &Internet shortcut in the Start Menu folder'; Localized: 'スタートメニューフォルダーにインターネットショートカットを作成(&I)'),
-    (English: '&Create a shortcut to the main executable in the Start Menu Programs folder'; Localized: 'スタートメニューのプログラムフォルダーにメイン実行ファイルへのショートカットを作成(&C)'),
+    (English: '&Create a Start Menu shortcut but no folder'; Localized: 'フォルダーは作成せず、スタートメニューにショートカットを作成(&C)'),
     (English: '&License file:'; Localized: 'ライセンスファイル(&L):'),
     (English: '&Information file shown before installation:'; Localized: 'インストール前に表示する情報ファイル(&I):'),
     (English: 'Information file shown &after installation:'; Localized: 'インストール後に表示する情報ファイル(&A):'),
