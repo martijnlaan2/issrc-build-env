@@ -670,6 +670,7 @@ begin
     Selections := TScintCaretAndAnchorList.Create;
     VirtualSpaces := TScintCaretAndAnchorList.Create;
     GetSelections(Selections, VirtualSpaces);
+    const MainSel = MainSelection;
     for var I := 0 to Selections.Count-1 do begin
       if VirtualSpaces[I].CaretPos = 0 then begin
         var Pos := Selections[I].CaretPos;
@@ -681,7 +682,7 @@ begin
         if MatchPos <> -1 then begin
           SelectionCaretPosition[I] := MatchPos;
           SelectionAnchorPosition[I] := MatchPos;
-          if I = 0 then
+          if I = MainSel then
             ScrollCaretIntoView;
         end;
       end;
@@ -1723,6 +1724,7 @@ begin
 end;
 
 procedure TScintEdit.ScrollCaretIntoView;
+{ Works on the main selection }
 begin
   Call(SCI_SCROLLCARET, 0, 0);
 end;
@@ -1917,8 +1919,8 @@ procedure TScintEdit.SetEmptySelections;
 { Makes all selections empty without scrolling the caret into view }
 begin
   for var Selection := 0 to SelectionCount-1 do begin
-    var Pos := SelectionCaretPosition[Selection];
-    SelectionAnchorPosition[Selection] := Pos;
+    SelectionAnchorPosition[Selection] := SelectionCaretPosition[Selection];
+    SelectionAnchorVirtualSpace[Selection] := SelectionCaretVirtualSpace[Selection];
   end;
 end;
 
@@ -2730,7 +2732,10 @@ var
   StartPos, EndPos: Integer;
 begin
   CheckIndexRange(Index);
-  StartPos := FEdit.GetPositionFromLine(Index);
+  if (Index > 0) and (Index = GetCount - 1) then
+    StartPos := FEdit.GetLineEndPosition(Index - 1)
+  else
+    StartPos := FEdit.GetPositionFromLine(Index);
   EndPos := FEdit.GetPositionFromLine(Index + 1);
   FEdit.ReplaceRawTextRange(StartPos, EndPos, '');
 end;

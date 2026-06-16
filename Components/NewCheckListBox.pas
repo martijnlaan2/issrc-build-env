@@ -1234,7 +1234,7 @@ begin
     var ScrollBarInfo: TScrollBarInfo;
     ScrollBarInfo.cbSize := SizeOf(ScrollBarInfo);
     if GetScrollBarInfo(Handle, Integer(OBJID_VSCROLL), ScrollBarInfo) and
-       (ScrollBarInfo.rgstate[0] <> STATE_SYSTEM_INVISIBLE) then
+       (ScrollBarInfo.rgstate[0] and STATE_SYSTEM_INVISIBLE = 0) then
       InvalidateRect(Handle, nil, True);
   end;
 end;
@@ -1511,9 +1511,8 @@ function TNewCheckListBox.CheckItem(const Index: Integer;
   begin
     while True do begin
       I := FindCheckedSibling(AIndex);
-      if I = -1 then
+      if (I = -1) or not RecursiveCheck(I, coUncheck) then
         Break;
-      RecursiveCheck(I, coUncheck);
     end;
   end;
 
@@ -1964,8 +1963,14 @@ begin
         Exit;
       end;
     end;
-    Message.Result := LresultFromObjectFunc(IID_IAccessible, Message.WParam,
-      TAccObject(FAccObjectInstance));
+    const AccObject = TAccObject(FAccObjectInstance);
+    AccObject.AddRef; { Add our own reference to ensure release even if LresultFromObjectFunc fails }
+    try
+      Message.Result := LresultFromObjectFunc(IID_IAccessible, Message.WParam,
+        AccObject);
+    finally
+      AccObject.Release;
+    end;
   end
   else
     inherited;
