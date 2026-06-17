@@ -45,15 +45,15 @@
         <name>CustomMessage</name>
         <prototype>function CustomMessage(const MsgName: String): String;</prototype>
         <description><p>Returns the value of the [CustomMessages] entry with the specified name. If an entry with the specified name does not exist, an exception will be raised.</p></description>
-        <example><pre>var
+        <example><pre><key>var</key>
   S: String;
-begin
-  S := CustomMessage('CreateDesktopIcon');
-  // S = 'Create a &amp;desktop icon'
+<key>begin</key>
+  S := CustomMessage(<str>'CreateDesktopIcon'</str>);
+  <com>// S = 'Create a &amp;desktop icon'</com>
 
-  S := FmtMessage(CustomMessage('UninstallProgram'), ['My Program']);
-  // S = 'Uninstall My Program'
-end;</pre></example>
+  S := FmtMessage(CustomMessage(<str>'UninstallProgram'</str>), [<str>'My Program'</str>]);
+  <com>// S = 'Uninstall My Program'</com>
+<key>end</key>;</pre></example>
       </function>
       <function>
         <name>FmtMessage</name>
@@ -3493,7 +3493,7 @@ end;</pre></example>
         <name>Beep</name>
         <prototype>procedure Beep;</prototype>
         <description><p>Beeps.</p></description>
-        <example><pre>Beep; //Beeps</pre></example>
+        <example><pre>Beep; <com>//Beeps</com></pre></example>
       </function>
     </subcategory>
     <subcategory>
@@ -3528,7 +3528,7 @@ end;</pre></example>
         <name>Set8087CW</name>
         <prototype>procedure Set8087CW(NewCW: Word);</prototype>
         <description><p>Sets the FPU control word.</p></description>
-        <example><pre>Set8087CW($133f); // Disables all FPU exceptions</pre></example>
+        <example><pre>Set8087CW(<num>$133f</num>); <com>// Disables all FPU exceptions</com></pre></example>
       </function>
       <function>
         <name>Get8087CW</name>
