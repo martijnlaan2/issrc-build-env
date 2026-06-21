@@ -121,7 +121,7 @@
 <xsl:template match="example">
 <xsl:for-each select="*">
 <xsl:choose>
-<xsl:when test="self::pre or self::precode">
+<xsl:when test="self::pre">
 <example><xsl:apply-templates select="."/></example>
 </xsl:when>
 <xsl:otherwise>
@@ -144,6 +144,9 @@
 
 <xsl:template match="sd">
 <sd><xsl:apply-templates/></sd></xsl:template>
+
+<xsl:template match="sn">
+<sn><xsl:apply-templates/></sn></xsl:template>
 
 <xsl:template match="isxfunc">
 <isxfunc><xsl:apply-templates/></isxfunc></xsl:template>
@@ -205,7 +208,7 @@
 </xsl:choose>
 </xsl:template>
 
-<xsl:template match="a">
+<xsl:template match="extlink">
   <extlink href="{@href}"><xsl:apply-templates/></extlink>
 </xsl:template>
 

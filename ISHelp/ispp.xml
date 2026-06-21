@@ -27,7 +27,7 @@
  <!ENTITY expr    '<tt>expr</tt>'> <!-- refers to expression parameters, not the #expr directive -->
  <!ENTITY curtrans '<link href="current-translation">current preprocessor output</link>'>
  <!ENTITY translation '<link href="translation">preprocessor output</link>'>
- <!ENTITY builtins '<link href="builtinsiss">ISPPBuiltins.iss</link>'>
+ <!ENTITY builtins '<tt><link href="builtinsiss">ISPPBuiltins.iss</link></tt>'>
  <!ENTITY dash "&#8211;">
 ]>
 <yasyx>
@@ -35,7 +35,7 @@
 		<title>Introduction</title>
 		<description header="no">
 			<p>The main purpose of Inno Setup Preprocessor (ISPP) is to automate compile-time tasks and avoid repetition in your scripts. For example, you can declare a compile-time preprocessor variable &dash; containing your application name, for instance &dash; and then use its value in several places in your script. If for some reason you need to change the name of your application, you'll have to change it only once in your script. Without the preprocessor, you would need to change all occurrences of your application name throughout the script.</p>
-			<p>Another example of using the preprocessor would be gathering version information from your application at compile-time by reading the version info of an EXE file, and using it in your <sd>AppVersion</sd> <tt>[Setup]</tt> section directive or anywhere else. Without the preprocessor, you would have to modify your script each time the version of your application changes.</p>
+			<p>Another example of using the preprocessor would be gathering version information from your application at compile-time by reading the version info of an EXE file, and using it in your <sd>AppVersion</sd> <sn>[Setup]</sn> section directive or anywhere else. Without the preprocessor, you would have to modify your script each time the version of your application changes.</p>
 			<p>The preprocessor can even scan your source folder and generate script lines for the found files. Without the preprocessor, you would have to manually maintain the list of files.</p>
 			<p>The preprocessor can also conditionally include or exclude portions of the script: you can create one single script for different versions of your application (for example, trial versus fully functional). Without the preprocessor, you would need multiple scripts.</p>
 			<p>Finally, the preprocessor makes it possible to split long lines using a line spanning symbol.</p>
@@ -60,12 +60,12 @@
 			<section title="Directive syntax documenting conventions">
 				<p>Directive usage syntax uses the following conventions.</p>
 				<table>
-					<tr><td><code>()</code></td><td>Group of tokens.</td></tr>
-					<tr><td><code>[]</code></td><td>Optional token or group of tokens.</td></tr>
-					<tr><td><code>|</code></td><td>Mutually exclusive tokens.</td></tr>
-					<tr><td><code>...</code></td><td>Previous token or group of tokens can be repeated.</td></tr>
-					<tr><td><code><b>token</b></code></td><td>Reserved word or symbol(s). Must be typed exactly as shown.</td></tr>
-					<tr><td><code>&lt;token&gt;</code></td><td>Non-terminal. Its syntax is either shown before, or explained.</td></tr>
+					<tr><td><tt>()</tt></td><td>Group of tokens.</td></tr>
+					<tr><td><tt>[]</tt></td><td>Optional token or group of tokens.</td></tr>
+					<tr><td><tt>|</tt></td><td>Mutually exclusive tokens.</td></tr>
+					<tr><td><tt>...</tt></td><td>Previous token or group of tokens can be repeated.</td></tr>
+					<tr><td><tt><b>token</b></tt></td><td>Reserved word or symbol(s). Must be typed exactly as shown.</td></tr>
+					<tr><td><tt>&lt;token&gt;</tt></td><td>Non-terminal. Its syntax is either shown before, or explained.</td></tr>
 				</table>
 			</section>
 			<subtopicstitle>Available directives</subtopicstitle>
@@ -268,7 +268,7 @@
 				<description>
 					<p>Replaces the directive with the name of a temporary file containing the &translation; of the specified file. When compilation finishes, the temporary file is automatically deleted. If a Unicode file is used, it must be UTF-8 (with or without a BOM) encoded.</p>
 					<p>Including a file using this directive creates a new independent instance of the preprocessor, passing it the options currently in effect and all declared identifiers. If the included file modifies options in some way, they are not propagated back.</p>
-					<p>When using this directive in Inno Setup's Source parameter of the <tt>[Files]</tt> section, specify a DestName parameter too, otherwise the file will not be installed with the original name.</p>
+					<p>When using this directive in Inno Setup's Source parameter of the <sn>[Files]</sn> section, specify a DestName parameter too, otherwise the file will not be installed with the original name.</p>
 					<p>This directive can only be used <link href="directives">inline</link>.</p>
 				</description>
 				<section title="Examples">
@@ -687,7 +687,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				<section title="Parser options">
 					<table>
 						<tr><td>b</td><td>Short-circuit boolean evaluation. Defaults to on.</td></tr>
-						<tr><td>m</td><td>Short-circuit multiplication evaluation. (In "<code>0 * A</code>", <code>A</code> won't be evaluated because the result of the expression is known to be zero.) Defaults to off.</td></tr>
+						<tr><td>m</td><td>Short-circuit multiplication evaluation. (In "<tt>0 * A</tt>", <tt>A</tt> won't be evaluated because the result of the expression is known to be zero.) Defaults to off.</td></tr>
 						<tr><td>p</td><td>Pascal-style string literals. When off, uses C-style string literals (with escape sequences). Defaults to on.</td></tr>
 						<tr><td>u</td><td>Allow undeclared identifiers. If an undefined identifier is encountered, ISPP raises an error unless this option is turned on, in which case a standalone identifier (one that doesn't look like a function call) is considered a void value. Defaults to off.</td></tr>
 					</table>
@@ -701,7 +701,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 						<tr><td>6</td><td>Conditional inclusion messages</td></tr>
 						<tr><td>8</td><td>#emit messages</td></tr>
 						<tr><td>9</td><td>Function call messages</td></tr>
-						<tr><td>10</td><td><code>Local</code> array allocation messages</td></tr>
+						<tr><td>10</td><td><tt>Local</tt> array allocation messages</td></tr>
 					</table>
 				</section>
 				<section title="Examples">
@@ -748,7 +748,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 		<topic id="funcs">
 			<title>Support Functions Reference</title>
 			<description header="no">
-				<p>There are a number of built-in support functions which you can use to perform compile-time actions and change your script. For example, the following uses ISPP function <link href="GetVersionNumbersString">GetVersionNumbersString</link> to read version info from an EXE and uses the return value of the function to set the <sd>AppVersion</sd> <tt>[Setup]</tt> section directive using directive &emit;:</p>
+				<p>There are a number of built-in support functions which you can use to perform compile-time actions and change your script. For example, the following uses ISPP function <link href="GetVersionNumbersString">GetVersionNumbersString</link> to read version info from an EXE and uses the return value of the function to set the <sd>AppVersion</sd> <sn>[Setup]</sn> section directive using directive &emit;:</p>
         <pre>
           <line><ispp>#define</ispp> MyAppVer <link href="getversionnumbersstring">GetVersionNumbersString</link>(<link href="addbackslash">AddBackslash</link>(<link href="predefinedvars">SourcePath</link>) + <str>"MyProg.exe"</str>)</line>
           <line></line>
@@ -987,7 +987,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				</section>
 				<description>
 					<p>Executes the specified executable or batch file.</p>
-					<p>The Filename parameter specifies the filename of the executable or batch file. If this does not include quotes then the function will add them automatically. If you have a single string containing both a filename and parameters (such as a command line obtained from an UninstallString registry value), you need not separate them yourself. Instead, just pass '>' in this parameter, and the full command line in the Params parameter. (Note that when this is done, the function's special platform-independent support for .bat and .cmd files is disabled; it simply passes the specified command line to CreateProcess without any processing.)</p>
+					<p>The Filename parameter specifies the filename of the executable or batch file. If this does not include quotes then the function will add them automatically. If you have a single string containing both a filename and parameters (such as a command line obtained from an UninstallString registry value), you need not separate them yourself. Instead, just pass '>' in this parameter, and the full command line in the Params parameter. (Note that when this is done, the function's special platform-independent support for <tt>.bat</tt> and <tt>.cmd</tt> files is disabled; it simply passes the specified command line to CreateProcess without any processing.)</p>
 					<p>The Params parameter may be used to specify parameters for the process.</p>
 					<p>The WorkingDir parameter may be used to specify the working directory of the process. If this is omitted or empty it will try to extract a pathname from the Filename parameter and use that as the initial current directory for the process.</p>
 					<p>The Wait parameter may be set to zero if you don't wish to wait for the process to finish, and non-zero otherwise. By default, non-zero is assumed.</p>
@@ -1006,7 +1006,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				</section>
 				<description>
 					<p>Executes the specified executable or batch file and reads the first non-empty line from its output.</p>
-					<p>The Filename parameter specifies the filename of the executable or batch file. If this does not include quotes then the function will add them automatically. If you have a single string containing both a filename and parameters (such as a command line obtained from an UninstallString registry value), you need not separate them yourself. Instead, just pass '>' in this parameter, and the full command line in the Params parameter. (Note that when this is done, the function's special platform-independent support for .bat and .cmd files is disabled; it simply passes the specified command line to CreateProcess without any processing.)</p>
+					<p>The Filename parameter specifies the filename of the executable or batch file. If this does not include quotes then the function will add them automatically. If you have a single string containing both a filename and parameters (such as a command line obtained from an UninstallString registry value), you need not separate them yourself. Instead, just pass '>' in this parameter, and the full command line in the Params parameter. (Note that when this is done, the function's special platform-independent support for <tt>.bat</tt> and <tt>.cmd</tt> files is disabled; it simply passes the specified command line to CreateProcess without any processing.)</p>
 					<p>The Params parameter may be used to specify parameters for the process.</p>
 					<p>The WorkingDir parameter may be used to specify the working directory of the process. If this is omitted or empty it will try to extract a pathname from the Filename parameter and use that as the initial current directory for the process.</p>
 				</description>
@@ -1109,7 +1109,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 					<pre><line><b>str</b> SetupSetting(<b>str</b> DirectiveName)</line></pre>
 				</section>
 				<description>
-					<p>Parses the <link href="setupsection">[Setup] section</link> in &curtrans; to find the directive whose name is specified as the function parameter. The function returns the value of that directive if it's found, or an empty string otherwise.</p>
+					<p>Parses the <sn>[Setup]</sn> section in &curtrans; to find the directive whose name is specified as the function parameter. The function returns the value of that directive if it's found, or an empty string otherwise.</p>
 				</description>
 			</topic>
 			<topic id="SetSetupSetting">
@@ -1118,8 +1118,8 @@ The first group of options (<tt>option</tt>) controls the general options, while
 					<pre><line><b>void</b> SetSetupSetting(<b>str</b> DirectiveName, <b>str</b> Value)</line></pre>
 				</section>
 				<description>
-					<p>Modifies or generates a <tt>[Setup]</tt> section directive using the directive name (first parameter) and its value (second parameter).</p>
-					<p>If there is no <tt>[Setup]</tt> section in &curtrans; (it may happen that the function is called before that section in a script), its header (as well as the directive itself) is generated by this function.</p>
+					<p>Modifies or generates a <sn>[Setup]</sn> section directive using the directive name (first parameter) and its value (second parameter).</p>
+					<p>If there is no <sn>[Setup]</sn> section in &curtrans; (it may happen that the function is called before that section in a script), its header (as well as the directive itself) is generated by this function.</p>
 					<p>This function shouldn't be called when ISPP is in insert mode (that is, after the &insert; directive).</p>
 				</description>
 			</topic>
@@ -1200,14 +1200,14 @@ The first group of options (<tt>option</tt>) controls the general options, while
 					<p>The first parameter is the directory and file name mask, including wildcard characters. For example, <tt>'.\*.*'</tt> specifies all files in the current directory.</p>
 					<p>The second parameter specifies the special files to include in addition to all normal files. Choose from these file attribute constants defined in &builtins; when specifying this parameter:</p>
 					<table>
-						<tr><td><code>faReadOnly</code></td><td>Read-only files</td></tr>
-						<tr><td><code>faHidden</code></td><td>Hidden files</td></tr>
-						<tr><td><code>faSysFile</code></td><td>System files</td></tr>
-						<tr><td><code>faVolumeID</code></td><td>Volume ID files</td></tr>
-						<tr><td><code>faDirectory</code></td><td>Directory files</td></tr>
-						<tr><td><code>faArchive</code></td><td>Archive files</td></tr>
-						<tr><td><code>faSymLink</code></td><td>Symbolic links</td></tr>
-						<tr><td><code>faAnyFile</code></td><td>Any file</td></tr>
+						<tr><td><tt>faReadOnly</tt></td><td>Read-only files</td></tr>
+						<tr><td><tt>faHidden</tt></td><td>Hidden files</td></tr>
+						<tr><td><tt>faSysFile</tt></td><td>System files</td></tr>
+						<tr><td><tt>faVolumeID</tt></td><td>Volume ID files</td></tr>
+						<tr><td><tt>faDirectory</tt></td><td>Directory files</td></tr>
+						<tr><td><tt>faArchive</tt></td><td>Archive files</td></tr>
+						<tr><td><tt>faSymLink</tt></td><td>Symbolic links</td></tr>
+						<tr><td><tt>faAnyFile</tt></td><td>Any file</td></tr>
 					</table>
 					<p>Attributes can be combined by OR-ing their constants or values. For example, to search for read-only and hidden files in addition to normal files, pass <tt>faReadOnly | faHidden</tt> as the parameter.</p>
 					<!--para><tt>FindFirst</tt> allocates resources which must be released by calling <tt>FindClose</tt>, but only if <tt>FindFirst</tt> returned non-zero.</para-->
@@ -1885,7 +1885,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 					</pre>
 				</section>
 				<description>
-					<p>Returns the 0-based index of the line following either the <tt>[Code]</tt> section header, or the "program" keyword, if any. Returns less than 0 if neither is found.</p>
+					<p>Returns the 0-based index of the line following either the <sn>[Code]</sn> section header, or the "program" keyword, if any. Returns less than 0 if neither is found.</p>
           <p>Declared in &builtins;.</p>
 				</description>
 			</topic>
@@ -2045,7 +2045,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 					</pre>
 				</section>
 				<description>
-					<p>Returns non-zero if the given <tt>[Setup]</tt> section directive is set to "yes", "true", or "1".</p>
+					<p>Returns non-zero if the given <sn>[Setup]</sn> section directive is set to "yes", "true", or "1".</p>
           <p>Declared in &builtins;.</p>
 				</description>
 				<section title="See also">
@@ -2175,7 +2175,7 @@ The first group of options (<tt>option</tt>) controls the general options, while
 					</pre>
 				</section>
 				<description>
-					<p>Emits a full <tt>[Languages]</tt> section for all available official languages, including English.</p>
+					<p>Emits a full <sn>[Languages]</sn> section for all available official languages, including English.</p>
 					<p>After compilation, see tab <i>Preprocessor Output</i> in the Compiler IDE for the full list of available languages, including their generated names.</p>
 					<p>Declared in &builtins;.</p>
 				</description>
@@ -2344,26 +2344,26 @@ The first group of options (<tt>option</tt>) controls the general options, while
 			<description header="no">
 				<p>There are a number of predefined variables provided by ISPP:</p>
 				<table>
-					<tr><td><code>__COUNTER__</code></td><td><code><b>int</b></code>. Automatically increments each time it is used (afterwards).</td></tr>
-					<tr><td><code>__FILENAME__</code></td><td><code><b>str</b></code>. Similar to __PATHFILENAME__, but returns only the filename portion.</td></tr>
-					<tr><td><code>__INCLUDE__</code></td><td><code><b>str</b></code>. Returns the current include path (or paths delimited with semicolons) set via <code>#pragma include</code>.</td></tr>
-					<tr><td><code>__LINE__</code></td><td><code><b>int</b></code>. Returns the number of the line in the current file.</td></tr>
-					<tr><td><code>__OPT_X__</code></td><td><code><b>void</b></code>. Defined if specified option set via <code>#pragma option -x+</code> is in effect. In place of "X" may be any letter from "A" to "Z". Use <link href="defined">Defined</link> function to test whether the variable is defined.</td></tr>
-					<tr><td><code>__DIR__</code></td><td><code><b>str</b></code>. Similar to __PATHFILENAME__, but returns only the directory portion, excluding a trailing backslash (unless it is a root directory).</td></tr>
-					<tr><td><code>__PATHFILENAME__</code></td><td><code><b>str</b></code>. Returns the full path of the current include file. Empty string for the root script file.</td></tr>
-					<tr><td><code>__POPT_X__</code></td><td><code><b>void</b></code>. Defined if specified parser option set via <code>#pragma parseroption -x+</code> is in effect. In place of "X" may be any letter from "A" to "Z". Use <link href="defined">Defined</link> function to test whether the variable is defined.</td></tr>
-					<tr><td><code>__WIN32__</code></td><td><code><b>void</b></code>. Always defined.</td></tr>
-					<tr><td><code>ISPP_INVOKED</code></td><td><code><b>void</b></code>. Always defined.</td></tr>
-					<tr><td><code>ISCC_INVOKED</code></td><td><code><b>void</b></code>. Defined if compilation was invoked using the console-mode compiler, ISCC.exe.</td></tr>
-					<tr><td><code>PREPROCVER</code></td><td><code><b>int</b></code>. Returns the 32-bit encoded version of Inno Setup. Highest byte holds the major version, second highest byte holds the minor version, third highest byte holds the revision, and lowest byte holds the build number.</td></tr>
-					<tr><td><code>WINDOWS</code></td><td><code><b>void</b></code>. Always defined.</td></tr>
-					<tr><td><code>UNICODE</code></td><td><code><b>void</b></code>. Always defined.</td></tr>
-					<tr><td><code>CompilerPath</code></td><td><code><b>str</b></code>. Points to the directory where the compiler is located.</td></tr>
-					<tr><td><code>SourcePath</code></td><td><code><b>str</b></code>. Points to the directory where the root script file is located, or the My Documents directory if the script has not yet been saved.</td></tr>
-					<tr><td><code>SysPath</code></td><td><code><b>str</b></code>. In a 64-bit compiler, the directory containing 64-bit system files. In a 32-bit compiler, the directory containing 32-bit system files.</td></tr>
-					<tr><td><code>Ver</code></td><td><code><b>int</b></code>. Same as PREPROCVER.</td></tr>
-					<tr><td><code>NewLine</code></td><td><code><b>str</b></code>. Returns the newline character. Declared in &builtins;.</td></tr>
-					<tr><td><code>Tab</code></td><td><code><b>str</b></code>. Returns the tab character. Declared in &builtins;.</td></tr>
+					<tr><td><tt>__COUNTER__</tt></td><td><tt><b>int</b></tt>. Automatically increments each time it is used (afterwards).</td></tr>
+					<tr><td><tt>__FILENAME__</tt></td><td><tt><b>str</b></tt>. Similar to __PATHFILENAME__, but returns only the filename portion.</td></tr>
+					<tr><td><tt>__INCLUDE__</tt></td><td><tt><b>str</b></tt>. Returns the current include path (or paths delimited with semicolons) set via <tt>#pragma include</tt>.</td></tr>
+					<tr><td><tt>__LINE__</tt></td><td><tt><b>int</b></tt>. Returns the number of the line in the current file.</td></tr>
+					<tr><td><tt>__OPT_X__</tt></td><td><tt><b>void</b></tt>. Defined if specified option set via <tt>#pragma option -x+</tt> is in effect. In place of "X" may be any letter from "A" to "Z". Use <link href="defined">Defined</link> function to test whether the variable is defined.</td></tr>
+					<tr><td><tt>__DIR__</tt></td><td><tt><b>str</b></tt>. Similar to __PATHFILENAME__, but returns only the directory portion, excluding a trailing backslash (unless it is a root directory).</td></tr>
+					<tr><td><tt>__PATHFILENAME__</tt></td><td><tt><b>str</b></tt>. Returns the full path of the current include file. Empty string for the root script file.</td></tr>
+					<tr><td><tt>__POPT_X__</tt></td><td><tt><b>void</b></tt>. Defined if specified parser option set via <tt>#pragma parseroption -x+</tt> is in effect. In place of "X" may be any letter from "A" to "Z". Use <link href="defined">Defined</link> function to test whether the variable is defined.</td></tr>
+					<tr><td><tt>__WIN32__</tt></td><td><tt><b>void</b></tt>. Always defined.</td></tr>
+					<tr><td><tt>ISPP_INVOKED</tt></td><td><tt><b>void</b></tt>. Always defined.</td></tr>
+					<tr><td><tt>ISCC_INVOKED</tt></td><td><tt><b>void</b></tt>. Defined if compilation was invoked using the console-mode compiler, <tt>ISCC.exe</tt>.</td></tr>
+					<tr><td><tt>PREPROCVER</tt></td><td><tt><b>int</b></tt>. Returns the 32-bit encoded version of Inno Setup. Highest byte holds the major version, second highest byte holds the minor version, third highest byte holds the revision, and lowest byte holds the build number.</td></tr>
+					<tr><td><tt>WINDOWS</tt></td><td><tt><b>void</b></tt>. Always defined.</td></tr>
+					<tr><td><tt>UNICODE</tt></td><td><tt><b>void</b></tt>. Always defined.</td></tr>
+					<tr><td><tt>CompilerPath</tt></td><td><tt><b>str</b></tt>. Points to the directory where the compiler is located.</td></tr>
+					<tr><td><tt>SourcePath</tt></td><td><tt><b>str</b></tt>. Points to the directory where the root script file is located, or the My Documents directory if the script has not yet been saved.</td></tr>
+					<tr><td><tt>SysPath</tt></td><td><tt><b>str</b></tt>. In a 64-bit compiler, the directory containing 64-bit system files. In a 32-bit compiler, the directory containing 32-bit system files.</td></tr>
+					<tr><td><tt>Ver</tt></td><td><tt><b>int</b></tt>. Same as PREPROCVER.</td></tr>
+					<tr><td><tt>NewLine</tt></td><td><tt><b>str</b></tt>. Returns the newline character. Declared in &builtins;.</td></tr>
+					<tr><td><tt>Tab</tt></td><td><tt><b>str</b></tt>. Returns the tab character. Declared in &builtins;.</td></tr>
 				</table>
 			</description>
 		</topic>
@@ -2411,14 +2411,14 @@ The first group of options (<tt>option</tt>) controls the general options, while
     <topic id="example">
       <title>Example Script</title>
       <description header="no">
-        <p>An example script called <i>ISPPExample1.iss</i> is located in a separate folder. Click the "Inno Setup Example Scripts" shortcut created in the Start Menu when you installed Inno Setup, or open the "Examples" folder in your Inno Setup directory.</p>
+        <p>An example script called <tt>ISPPExample1.iss</tt> is located in a separate folder. Click the "Inno Setup Example Scripts" shortcut created in the Start Menu when you installed Inno Setup, or open the <tt>Examples</tt> subdirectory in your Inno Setup directory.</p>
         <p>Also see &builtins;.</p>
       </description>
     </topic>
 		<topic id="builtinsiss">
 			<title>ISPPBuiltins.iss</title>
 			<description header="no">
-				<p>The ISPPBuiltins.iss file is part of Inno Setup Preprocessor and is automatically installed to the root of your Inno Setup folder. This file is automatically included at the start of preprocessing: some of ISPP's functions are actually implemented by this file instead of being built-in. It also contains common declarations such as special constants. The file is a regular Inno Setup script, so you can study it and reuse its techniques in your own scripts.</p>
+				<p>The <tt>ISPPBuiltins.iss</tt> file is part of Inno Setup Preprocessor and is automatically installed to the root of your Inno Setup folder. This file is automatically included at the start of preprocessing: some of ISPP's functions are actually implemented by this file instead of being built-in. It also contains common declarations such as special constants. The file is a regular Inno Setup script, so you can study it and reuse its techniques in your own scripts.</p>
 			</description>
 		</topic>
 		<topic id="isppcc">
@@ -2427,14 +2427,14 @@ The first group of options (<tt>option</tt>) controls the general options, while
 				<p>The <link href="compilercmdline">console-mode compiler</link> (<tt>ISCC.exe</tt>) provides extra options to control Inno Setup Preprocessor:</p>
 				<table>
 					<tr><th>Option</th><th>Meaning</th></tr>
-					<tr><td nowrap=""><code>--define=<i>&lt;name&gt;</i>[=<i>&lt;value&gt;</i>]</code>, <code>-d<i>&lt;name&gt;</i>[=<i>&lt;value&gt;</i>]</code></td><td>Emulates <code><link href="define">#define</link> public <i>&lt;name&gt; &lt;value&gt;</i></code> (variable-definition).</td></tr>
-					<tr><td nowrap=""><code>-$<i>&lt;letter&gt;</i>(+|-)</code></td><td>Emulates <code><link href="pragma">#pragma</link> option -<i>&lt;letter&gt;</i>(+|-)</code>.</td></tr>
-					<tr><td nowrap=""><code>-p<i>&lt;letter&gt;</i>(+|-)</code></td><td>Emulates <code><link href="pragma">#pragma</link> parseroption -<i>&lt;letter&gt;</i>(+|-)</code>.</td></tr>
-					<tr><td nowrap=""><code>--include-dirs=<i>&lt;paths&gt;</i></code>, <code>-i<i>&lt;paths&gt;</i></code></td><td>Emulates <code><link href="pragma">#pragma</link> include <i>&lt;paths&gt;</i></code> (multiple paths can be delimited with semicolons).</td></tr>
-					<tr><td nowrap=""><code>--include=<i>&lt;filename&gt;</i></code>, <code>-j<i>&lt;filename&gt;</i></code></td><td>Emulates <code><link href="include">#include</link>&sp;<i>&lt;filename&gt;</i></code>.</td></tr>
-					<tr><td nowrap=""><code>--inline-start=<i>&lt;string&gt;</i></code>, <code>-{#<i>&lt;string&gt;</i></code></td><td>Emulates <code><link href="pragma">#pragma</link> inlinestart <i>&lt;string&gt;</i></code>.</td></tr>
-					<tr><td nowrap=""><code>--inline-end=<i>&lt;string&gt;</i></code>, <code>-}<i>&lt;string&gt;</i></code></td><td>Emulates <code><link href="pragma">#pragma</link> inlineend <i>&lt;string&gt;</i></code>.</td></tr>
-					<tr><td nowrap=""><code>--verbose=<i>&lt;number&gt;</i></code>, <code>-v<i>&lt;number&gt;</i></code></td><td>Emulates <code><link href="pragma">#pragma</link> verboselevel <i>&lt;number&gt;</i></code>.</td></tr>
+					<tr><td nowrap=""><tt>--define=<i>&lt;name&gt;</i>[=<i>&lt;value&gt;</i>]</tt>, <tt>-d<i>&lt;name&gt;</i>[=<i>&lt;value&gt;</i>]</tt></td><td>Emulates <tt><link href="define">#define</link> public <i>&lt;name&gt; &lt;value&gt;</i></tt> (variable-definition).</td></tr>
+					<tr><td nowrap=""><tt>-$<i>&lt;letter&gt;</i>(+|-)</tt></td><td>Emulates <tt><link href="pragma">#pragma</link> option -<i>&lt;letter&gt;</i>(+|-)</tt>.</td></tr>
+					<tr><td nowrap=""><tt>-p<i>&lt;letter&gt;</i>(+|-)</tt></td><td>Emulates <tt><link href="pragma">#pragma</link> parseroption -<i>&lt;letter&gt;</i>(+|-)</tt>.</td></tr>
+					<tr><td nowrap=""><tt>--include-dirs=<i>&lt;paths&gt;</i></tt>, <tt>-i<i>&lt;paths&gt;</i></tt></td><td>Emulates <tt><link href="pragma">#pragma</link> include <i>&lt;paths&gt;</i></tt> (multiple paths can be delimited with semicolons).</td></tr>
+					<tr><td nowrap=""><tt>--include=<i>&lt;filename&gt;</i></tt>, <tt>-j<i>&lt;filename&gt;</i></tt></td><td>Emulates <tt><link href="include">#include</link>&sp;<i>&lt;filename&gt;</i></tt>.</td></tr>
+					<tr><td nowrap=""><tt>--inline-start=<i>&lt;string&gt;</i></tt>, <tt>-{#<i>&lt;string&gt;</i></tt></td><td>Emulates <tt><link href="pragma">#pragma</link> inlinestart <i>&lt;string&gt;</i></tt>.</td></tr>
+					<tr><td nowrap=""><tt>--inline-end=<i>&lt;string&gt;</i></tt>, <tt>-}<i>&lt;string&gt;</i></tt></td><td>Emulates <tt><link href="pragma">#pragma</link> inlineend <i>&lt;string&gt;</i></tt>.</td></tr>
+					<tr><td nowrap=""><tt>--verbose=<i>&lt;number&gt;</i></tt>, <tt>-v<i>&lt;number&gt;</i></tt></td><td>Emulates <tt><link href="pragma">#pragma</link> verboselevel <i>&lt;number&gt;</i></tt>.</td></tr>
 				</table>
 				<p>Example: <tt>iscc -$c- -pu+ "--define=LicenseFile=Trial License.txt" --include-dirs=c:\inc;d:\inc --include=defines.iss "c:\isetup\samples\my script.iss"</tt></p>
 			</description>

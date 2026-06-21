@@ -122,10 +122,6 @@
   <td><xsl:copy-of select="@nowrap"/><xsl:apply-templates/></td>
 </xsl:template>
 
-<xsl:template match="code">
-  <tt><xsl:apply-templates/></tt>
-</xsl:template>
-
 <xsl:template match="keywords">
 </xsl:template>
 
@@ -159,6 +155,10 @@
 
 <xsl:template match="sd">
   <sd><xsl:apply-templates/></sd>
+</xsl:template>
+
+<xsl:template match="sn">
+  <sn><xsl:apply-templates/></sn>
 </xsl:template>
 
 <xsl:template match="sec">
@@ -214,7 +214,7 @@
   <xsl:choose>
     <xsl:when test="ancestor::topic/@id=@href">
         <xsl:choose>
-        <xsl:when test="text()">
+        <xsl:when test="node()">
           <xsl:apply-templates/>
         </xsl:when>
         <xsl:otherwise>
@@ -232,7 +232,7 @@
     <xsl:otherwise>
       <link topic="{translate(@href,$ucletters,$lcletters)}">
         <xsl:choose>
-        <xsl:when test="text()">
+        <xsl:when test="node()">
           <xsl:apply-templates/>
         </xsl:when>
         <xsl:otherwise>
