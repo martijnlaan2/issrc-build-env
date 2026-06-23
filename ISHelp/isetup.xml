@@ -239,7 +239,7 @@ Includes integrated support for "deflate", bzip2, and 7-Zip LZMA/LZMA2 file <lin
 <ispp>#include</ispp> <str>"filename.txt"</str>
 </precode>
 
-<p>If the filename is not fully qualified, the compiler will look for it in the same directory as the file containing the <tt>#include</tt> directive. The filename may be prefixed by "compiler:", in which case it looks for the file in the compiler directory.</p>
+<p>If the filename is not fully qualified, the compiler will look for it in the same directory as the file containing the <tt>#include</tt> directive. The filename may be prefixed by <tt>compiler:</tt>, in which case it looks for the file in the compiler directory.</p>
 
 <p>A <tt><a name="preproc">#preproc</a></tt> directive is supported, which must be placed on the first line of the file and specifies whether to use the built-in preprocessor, which only supports the above <tt>#include</tt> directive, or to use Inno Setup Preprocessor (ISPP), which supports many more directives. The syntax is:</p>
 <precode>
@@ -946,7 +946,7 @@ For example: If you used <tt>{src}\MyProg.exe</tt> on an entry and the user is i
 </paramlist>
 
 <p><br/>
-Besides space separated lists, you may also use boolean expressions containing component or task names as Components and Tasks parameters. Supported operators include <tt>not</tt>, <tt>and</tt>, and <tt>or</tt>. For example:</p>
+Besides space separated lists, you may also use boolean expressions containing component or task names as <tt>Components</tt> and <tt>Tasks</tt> parameters. Supported operators include <tt>not</tt>, <tt>and</tt>, and <tt>or</tt>. For example:</p>
 
 <precode>
 <sec>[Components]</sec>
@@ -1281,7 +1281,7 @@ Besides space separated lists, you may also use boolean expressions containing c
 
 <param name="Name" required="yes">
 <p>The internal name of the component.</p>
-<p>The total number of \ or / characters in the name of the component is called the level of the component. Any component with a level of 1 or more is a child component. The component listed before the child component with a level of 1 less than the child component, is the parent component. Other components with the same parent component as the child component are sibling components.</p>
+<p>The total number of <tt>\</tt> or <tt>/</tt> characters in the name of the component is called the level of the component. Any component with a level of 1 or more is a child component. The component listed before the child component with a level of 1 less than the child component, is the parent component. Other components with the same parent component as the child component are sibling components.</p>
 <p>A child component can't be selected if its parent component isn't selected. A parent component can't be selected if none of its children are selected, unless a <tt>Components</tt> parameter directly references the parent component or the parent component includes the <tt>checkablealone</tt> flag.</p>
 <p>If sibling components have the <tt>exclusive</tt> flag, only one of them can be selected.</p>
 <example>
@@ -1378,7 +1378,7 @@ Besides space separated lists, you may also use boolean expressions containing c
 
 <param name="Name" required="yes">
 <p>The internal name of the task.</p>
-<p>The total number of \ or / characters in the name of the task is called the level of the task. Any task with a level of 1 or more is a child task. The task listed before the child task with a level of 1 less than the child task, is the parent task. Other tasks with the same parent task as the child task are sibling tasks.</p>
+<p>The total number of <tt>\</tt> or <tt>/</tt> characters in the name of the task is called the level of the task. Any task with a level of 1 or more is a child task. The task listed before the child task with a level of 1 less than the child task, is the parent task. Other tasks with the same parent task as the child task are sibling tasks.</p>
 <p>A child task can't be selected if its parent task isn't selected. A parent task can't be selected if none of its children are selected, unless a <tt>Tasks</tt> parameter directly references the parent task or the parent task includes the <tt>checkablealone</tt> flag.</p>
 <p>If sibling tasks have the <tt>exclusive</tt> flag, only one of them can be selected.</p>
 <example>
@@ -2241,7 +2241,7 @@ Instructs Setup to proceed to comparing time stamps (last write/modified time) i
 </param>
 
 <param name="MessagesFile" required="yes">
-<p>Specifies the name(s) of the <tt>.isl</tt> file(s) to read the default messages from. The file(s) must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by "compiler:", in which case it looks for the file in the compiler directory.</p>
+<p>Specifies the name(s) of the <tt>.isl</tt> file(s) to read the default messages from. The file(s) must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by <tt>compiler:</tt>, in which case it looks for the file in the compiler directory.</p>
 <p>Each message file may contain a <sn>[LangOptions]</sn> section, a <sn>[Messages]</sn> section, and a <sn>[CustomMessages]</sn> section.</p>
 <p>When multiple files are specified, they are read in the order they are specified, thus the last message file overrides any language options or messages from previous files. Any language options or messages in the main script override the ones from message files.</p>
 <p>The file is recommended to be UTF-8 encoded, without a BOM.</p>
@@ -2298,7 +2298,7 @@ Instructs Setup to proceed to comparing time stamps (last write/modified time) i
 <key>ButtonNext</key>=&amp;Forward
 </precode>
 
-<p>Some messages take arguments such as %1 and %2. You can rearrange the order of the arguments (i.e. move the %2 before a %1) and also duplicate arguments if needed (i.e. "%1 ... %1 %2"). On messages with arguments, use two consecutive "%" characters to embed a single "%". "%n" creates a line break.</p>
+<p>Some messages take arguments such as <tt>%1</tt> and <tt>%2</tt>. You can rearrange the order of the arguments (i.e. move the <tt>%2</tt> before a <tt>%1</tt>) and also duplicate arguments if needed (i.e. "<tt>%1</tt> ... <tt>%1</tt> <tt>%2</tt>"). On messages with arguments, use two consecutive <tt>%</tt> characters to embed a single <tt>%</tt>. <tt>%n</tt> creates a line break.</p>
 
 <p>If you wish to translate all of Inno Setup's text to another language, instead of modifying <tt>Default.isl</tt> or overriding each message in every script you create, make a copy of <tt>Default.isl</tt> with another name like <tt>MyTranslation.isl</tt>. On any installation you wish to use <tt>MyTranslation.isl</tt>, create a <sn>[Languages]</sn> section entry pointing to the file.</p>
 
@@ -2350,7 +2350,7 @@ en.<key>ButtonNext</key>=&amp;Forward
 <key>Name</key>: desktopicon; <key>Description</key>: "<con>{cm:CreateDesktopIcon}</con>"
 </precode>
 
-<p>Messages may take arguments, from %1 up to %9. You can rearrange the order of the arguments (i.e. move the %2 before a %1) and also duplicate arguments if needed (i.e. "%1 ... %1 %2"). On messages with arguments, use two consecutive "%" characters to embed a single "%". "%n" creates a line break.</p>
+<p>Messages may take arguments, from <tt>%1</tt> up to <tt>%9</tt>. You can rearrange the order of the arguments (i.e. move the <tt>%2</tt> before a <tt>%1</tt>) and also duplicate arguments if needed (i.e. "<tt>%1</tt> ... <tt>%1</tt> <tt>%2</tt>"). On messages with arguments, use two consecutive <tt>%</tt> characters to embed a single <tt>%</tt>. <tt>%n</tt> creates a line break.</p>
 
 <p>In cases where there are multiple <sn>[Languages]</sn> section entries, specifying a <tt>[CustomMessages]</tt> section entry in your script (as opposed to an <tt>.isl</tt> file) will by default override that message for all languages. To apply a <tt>[CustomMessages]</tt> section entry to only one language, prefix it with the language's internal name followed by a period. For example:</p>
 
@@ -2428,7 +2428,7 @@ nl.<key>CreateDesktopIcon</key>=Maak een snelkoppeling op het &amp;bureaublad
 
 <p><b><a name="LanguageName">LanguageName</a></b> is the native name of the language (so not the English name). It is displayed in the list of available languages on the <i>Select Language</i> dialog in a multilingual installation.</p>
 
-<p><b><a name="LanguageID">LanguageID</a></b> is the numeric "language identifier" of the language. Refer to the <extlink href="http://msdn.microsoft.com/en-us/library/dd318693.aspx">list of valid language identifiers on MSDN</extlink>. This, along with <tt>LanguageCodePage</tt>, is used for the purpose of auto-detecting the most appropriate language to use by default, so be sure it is set correctly. It should always begin with a "$" sign, since language identifiers are in hexadecimal. If no language identifier currently exists for the language, set this to zero.</p>
+<p><b><a name="LanguageID">LanguageID</a></b> is the numeric "language identifier" of the language. Refer to the <extlink href="http://msdn.microsoft.com/en-us/library/dd318693.aspx">list of valid language identifiers on MSDN</extlink>. This, along with <tt>LanguageCodePage</tt>, is used for the purpose of auto-detecting the most appropriate language to use by default, so be sure it is set correctly. It should always begin with a "<tt>$</tt>" sign, since language identifiers are in hexadecimal. If no language identifier currently exists for the language, set this to zero.</p>
 
 <p><b><a name="LanguageCodePage">LanguageCodePage</a></b> specifies the "code page" (character set) used by the compiler to convert any non-Unicode text in the language's files to Unicode text. Note that any text in the <tt>.iss</tt> file such as a <sn>[CustomMessages]</sn> entry for the language is never converted and should be in Unicode already.<br/>
 If no code page currently exists for the language, set <tt>LanguageCodePage</tt> to zero and only use Unicode text (UTF-8) in the languages's files.<br/>
@@ -2590,7 +2590,7 @@ If <tt>binary</tt> is specified, Setup will create a binary (<tt>REG_BINARY</tt>
 
 <param name="ValueData">
 <p>The data for the value. If the <tt>ValueType</tt> parameter is <tt>string</tt>, <tt>expandsz</tt>, or <tt>multisz</tt>, this is a string that can include constants. If the data type is <tt>dword</tt> or <tt>qword</tt>, this can be a decimal integer (e.g. "123"), a hexadecimal integer (e.g. "$7B"), or a constant which resolves to an integer. If the data type is <tt>binary</tt>, this is a sequence of hexadecimal bytes in the form: "00 ff 12 34". If the data type is <tt>none</tt>, this is ignored.</p>
-<p>On a <tt>string</tt>, <tt>expandsz</tt>, or <tt>multisz</tt> type value, you may use a special constant called <tt>{olddata}</tt> in this parameter. <tt>{olddata}</tt> is replaced with the previous data of the registry value. The <tt>{olddata}</tt> constant can be useful if you need to append a string to an existing value, for example, <tt>{olddata};{app}</tt>. If the value does not exist or the existing value isn't a string type, the {olddata} constant is silently removed. {olddata} will also be silently removed if the value being created is a <tt>multisz</tt> type but the existing value is not a multi-string type (i.e. it's <tt>REG_SZ</tt> or <tt>REG_EXPAND_SZ</tt>), and vice versa.</p>
+<p>On a <tt>string</tt>, <tt>expandsz</tt>, or <tt>multisz</tt> type value, you may use a special constant called <tt>{olddata}</tt> in this parameter. <tt>{olddata}</tt> is replaced with the previous data of the registry value. The <tt>{olddata}</tt> constant can be useful if you need to append a string to an existing value, for example, <tt>{olddata};{app}</tt>. If the value does not exist or the existing value isn't a string type, the <tt>{olddata}</tt> constant is silently removed. <tt>{olddata}</tt> will also be silently removed if the value being created is a <tt>multisz</tt> type but the existing value is not a multi-string type (i.e. it's <tt>REG_SZ</tt> or <tt>REG_EXPAND_SZ</tt>), and vice versa.</p>
 <p>On a <tt>multisz</tt> type value, you may use a special constant called <tt>{break}</tt> in this parameter to embed line breaks (nulls).</p>
 <example>
 <pre><key>ValueData</key>: "1.0"</pre>
@@ -3341,7 +3341,7 @@ Shown by default, but can be disabled in some cases via <sd>DisableFinishedPage<
 <li>The <tt>{commoncf}</tt> constant is equivalent to <tt>{commoncf32}</tt>.</li>
 <li>The <tt>{reg:...}</tt> constant reads the 32-bit view by default.</li>
 <li>The <tt>Reg*</tt> <sn>[Code]</sn> support functions access the 32-bit view by default.</li>
-<li>The Uninstall key is created in the 32-bit view of the registry.</li>
+<li>The <tt>Uninstall</tt> key is created in the 32-bit view of the registry.</li>
 </ul>
 
 <p><b>64-bit install mode</b></p>
@@ -3352,7 +3352,7 @@ Shown by default, but can be disabled in some cases via <sd>DisableFinishedPage<
 <li>The <tt>{commoncf}</tt> constant is equivalent to <tt>{commoncf64}</tt>.</li>
 <li>The <tt>{reg:...}</tt> constant reads the 64-bit view by default.</li>
 <li>The <tt>Reg*</tt> <sn>[Code]</sn> support functions access the 64-bit view by default.</li>
-<li>The Uninstall key is created in the 64-bit view of the registry.</li>
+<li>The <tt>Uninstall</tt> key is created in the 64-bit view of the registry.</li>
 </ul>
 
 </body>
@@ -3518,7 +3518,7 @@ Shown by default, but can be disabled in some cases via <sd>DisableFinishedPage<
 /SP- /silent /noicons "/dir=expand:{autopf}\My Program"
 </precode>
 
-<p>After starting <tt>setup.exe</tt>, exit your application as soon as possible. Note that to avoid problems with updating your <tt>.exe</tt>, Setup has an auto retry feature.</p>
+<p>After starting <tt>Setup.exe</tt>, exit your application as soon as possible. Note that to avoid problems with updating your <tt>.exe</tt>, Setup has an auto retry feature.</p>
 
 <p>Optionally you could also use the <tt>skipifsilent</tt> and <tt>skipifnotsilent</tt> flags and make your application aware of a custom <tt>/updated</tt> parameter to for example show a nice message box to inform the user that the update has completed.</p>
 </li>
@@ -3764,7 +3764,7 @@ Shown by default, but can be disabled in some cases via <sd>DisableFinishedPage<
   <td>Select autocompletion</td><td>Tab or Enter</td>
 </tr>
 <tr>
-  <td>Fillup autocompletion</td><td>Space for ISPP directives, for <sn>[Setup]</sn> section values, and for Flags and Type parameters<br />\ for constants<br />: for constants and section parameters<br />] for sections<br />= for section directives</td>
+  <td>Fillup autocompletion</td><td>Space for ISPP directives, for <sn>[Setup]</sn> section values, and for <tt>Flags</tt> and <tt>Type</tt> parameters<br />\ for constants<br />: for constants and section parameters<br />] for sections<br />= for section directives</td>
 </tr>
 <tr>
   <td>Invoke parameter hint or show next definition</td><td>Ctrl+Shift+Space</td>
@@ -3910,12 +3910,15 @@ Shown by default, but can be disabled in some cases via <sd>DisableFinishedPage<
 <li>
 <p>Alternatively, scripts can also be compiled by the Compiler IDE from the command line. Command line usage is as follows:</p>
 
-<precode>iside /cc <i>&lt;script name&gt;</i></precode>
+<precode>iside -cc <i>&lt;script name&gt;</i>
+iside --compile <i>&lt;script name&gt;</i></precode>
 <indent>
-<example><pre>iside /cc "c:\isetup\samples\my script.iss"</pre></example>
+<example><pre>iside -cc "c:\isetup\samples\my script.iss"</pre></example>
 </indent>
 
 <p>As shown in the example above, filenames that include spaces must be enclosed in quotes.</p>
+
+<p>Short options accept both <tt>-</tt> and <tt>/</tt> as a prefix and are case-insensitive. Long <tt>--</tt> options are case-sensitive and do not accept <tt>//</tt> as a prefix.</p>
 
 <p>Running the Compiler IDE from the command line does not suppress the normal progress display or any error messages. The Compiler IDE will return an exit code of 0 if the compile was successful, 1 if the command line parameters were invalid, or 2 if the compile failed.</p>
 </li>
@@ -3923,12 +3926,15 @@ Shown by default, but can be disabled in some cases via <sd>DisableFinishedPage<
 <li>
 <p>The Setup Script Wizard can be started from the command line. Command line usage is as follows:</p>
 
-<precode>iside /wizard <i>&lt;wizard name&gt; &lt;script name&gt;</i></precode>
+<precode>iside -wizard <i>&lt;wizard name&gt; &lt;script name&gt;</i>
+iside --new-script-wizard <i>&lt;wizard name&gt; &lt;script name&gt;</i></precode>
 <indent>
-<example><pre>iside /wizard "MyProg Script Wizard" "c:\temp.iss"</pre></example>
+<example><pre>iside -wizard "MyProg Script Wizard" "c:\temp.iss"</pre></example>
 </indent>
 
 <p>As shown in the example above, wizard names and filenames that include spaces must be enclosed in quotes.</p>
+
+<p>Short options accept both <tt>-</tt> and <tt>/</tt> as a prefix and are case-insensitive. Long <tt>--</tt> options are case-sensitive and do not accept <tt>//</tt> as a prefix.</p>
 
 <p>Running the wizard from the command line does not suppress any error messages. The Setup Script Wizard will return an exit code of 0 if there was no error and additionally it will save the generated script file to the specified filename, 1 if the command line parameters were invalid, or 2 if the generated script file could not be saved. If the user cancelled the Setup Script Wizard, an exit code of 0 is returned and no script file is saved.</p>
 </li>
@@ -4900,7 +4906,7 @@ Keep the default set of selected tasks, but deselect the "desktopicon" task:<br/
 
 <p>You can do this before or after installation, or even while Inno Setup is running.</p>
 
-<p>A license key is a string of at least 108 characters. It always starts with 'in' and ends with 'no', without the quotes. To users the key is presented as multiple lines of 28 characters per line.</p>
+<p>A license key is a string of at least 108 characters. It always starts with <tt>in</tt> and ends with <tt>no</tt>. To users the key is presented as multiple lines of 28 characters per line.</p>
 
 <p>Please note that installers built without a license are not explicitly marked as unlicensed. This means you may choose not to install the license key on a CI machine, even if we ask you to assign a license to it.</p>
 
@@ -5859,7 +5865,7 @@ CreateMutex <num>0</num><key>&amp;</key>, <num>0</num><key>&amp;</key>, <str>"My
 
 <setuptopic directive="LicenseFile">
 <body>
-<p>Specifies the name of an optional license agreement file, in <tt>.txt</tt> or <tt>.rtf</tt> (rich text) format, which is displayed before the user selects the destination directory for the program. This file must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by "compiler:", in which case it looks for the file in the compiler directory.</p>
+<p>Specifies the name of an optional license agreement file, in <tt>.txt</tt> or <tt>.rtf</tt> (rich text) format, which is displayed before the user selects the destination directory for the program. This file must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by <tt>compiler:</tt>, in which case it looks for the file in the compiler directory.</p>
 <p>If the user selects a language for which the <tt>LicenseFile</tt> parameter is set, this directive is effectively ignored. See the <sn>[Languages]</sn> section documentation for more information.</p>
 <p>If a Unicode <tt>.txt</tt> file is used, it must be UTF-8 (with or without a BOM) or UTF-16LE encoded.</p>
 <p>If using a <tt>.rtf</tt> file with custom colors, be mindful of contrast ratios, especially if supporting a <link topic="setup_wizardstyle">dark style</link>. Aim for at least an AA pass for normal text, using a <extlink href="https://webaim.org/resources/contrastchecker">contrast checker</extlink>. Example colors that pass on both light and dark backgrounds include: red #eb0000, green #008a00, and blue #6161ff.</p>
@@ -5872,7 +5878,7 @@ CreateMutex <num>0</num><key>&amp;</key>, <num>0</num><key>&amp;</key>, <str>"My
 
 <setuptopic directive="InfoBeforeFile">
 <body>
-<p>Specifies the name of an optional "readme" file, in <tt>.txt</tt> or <tt>.rtf</tt> (rich text) format, which is displayed before the user selects the destination directory for the program. This file must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by "compiler:", in which case it looks for the file in the compiler directory.</p>
+<p>Specifies the name of an optional "readme" file, in <tt>.txt</tt> or <tt>.rtf</tt> (rich text) format, which is displayed before the user selects the destination directory for the program. This file must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by <tt>compiler:</tt>, in which case it looks for the file in the compiler directory.</p>
 <p>If the user selects a language for which the <tt>InfoBeforeFile</tt> parameter is set, this directive is effectively ignored. See the <sn>[Languages]</sn> section documentation for more information.</p>
 <p>If a Unicode <tt>.txt</tt> file is used, it must be UTF-8 (with or without a BOM) or UTF-16LE encoded.</p>
 <p>If using a <tt>.rtf</tt> file with custom colors, see <sd>LicenseFile</sd> for special considerations.</p>
@@ -5885,7 +5891,7 @@ CreateMutex <num>0</num><key>&amp;</key>, <num>0</num><key>&amp;</key>, <str>"My
 
 <setuptopic directive="InfoAfterFile">
 <body>
-<p>Specifies the name of an optional "readme" file, in <tt>.txt</tt> or <tt>.rtf</tt> (rich text) format, which is displayed after a successful install. This file must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by "compiler:", in which case it looks for the file in the compiler directory.</p>
+<p>Specifies the name of an optional "readme" file, in <tt>.txt</tt> or <tt>.rtf</tt> (rich text) format, which is displayed after a successful install. This file must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by <tt>compiler:</tt>, in which case it looks for the file in the compiler directory.</p>
 <p>This differs from <tt>isreadme</tt> files in that this text is displayed as a page of the wizard, instead of in a separate Notepad window.</p>
 <p>If the user selects a language for which the <tt>InfoAfterFile</tt> parameter is set, this directive is effectively ignored. See the <sn>[Languages]</sn> section documentation for more information.</p>
 <p>If a Unicode <tt>.txt</tt> file is used, it must be UTF-8 (with or without a BOM) or UTF-16LE encoded.</p>
@@ -5994,7 +6000,7 @@ CreateMutex <num>0</num><key>&amp;</key>, <num>0</num><key>&amp;</key>, <str>"My
 <setuptopic directive="WizardImageFile">
 <setupdefault><i>(see below)</i></setupdefault>
 <body>
-<p>Specifies the name(s) of the image file(s) to display on the left side of the <i>Welcome</i> and <i>Setup Completed</i> wizard pages. Wildcards are supported and the file(s) must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by "compiler:", in which case it looks for the file in the compiler directory.</p>
+<p>Specifies the name(s) of the image file(s) to display on the left side of the <i>Welcome</i> and <i>Setup Completed</i> wizard pages. Wildcards are supported and the file(s) must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by <tt>compiler:</tt>, in which case it looks for the file in the compiler directory.</p>
 <p>Supports <tt>.bmp</tt> and <tt>.png</tt> images, including those with transparency. Use <sd>WizardImageBackColor</sd> to customize the background color. Even transparent <tt>.bmp</tt> files are supported, see <sd>WizardImageAlphaFormat</sd> for more information. Use <sd>WizardImageOpacity</sd> to increase transparency.</p>
 <p>The size of the area in which the image is displayed depends on the system's DPI setting and whether the default <link topic="langoptionssection">font</link>, <sd>WizardSizePercent</sd>, and <sd>WizardKeepAspectRatio</sd> settings are being used. In all cases, an aspect ratio of 164:314 is maintained. The specified image should have the same aspect ratio.</p>
 <p>Any size of image may be used; by default, images that are too small or too large to fit in the image area will be stretched or shrunk. Specifying an image larger than 202x386 is recommended to avoid the image looking blurry on higher-DPI systems. The size of the default built-in image is 240x459.</p>
@@ -6046,7 +6052,7 @@ CreateMutex <num>0</num><key>&amp;</key>, <num>0</num><key>&amp;</key>, <str>"My
 <setuptopic directive="WizardSmallImageFile">
 <setupdefault><i>(see below)</i></setupdefault>
 <body>
-<p>Specifies the name(s) of the image file(s) to display in the upper right corner of the wizard. Wildcards are supported and the file(s) must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by "compiler:", in which case it looks for the file in the compiler directory.</p>
+<p>Specifies the name(s) of the image file(s) to display in the upper right corner of the wizard. Wildcards are supported and the file(s) must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by <tt>compiler:</tt>, in which case it looks for the file in the compiler directory.</p>
 <p>Supports <tt>.bmp</tt> and <tt>.png</tt> images, including those with transparency. Use <sd>WizardSmallImageBackColor</sd> to customize the background color. Even transparent <tt>.bmp</tt> files are supported, see <sd>WizardImageAlphaFormat</sd> for more information. Use <sd>WizardImageOpacity</sd> to increase transparency.</p>
 <p>The size of the area in which the image is displayed depends on the system's DPI setting and whether the default <link topic="langoptionssection">font settings</link> are being used. In all cases, the area is square; thus, the specified image should be square as well.</p>
 <p>Any size of image may be used; by default, images that are too small or too large to fit in the image area will be stretched or shrunk. Specifying an image larger than 58x58 is recommended to avoid the image looking blurry on higher-DPI systems. The size of the default built-in image is 147x147.</p>
@@ -6099,7 +6105,7 @@ CreateMutex <num>0</num><key>&amp;</key>, <num>0</num><key>&amp;</key>, <str>"My
 <setuptopic directive="WizardBackImageFile">
 <setupdefault><i>(blank)</i></setupdefault>
 <body>
-<p>Specifies the name(s) of the image file(s) to display as the background of wizard pages in Setup, but not in Uninstall. Wildcards are supported and the file(s) must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by "compiler:", in which case it looks for the file in the compiler directory.</p>
+<p>Specifies the name(s) of the image file(s) to display as the background of wizard pages in Setup, but not in Uninstall. Wildcards are supported and the file(s) must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by <tt>compiler:</tt>, in which case it looks for the file in the compiler directory.</p>
 <p>Supports <tt>.bmp</tt> and <tt>.png</tt> images, including those with transparency. Use <sd>WizardBackColor</sd> to customize the background color. Even transparent <tt>.bmp</tt> files are supported, see <sd>WizardImageAlphaFormat</sd> for more information. Use <sd>WizardBackImageOpacity</sd> to increase transparency.</p>
 <p>The size of the area in which the image is displayed depends on the system's DPI setting and whether the default <link topic="langoptionssection">font</link>, <sd>WizardSizePercent</sd>, and <sd>WizardKeepAspectRatio</sd> settings are being used. If <sd>WizardKeepAspectRatio</sd> is set to <tt>yes</tt>, which is the default, an aspect ratio of 497:360 is maintained. The specified image should have the same aspect ratio.</p>
 <p>Any size of image may be used; by default, images that are too small or too large to fit in the image area will be stretched or shrunk. Specifying an image larger than 596x432 is recommended to avoid the image looking blurry on higher-DPI systems.</p>
@@ -6352,7 +6358,7 @@ Otherwise, it defaults to <tt>none</tt>.</p>
 <setupdefault><tt>Output</tt></setupdefault>
 <body>
 <p>Specifies the "output" directory for the script, which is where the compiler will place the resulting <tt>Setup.*</tt> files. By default, it creates a directory named <tt>Output</tt> under the directory containing the script for this.</p>
-<p>If <tt>OutputDir</tt> is not a fully-qualified pathname, it will be treated as being relative to <sd>SourceDir</sd>, unless the pathname is prefixed by "userdocs:", in which case it will be treated as being relative to the My Documents folder of the currently logged-in user. Setting <tt>OutputDir</tt> to <tt>.</tt> will result in the files being placed in the source directory.</p>
+<p>If <tt>OutputDir</tt> is not a fully-qualified pathname, it will be treated as being relative to <sd>SourceDir</sd>, unless the pathname is prefixed by <tt>userdocs:</tt>, in which case it will be treated as being relative to the My Documents folder of the currently logged-in user. Setting <tt>OutputDir</tt> to <tt>.</tt> will result in the files being placed in the source directory.</p>
 <example><pre><key>OutputDir</key>=c:\output</pre></example>
 </body>
 </setuptopic>
@@ -6591,7 +6597,7 @@ Otherwise, it defaults to <tt>none</tt>.</p>
 <setuptopic directive="SetupIconFile">
 <setupdefault><i>(blank)</i></setupdefault>
 <body>
-<p>Specifies a custom program icon to use for Setup/Uninstall. The file must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by "compiler:", in which case it looks for the file in the compiler directory.</p>
+<p>Specifies a custom program icon to use for Setup/Uninstall. The file must be located in your installation's <link topic="sourcedirectorynotes">source directory</link> when running the compiler, unless a fully qualified pathname is specified or the pathname is prefixed by <tt>compiler:</tt>, in which case it looks for the file in the compiler directory.</p>
 <p>It is recommended to include at least the following sizes in your icon: 16x16, 32x32, 48x48, 64x64, and 256x256.</p>
 <p>If this directive is not specified or is blank, a built-in icon supporting the above sizes will be used.</p>
 <p>To use the old default icon set this directive to <tt>compiler:SetupClassicIcon.ico</tt>.</p>
@@ -7320,7 +7326,7 @@ Or, a boolean expression containing <link topic="archidentifiers">architecture i
 <tr><td>10.0.26200</td><td>Windows 11 Version 25H2 (2025 Update)</td></tr>
 <tr><td>10.0.28000</td><td>Windows 11 Version 26H1</td></tr>
 </table>
-<p>Note that except for Windows 11 there is normally no need to specify the build numbers (i.e., you may simply use "6.2" for Windows 8).</p>
+<p>Note that except for Windows 11 there is normally no need to specify the build numbers (i.e., you may simply use <tt>6.2</tt> for Windows 8).</p>
 </body>
 </topic>
 
