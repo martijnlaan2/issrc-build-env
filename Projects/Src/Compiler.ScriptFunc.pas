@@ -166,9 +166,24 @@ begin
   { These are internal, used only by Script.Test.iss }
   RegisterType('TTestInnerfuseSmallRec', 'record A: Byte; B: Byte; end');
   RegisterType('TTestInnerfuseLargeRec', 'record A: Integer; B: String; end');
+  RegisterType('TTestHandlerRec3', 'record A: Byte; B: Byte; C: Byte; end');
+  RegisterType('TTestHandlerRec4', 'record A: Word; B: Word; end');
+  RegisterType('TTestHandlerRec6', 'record A: Word; B: Word; C: Word; end');
+  RegisterType('TTestHandlerRec8', 'record A: Word; B: Word; C: Word; D: Word; end');
+  RegisterType('TTestHandlerRec10', 'record A: Word; B: Word; C: Word; D: Word; E: Word; end');
   RegisterDelphiFunctionTable(TestInnerfuseScriptFuncTable);
   RegisterType('TTestPSStackHelperProc', 'function(Value: Integer): Integer;');
   ScriptCompiler.AddFunction('function TestPSStackHelper_InvokeCallback(const Callback: TTestPSStackHelperProc; const Value: Integer): Integer;');
+  RegisterType('TTestHandlerExtendedProc', 'function(E1, E2, E3: Extended; Tail: Integer): Extended;');
+  RegisterType('TTestHandlerCurrencyProc', 'function(C1, C2, C3: Currency; Tail: Integer): Currency;');
+  RegisterType('TTestHandlerMixedProc', 'procedure(A: Integer; E: Extended; C: Currency; Tail: Integer);');
+  ScriptCompiler.AddFunction('function TestHandler_InvokeExtended(const Callback: TTestHandlerExtendedProc): Extended;');
+  ScriptCompiler.AddFunction('function TestHandler_InvokeCurrency(const Callback: TTestHandlerCurrencyProc): Currency;');
+  ScriptCompiler.AddFunction('procedure TestHandler_InvokeMixed(const Callback: TTestHandlerMixedProc);');
+  RegisterType('TTestHandlerRecProc', 'function(R1: TTestHandlerRec4; R2: TTestHandlerRec6; R3: TTestHandlerRec8; Tail: Integer): Integer;');
+  RegisterType('TTestHandlerRecProc2', 'function(R1: TTestHandlerRec3; R2: TTestHandlerRec10; Tail: Integer): Integer;');
+  ScriptCompiler.AddFunction('function TestHandler_InvokeRec(const Callback: TTestHandlerRecProc): Integer;');
+  ScriptCompiler.AddFunction('function TestHandler_InvokeRec2(const Callback: TTestHandlerRecProc2): Integer;');
 
   ObsoleteFunctionWarnings.Add('IsAdminLoggedOn', Format(SCompilerCodeFunctionRenamedWithAlternative, ['IsAdminLoggedOn', 'IsAdmin', 'IsAdminInstallMode']));
   ObsoleteFunctionWarnings.Add('IsComponentSelected', Format(SCompilerCodeFunctionRenamed, ['IsComponentSelected', 'WizardIsComponentSelected']));

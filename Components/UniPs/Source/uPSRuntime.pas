@@ -12219,7 +12219,11 @@ begin
   case atype.BaseType of
     btVariant: Result := true;
     btSet: Result := atype.RealSize > PointerSize;
+{$IFDEF CPU64}
+    btRecord: Result := not (atype.RealSize in [1, 2, 4]);
+{$ELSE}
     btRecord: Result := atype.RealSize > PointerSize;
+{$ENDIF}
     btStaticArray: Result := atype.RealSize > PointerSize;
   else
     Result := false;
@@ -12357,6 +12361,7 @@ begin
     btSingle,
     btDouble,
     btExtended,
+    btCurrency,
     btU8,
     bts8,
     bts16,
@@ -12415,9 +12420,14 @@ begin
     btEnum: Result := true;
     btSet: Result := b.RealSize <= PointerSize;
     btStaticArray: Result := b.RealSize <= PointerSize;
+{$IFDEF DELPHI}
+    btRecord: Result := b.RealSize in [1, 2, 4];
+{$ENDIF}
 {$IFDEF CPU64}
     btSingle,
-    btDouble: Result := True;
+    btDouble,
+    btExtended,
+    btCurrency: Result := True;
 {$ENDIF}
   else
     Result := false;
@@ -12430,6 +12440,12 @@ asm
   fld tbyte ptr [ft]
 
 end;
+
+procedure PutOnFPUStackCurrency(cu: currency);
+asm
+  fild qword ptr [cu]
+end;
+
 {$IFDEF CPU64}
 function MyAllMethodsHandler64(Self: PScriptMethodInfo; _RDX, _R8, _R9:Pointer; Stack: PPointer;  _XMM1, _XMM2, _XMM3: Pointer; {$IFDEF DELPHI} ResPtr: Pointer {$ENDIF}): Integer;
 var
@@ -12513,21 +12529,21 @@ begin
       Params[i] := tmp;
       case regno of
         0: begin
-            if cpt.BaseType in [btSingle, btDouble] then
+            if cpt.BaseType in [btSingle, btDouble, btExtended] then
               CopyArrayContents(@PPSVariantData(tmp)^.Data, @_XMM1, 1, cpt)
             else
               CopyArrayContents(@PPSVariantData(tmp)^.Data, @_RDX, 1, cpt);
             inc(regno);
           end;
         1: begin
-            if cpt.BaseType in [btSingle, btDouble] then
+            if cpt.BaseType in [btSingle, btDouble, btExtended] then
               CopyArrayContents(@PPSVariantData(tmp)^.Data, @_XMM2, 1, cpt)
             else
               CopyArrayContents(@PPSVariantData(tmp)^.Data, @_R8, 1, cpt);
             inc(regno);
           end;
         2: begin
-            if cpt.BaseType in [btSingle, btDouble] then
+            if cpt.BaseType in [btSingle, btDouble, btExtended] then
               CopyArrayContents(@PPSVariantData(tmp)^.Data, @_XMM3, 1, cpt)
             else
               CopyArrayContents(@PPSVariantData(tmp)^.Data, @_R9, 1, cpt);
@@ -12767,7 +12783,8 @@ begin
           btSingle: PutOnFPUStackExtended(PPSVariantSingle(res).Data);
           btDouble: PutOnFPUStackExtended(PPSVariantDouble(res).Data);
           btExtended: PutOnFPUStackExtended(PPSVariantExtended(res).Data);
-          btCurrency: PutOnFPUStackExtended(PPSVariantCurrency(res).Data);
+          { Currency is returned on the FPU stack as its scaled integer backing (FILD), not its logical value }
+          btCurrency: PutOnFPUStackCurrency(PPSVariantCurrency(res).Data);
         end;
         DestroyHeapVariant(Res);
         Res := nil;

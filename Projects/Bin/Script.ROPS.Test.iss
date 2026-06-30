@@ -1745,6 +1745,7 @@ end;
 procedure Test_InnerfuseCallParamTypes;
 var
   SmallRec: TTestInnerfuseSmallRec;
+  Rec8: TTestHandlerRec8;
   LargeRec: TTestInnerfuseLargeRec;
 begin
   { Exercises InnerfuseCall parameter and return type marshalling using the
@@ -1753,7 +1754,9 @@ begin
     passing and return value paths in x86.inc/x64.inc:
     - Single/Double/Extended/Currency: different float handling per platform
     - Int64: 8 bytes on stack (x86) vs one 64-bit register (x64)
-    - Small record: by value if <= pointer size, else by pointer
+    - Small record: by value for small sizes (x64: 1, 2, or 4; x86: <= 4), else by pointer
+    - 8-byte record: by reference under the register convention on Win64, because
+      of Delphi's special rule: https://blogs.embarcadero.com/abi-changes-in-rad-studio-10-3/
     - Large record: hidden var-param return path for records > pointer size
     - Mixed Single+Double: tests per-slot SingleBits indexing on x64
     - PAnsiChar empty string: tests nil -> EmptyPchar substitution
@@ -1772,6 +1775,12 @@ begin
   CheckEqualsInt64(42, SmallRec.A);
   CheckEqualsInt64(99, SmallRec.B);
 
+  Rec8.A := 30;
+  Rec8.B := 31;
+  Rec8.C := 32;
+  Rec8.D := 33;
+  CheckEqualsInt64(126, TestInnerfuse_SumRec8(Rec8));
+
   LargeRec.A := 42;
   LargeRec.B := 'hello';
   LargeRec := TestInnerfuse_EchoLargeRec(LargeRec);
@@ -1788,13 +1797,18 @@ end;
 procedure Test_InnerfuseCallParamTypesStdCall;
 var
   SmallRec: TTestInnerfuseSmallRec;
+#if arch == "x64"
+  Rec8: TTestHandlerRec8;
+#endif
   LargeRec: TTestInnerfuseLargeRec;
 begin
   { Repeats the echo tests from Test_InnerfuseCallParamTypes using the stdcall
     calling convention. On x86 this exercises RealCall_Other /
     RealFloatCall_Other (all params on stack) instead of RealCall_Register
-    (params in EAX/EDX/ECX then stack). On x64 both conventions use the same
-    Microsoft x64 ABI so the code paths are identical.
+    (params in EAX/EDX/ECX then stack). On x64 both conventions share the
+    Microsoft x64 ABI, so the code paths are identical except for a by-value
+    8-byte record, which Delphi passes by value under stdcall but by reference
+    under the register convention (see TestInnerfuse_SumRec8StdCall below).
     MixedFloats is omitted because its purpose (per-slot SingleBits indexing) is
     x64-specific, where stdcall is identical to register. EchoPAnsiChar is
     omitted because nil-to-EmptyPchar substitution is calling-convention-
@@ -1812,6 +1826,16 @@ begin
   SmallRec := TestInnerfuse_EchoSmallRecStdCall(SmallRec);
   CheckEqualsInt64(42, SmallRec.A);
   CheckEqualsInt64(99, SmallRec.B);
+
+#if arch == "x64"
+  { On x64, an 8-byte record under stdcall is passed by value, unlike under the
+    register convention where Delphi passes it by reference }
+  Rec8.A := 30;
+  Rec8.B := 31;
+  Rec8.C := 32;
+  Rec8.D := 33;
+  CheckEqualsInt64(126, TestInnerfuse_SumRec8StdCall(Rec8));
+#endif
 
   LargeRec.A := 42;
   LargeRec.B := 'hello';
@@ -2248,6 +2272,7 @@ end;
 var
   Test_CreateCallback_Result: String;
   Test_CreateCallback_FloatResult: Double;
+  Test_CreateCallback_ExtendedResult: Extended;
 
 procedure Test_CreateCallback_CBNoParams;
 begin
@@ -2265,6 +2290,12 @@ begin
   Test_CreateCallback_FloatResult := D;
 end;
 
+procedure Test_CreateCallback_CBExtended4(A, B, C: Integer; D: Extended);
+begin
+  Test_CreateCallback_Result := IntToStr(A) + ',' + IntToStr(B) + ',' + IntToStr(C);
+  Test_CreateCallback_ExtendedResult := D;
+end;
+
 function Test_CreateCallback_CBReturnInteger(A, B: Integer): Integer;
 begin
   Result := A + B;
@@ -2275,7 +2306,20 @@ begin
   Result := A * 0.1 + B;
 end;
 
+var
+  Test_CreateCallback_Rec8Fields: String;
+
+procedure Test_CreateCallback_CBRec8(R: TTestHandlerRec8; Tail: Integer);
+begin
+  Test_CreateCallback_Rec8Fields :=
+    IntToStr(R.A) + ',' + IntToStr(R.B) + ',' + IntToStr(R.C) + ',' + IntToStr(R.D) + ';' + IntToStr(Tail);
+end;
+
 procedure Test_CreateCallback;
+#if arch == "x64"
+var
+  R: TTestHandlerRec8;
+#endif
 begin
   { Tests CreateCallback, which generates platform-specific machine code
     (TASMInline) to bridge external stdcall callers to ROPS' register-convention
@@ -2297,18 +2341,141 @@ begin
   CheckEqualsString('one,2,3,4,5', Test_CreateCallback_Result);
 
   { Note: on x86 CreateCallback does not support callback parameters
-    passed by value when their type is larger than 4 bytes (Int64, UInt64,
-    Double, Extended, Currency) }
+    passed by value when their type is larger than 4 bytes (such as Int64,
+    UInt64, Double, Extended, Currency, or a record larger than 4 bytes) }
 #if arch == "x64"
   Test_CreateCallback_Result := '';
   Test_CreateCallback_FloatResult := 0.0;
   TestCreateCallback_InvokeFloat4(CreateCallback(@Test_CreateCallback_CBFloat4), 10, 20, 30, 4.5);
   CheckEqualsString('10,20,30', Test_CreateCallback_Result);
   CheckEqualsFloat(4.5, Test_CreateCallback_FloatResult, 0.0);
+
+  { Extended at position 4: Param4IsFloatByValue must treat btExtended like btDouble }
+  Test_CreateCallback_Result := '';
+  Test_CreateCallback_ExtendedResult := 0.0;
+  TestCreateCallback_InvokeExtended4(CreateCallback(@Test_CreateCallback_CBExtended4), 10, 20, 30, 4.5);
+  CheckEqualsString('10,20,30', Test_CreateCallback_Result);
+  CheckEqualsFloat(4.5, Test_CreateCallback_ExtendedResult, 0.0);
+
+  { An unmanaged 8-byte record by value at position 1 must be bridged to a pointer
+    for MyAllMethodsHandler }
+  R.A := 30; R.B := 31; R.C := 32; R.D := 33;
+  Test_CreateCallback_Rec8Fields := '';
+  TestCreateCallback_InvokeRec8(CreateCallback(@Test_CreateCallback_CBRec8), R, 99);
+  CheckEqualsString('30,31,32,33;99', Test_CreateCallback_Rec8Fields);
 #endif
 
   CheckEqualsInt64(30, TestCreateCallback_InvokeReturnInteger(CreateCallback(@Test_CreateCallback_CBReturnInteger), 10, 20));
   CheckEqualsFloat(5.3, TestCreateCallback_InvokeReturnDouble(CreateCallback(@Test_CreateCallback_CBReturnDouble), 3, 5), 1e-9);
+end;
+
+var
+  Test_MyAllMethodsHandlerByValue_Extended1, Test_MyAllMethodsHandlerByValue_Extended2, Test_MyAllMethodsHandlerByValue_Extended3: Extended;
+  Test_MyAllMethodsHandlerByValue_Currency1, Test_MyAllMethodsHandlerByValue_Currency2, Test_MyAllMethodsHandlerByValue_Currency3: Currency;
+  Test_MyAllMethodsHandlerByValue_IntParams: String;
+
+{ The Extended and Currency receivers record their by-value parameters in globals
+  and return the sum, so a single call also exercises the matching result path. }
+function Test_MyAllMethodsHandlerByValue_ReceiveExtended(E1, E2, E3: Extended; Tail: Integer): Extended;
+begin
+  Test_MyAllMethodsHandlerByValue_Extended1 := E1;
+  Test_MyAllMethodsHandlerByValue_Extended2 := E2;
+  Test_MyAllMethodsHandlerByValue_Extended3 := E3;
+  Test_MyAllMethodsHandlerByValue_IntParams := IntToStr(Tail);
+  Result := E1 + E2 + E3;
+end;
+
+function Test_MyAllMethodsHandlerByValue_ReceiveCurrency(C1, C2, C3: Currency; Tail: Integer): Currency;
+begin
+  Test_MyAllMethodsHandlerByValue_Currency1 := C1;
+  Test_MyAllMethodsHandlerByValue_Currency2 := C2;
+  Test_MyAllMethodsHandlerByValue_Currency3 := C3;
+  Test_MyAllMethodsHandlerByValue_IntParams := IntToStr(Tail);
+  Result := C1 + C2 + C3;
+end;
+
+procedure Test_MyAllMethodsHandlerByValue_ReceiveMixed(A: Integer; E: Extended; C: Currency; Tail: Integer);
+begin
+  Test_MyAllMethodsHandlerByValue_Extended1 := E;
+  Test_MyAllMethodsHandlerByValue_Currency1 := C;
+  Test_MyAllMethodsHandlerByValue_IntParams := IntToStr(A) + ',' + IntToStr(Tail);
+end;
+
+procedure Test_MyAllMethodsHandlerByValue;
+begin
+  { These reach MyAllMethodsHandler through a register-convention TMethod, not a
+    CreateCallback thunk. }
+
+  { Extended by value at positions 1-3 (XMM1/XMM2/XMM3 on x64); the returned sum
+    also checks the Extended result path }
+  Test_MyAllMethodsHandlerByValue_Extended1 := 0.0;
+  Test_MyAllMethodsHandlerByValue_Extended2 := 0.0;
+  Test_MyAllMethodsHandlerByValue_Extended3 := 0.0;
+  Test_MyAllMethodsHandlerByValue_IntParams := '';
+  CheckEqualsFloat(1.5 + 2.5 + 3.5, TestHandler_InvokeExtended(@Test_MyAllMethodsHandlerByValue_ReceiveExtended), 0.0);
+  CheckEqualsFloat(1.5, Test_MyAllMethodsHandlerByValue_Extended1, 0.0);
+  CheckEqualsFloat(2.5, Test_MyAllMethodsHandlerByValue_Extended2, 0.0);
+  CheckEqualsFloat(3.5, Test_MyAllMethodsHandlerByValue_Extended3, 0.0);
+  CheckEqualsString('4', Test_MyAllMethodsHandlerByValue_IntParams);
+
+  { Currency by value at positions 1-3 (RDX/R8/R9 on x64); the returned sum also
+    checks the Currency result path (RAX on x64) }
+  Test_MyAllMethodsHandlerByValue_Currency1 := 0.0;
+  Test_MyAllMethodsHandlerByValue_Currency2 := 0.0;
+  Test_MyAllMethodsHandlerByValue_Currency3 := 0.0;
+  Test_MyAllMethodsHandlerByValue_IntParams := '';
+  CheckEqualsFloat(-1.5 - 2.5 - 3.5, TestHandler_InvokeCurrency(@Test_MyAllMethodsHandlerByValue_ReceiveCurrency), 0.0);
+  CheckEqualsFloat(-1.5, Test_MyAllMethodsHandlerByValue_Currency1, 0.0);
+  CheckEqualsFloat(-2.5, Test_MyAllMethodsHandlerByValue_Currency2, 0.0);
+  CheckEqualsFloat(-3.5, Test_MyAllMethodsHandlerByValue_Currency3, 0.0);
+  CheckEqualsString('-4', Test_MyAllMethodsHandlerByValue_IntParams);
+
+  { Mixed Integer/Extended/Currency: interleaved types, so the handler must pick
+    XMM vs a general-purpose register per slot }
+  Test_MyAllMethodsHandlerByValue_Extended1 := 0.0;
+  Test_MyAllMethodsHandlerByValue_Currency1 := 0.0;
+  Test_MyAllMethodsHandlerByValue_IntParams := '';
+  TestHandler_InvokeMixed(@Test_MyAllMethodsHandlerByValue_ReceiveMixed);
+  CheckEqualsFloat(11.5, Test_MyAllMethodsHandlerByValue_Extended1, 0.0);
+  CheckEqualsFloat(12.5, Test_MyAllMethodsHandlerByValue_Currency1, 0.0);
+  CheckEqualsString('10,13', Test_MyAllMethodsHandlerByValue_IntParams);
+end;
+
+var
+  Test_MyAllMethodsHandlerByValueRecord_Fields: String;
+
+function Test_MyAllMethodsHandlerByValueRecord_Receive(R1: TTestHandlerRec4; R2: TTestHandlerRec6; R3: TTestHandlerRec8; Tail: Integer): Integer;
+begin
+  Test_MyAllMethodsHandlerByValueRecord_Fields :=
+    IntToStr(R1.A) + ',' + IntToStr(R1.B) + ';' +
+    IntToStr(R2.A) + ',' + IntToStr(R2.B) + ',' + IntToStr(R2.C) + ';' +
+    IntToStr(R3.A) + ',' + IntToStr(R3.B) + ',' + IntToStr(R3.C) + ',' + IntToStr(R3.D) + ';' + IntToStr(Tail);
+  Result := R1.A + R2.A + R3.A;
+end;
+
+function Test_MyAllMethodsHandlerByValueRecord_Receive2(R1: TTestHandlerRec3; R2: TTestHandlerRec10; Tail: Integer): Integer;
+begin
+  Test_MyAllMethodsHandlerByValueRecord_Fields :=
+    IntToStr(R1.A) + ',' + IntToStr(R1.B) + ',' + IntToStr(R1.C) + ';' +
+    IntToStr(R2.A) + ',' + IntToStr(R2.B) + ',' + IntToStr(R2.C) + ',' + IntToStr(R2.D) + ',' + IntToStr(R2.E) + ';' + IntToStr(Tail);
+  Result := R1.A + R2.A;
+end;
+
+procedure Test_MyAllMethodsHandlerByValueRecord;
+begin
+  { Exercise by-value record parameters at positions 1-3: a 4-byte record
+    passed directly in a register, a 6-byte record passed as a pointer, and
+    an 8-byte record passed as a pointer under the register convention }
+  Test_MyAllMethodsHandlerByValueRecord_Fields := '';
+  CheckEqualsInt64(10 + 20 + 30, TestHandler_InvokeRec(@Test_MyAllMethodsHandlerByValueRecord_Receive));
+  CheckEqualsString('10,11;20,21,22;30,31,32,33;99', Test_MyAllMethodsHandlerByValueRecord_Fields);
+
+  { 3-byte record at position 1 (the size where the conventions disagree: by
+    value on the stack on Win32, by reference on Win64) and a 10-byte record
+    at position 2 (always by reference) }
+  Test_MyAllMethodsHandlerByValueRecord_Fields := '';
+  CheckEqualsInt64(10 + 100, TestHandler_InvokeRec2(@Test_MyAllMethodsHandlerByValueRecord_Receive2));
+  CheckEqualsString('10,11,12;100,101,102,103,104;99', Test_MyAllMethodsHandlerByValueRecord_Fields);
 end;
 
 procedure Test_TypelessParamFunctions;
@@ -2751,6 +2918,8 @@ begin
   Test_TryFinallyExcept;
   Test_RaiseLastException;
   Test_CreateCallback;
+  Test_MyAllMethodsHandlerByValue;
+  Test_MyAllMethodsHandlerByValueRecord;
   Test_TypelessParamFunctions;
   Test_DefProcFloatToInt;
   Test_AnyStringFunctions;

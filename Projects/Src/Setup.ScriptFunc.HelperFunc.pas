@@ -65,6 +65,13 @@ type
     B: String;
   end;
 
+  { Must keep this in synch with Compiler.ScriptFunc.pas - Internal, used only by Script.Test.iss }
+  TTestHandlerRec3 = record A, B, C: Byte; end;
+  TTestHandlerRec4 = record A, B: Word; end;
+  TTestHandlerRec6 = record A, B, C: Word; end;
+  TTestHandlerRec8 = record A, B, C, D: Word; end;
+  TTestHandlerRec10 = record A, B, C, D, E: Word; end;
+
 var
   OrigScaleBaseUnitX, OrigScaleBaseUnitY: Integer;
   ScaleBaseUnitX, ScaleBaseUnitY: Integer;
@@ -117,6 +124,8 @@ function TestInnerfuse_EchoExtended(Value: Extended): Extended;
 function TestInnerfuse_EchoCurrency(Value: Currency): Currency;
 function TestInnerfuse_EchoInt64(Value: Int64): Int64;
 function TestInnerfuse_EchoSmallRec(Value: TTestInnerfuseSmallRec): TTestInnerfuseSmallRec;
+function TestInnerfuse_SumRec8(Value: TTestHandlerRec8): Integer;
+function TestInnerfuse_SumRec8StdCall(Value: TTestHandlerRec8): Integer; stdcall;
 function TestInnerfuse_EchoLargeRec(Value: TTestInnerfuseLargeRec): TTestInnerfuseLargeRec;
 function TestInnerfuse_EchoPAnsiChar(Value: PAnsiChar): String;
 function TestInnerfuse_EchoSingleStdCall(Value: Single): Single; stdcall;
@@ -136,8 +145,10 @@ procedure TestInnerfuse_RaiseException;
 procedure TestCreateCallback_Invoke0(Callback: NativeInt);
 procedure TestCreateCallback_Invoke5(Callback: NativeInt; const S: String; A, B, C, D: Integer);
 procedure TestCreateCallback_InvokeFloat4(Callback: NativeInt; A, B, C: Integer; D: Double);
+procedure TestCreateCallback_InvokeExtended4(Callback: NativeInt; A, B, C: Integer; D: Extended);
 function TestCreateCallback_InvokeReturnInteger(Callback: NativeInt; A, B: Integer): Integer;
 function TestCreateCallback_InvokeReturnDouble(Callback: NativeInt; A, B: Integer): Double;
+procedure TestCreateCallback_InvokeRec8(Callback: NativeInt; const R: TTestHandlerRec8; Tail: Integer);
 
 implementation
 
@@ -705,21 +716,25 @@ begin
   var ParamCount := 0;
 {$IFDEF CPUX64}
   var Param4IsFloatByValue := False;
+  var RecordParamPositions: TArray<Integer>; { Positions (1-based) of by-value 8-byte record params }
 {$ENDIF}
   while S <> '' do begin
     Inc(ParamCount);
 {$IFDEF CPUX64}
-    if ParamCount = 4 then begin
-      { Same code as in MyAllMethodsHandler64 }
-      var e := GRFW(S);
-      const fmod = e[1];
-      Delete(e, 1, 1);
-      const cpt = Caller.GetTypeNo(Cardinal(StrToInt(e)));
-      if not ParamAsVariable(fmod, cpt) then
-        Param4IsFloatByValue := cpt.BaseType in [btSingle, btDouble];
-    end else
+    { Same code as in MyAllMethodsHandler64 }
+    var e := GRFW(S);
+    const fmod = e[1];
+    Delete(e, 1, 1);
+    const cpt = Caller.GetTypeNo(Cardinal(StrToInt(e)));
+    if (ParamCount = 4) and not ParamAsVariable(fmod, cpt) then
+      Param4IsFloatByValue := cpt.BaseType in [btSingle, btDouble, btExtended];
+    { Assume by-value 8-byte records are unmanaged; a managed one is by reference
+      under stdcall (no bridging needed) but never reaches a native callback }
+    if (fmod <> '%') and (fmod <> '!') and (cpt.BaseType = btRecord) and (cpt.RealSize = 8) then
+      RecordParamPositions := RecordParamPositions + [ParamCount];
+{$ELSE}
+    GRFW(S);
 {$ENDIF}
-      GRFW(S);
   end;
 
   { Turn our proc into a callable TMethod - its Code will point to
@@ -747,7 +762,8 @@ begin
       Limitation: this reversal code treats every parameter as a single
       4-byte stack slot. So on x86 CreateCallback does not support
       callback parameters passed by value when their type is larger than
-      4 bytes (Int64, UInt64, Double, Extended, Currency). }
+      4 bytes (such as Int64, UInt64, Double, Extended, Currency, or a
+      record larger than 4 bytes). }
     while SwapLast > SwapFirst do begin
       Inliner.Mov(ECX, Inliner.Addr(ESP, SwapFirst * 4)); //load the first item of the pair
       Inliner.Mov(EDX, Inliner.Addr(ESP, SwapLast * 4)); //load the last item of the pair
@@ -807,7 +823,8 @@ begin
     var ExtraParams := ParamCount - 3;
     if ExtraParams < 0 then
       ExtraParams := 0;
-    var FrameSize := 32 + ExtraParams * SizeOf(Pointer);
+    const RecordTempBase = 32 + ExtraParams * SizeOf(Pointer);
+    var FrameSize := RecordTempBase + Length(RecordParamPositions) * SizeOf(Pointer);
     if (FrameSize and $F) = 0 then
       Inc(FrameSize, 8); { keep RSP 16-byte aligned at call site }
     Inliner.SubRsp(FrameSize);
@@ -836,6 +853,38 @@ begin
       Inliner.MovRegReg(R8, R10); { param2: saved RDX->R8 }
     if ParamCount >= 3 then
       Inliner.MovRegReg(R9, RAX); { param3: saved R8->R9 }
+
+    { Bridge by-value 8-byte records: the slot holds the record value (stdcall)
+      but the handler (register) reads it as a pointer, so copy each to its temp
+      and put the temp's address in the slot. }
+    for var I := 0 to High(RecordParamPositions) do begin
+      const Position = RecordParamPositions[I];
+      const TempOffset = RecordTempBase + I * SizeOf(Pointer);
+      case Position of
+        1:
+          begin
+            Inliner.MovMemRSPReg(TempOffset, RDX);
+            Inliner.LeaRegMemRSP(RDX, TempOffset);
+          end;
+        2:
+          begin
+            Inliner.MovMemRSPReg(TempOffset, R8);
+            Inliner.LeaRegMemRSP(R8, TempOffset);
+          end;
+        3:
+          begin
+            Inliner.MovMemRSPReg(TempOffset, R9);
+            Inliner.LeaRegMemRSP(R9, TempOffset);
+          end;
+      else begin
+          const SlotOffset = 32 + (Position - 4) * SizeOf(Pointer);
+          Inliner.MovRegMemRSP(RAX, SlotOffset);
+          Inliner.MovMemRSPReg(TempOffset, RAX);
+          Inliner.LeaRegMemRSP(RAX, TempOffset);
+          Inliner.MovMemRSPReg(SlotOffset, RAX);
+        end;
+      end;
+    end;
 
     Inliner.MovRegImm64(R10, NativeUInt(Method.Code));
     Inliner.CallReg(R10); { Call the wrapped proc }
@@ -878,6 +927,16 @@ end;
 function TestInnerfuse_EchoSmallRec(Value: TTestInnerfuseSmallRec): TTestInnerfuseSmallRec;
 begin
   Result := Value;
+end;
+
+function TestInnerfuse_SumRec8(Value: TTestHandlerRec8): Integer;
+begin
+  Result := Value.A + Value.B + Value.C + Value.D;
+end;
+
+function TestInnerfuse_SumRec8StdCall(Value: TTestHandlerRec8): Integer; stdcall;
+begin
+  Result := Value.A + Value.B + Value.C + Value.D;
 end;
 
 function TestInnerfuse_EchoLargeRec(Value: TTestInnerfuseLargeRec): TTestInnerfuseLargeRec;
@@ -968,8 +1027,10 @@ type
   TStdCallProc0 = procedure; stdcall;
   TStdCallProc5 = procedure(S: String; A, B, C, D: Integer); stdcall;
   TStdCallProcFloat4 = procedure(A, B, C: Integer; D: Double); stdcall;
+  TStdCallProcExtended4 = procedure(A, B, C: Integer; D: Extended); stdcall;
   TStdCallFuncReturnInteger = function(A, B: Integer): Integer; stdcall;
   TStdCallFuncReturnDouble = function(A, B: Integer): Double; stdcall;
+  TStdCallProcRec8 = procedure(R: TTestHandlerRec8; Tail: Integer); stdcall;
 
 procedure TestCreateCallback_Invoke0(Callback: NativeInt);
 begin
@@ -986,6 +1047,11 @@ begin
   TStdCallProcFloat4(Callback)(A, B, C, D);
 end;
 
+procedure TestCreateCallback_InvokeExtended4(Callback: NativeInt; A, B, C: Integer; D: Extended);
+begin
+  TStdCallProcExtended4(Callback)(A, B, C, D);
+end;
+
 function TestCreateCallback_InvokeReturnInteger(Callback: NativeInt; A, B: Integer): Integer;
 begin
   Result := TStdCallFuncReturnInteger(Callback)(A, B);
@@ -994,6 +1060,11 @@ end;
 function TestCreateCallback_InvokeReturnDouble(Callback: NativeInt; A, B: Integer): Double;
 begin
   Result := TStdCallFuncReturnDouble(Callback)(A, B);
+end;
+
+procedure TestCreateCallback_InvokeRec8(Callback: NativeInt; const R: TTestHandlerRec8; Tail: Integer);
+begin
+  TStdCallProcRec8(Callback)(R, Tail);
 end;
 
 end.
