@@ -953,7 +953,7 @@ var
     end);
     RegisterScriptFunc('DELTREE', procedure(const Caller: TPSExec; const OrgName: AnsiString; const Stack: TPSStack; const PStart: Integer)
     begin
-      Stack.SetBool(PStart, DelTree(Stack.GetString(PStart-1), Stack.GetBool(PStart-2), Stack.GetBool(PStart-3), Stack.GetBool(PStart-4), False, nil, nil, nil));
+      Stack.SetBool(PStart, DelTree(Stack.GetString(PStart-1), Stack.GetBool(PStart-2), True, Stack.GetBool(PStart-3), Stack.GetBool(PStart-4), False, nil, nil, nil));
     end);
     RegisterScriptFunc('GENERATEUNIQUENAME', procedure(const Caller: TPSExec; const OrgName: AnsiString; const Stack: TPSStack; const PStart: Integer)
     begin
@@ -1671,12 +1671,14 @@ var
     RegisterScriptFunc('OEMTOCHARBUFF', procedure(const Caller: TPSExec; const OrgName: AnsiString; const Stack: TPSStack; const PStart: Integer)
     begin
       var S := Stack.GetAnsiString(PStart);
+      UniqueString(S);
       OemToCharBuffA(PAnsiChar(S), PAnsiChar(S), ULength(S));
       Stack.SetAnsiString(PStart, S);
     end);
     RegisterScriptFunc('CHARTOOEMBUFF', procedure(const Caller: TPSExec; const OrgName: AnsiString; const Stack: TPSStack; const PStart: Integer)
     begin
       var S := Stack.GetAnsiString(PStart);
+      UniqueString(S);
       CharToOemBuffA(PAnsiChar(S), PAnsiChar(S), ULength(S));
       Stack.SetAnsiString(PStart, S);
     end);
