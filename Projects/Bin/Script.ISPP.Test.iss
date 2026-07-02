@@ -322,6 +322,33 @@
 #call CheckEqualsInt(2, TernaryCounter)
 #undef TernaryCounter
 //
+// Skipped subexpressions must not materialize or validate literals or arguments
+//
+// Ternary: an unevaluated operand must not raise, even for an out-of-range index
+// or a non-numeric string index that would fail if it were evaluated
+#dim SkipDeadArray[3]
+#call CheckEqualsInt(1, 0 ? SkipDeadArray[5] : 1)
+#call CheckEqualsInt(2, 1 ? 2 : SkipDeadArray[9])
+#call CheckEqualsInt(3, 0 ? SkipDeadArray['x'] : 3)
+#undef SkipDeadArray
+// Short-circuit: a wrong-typed or undeclared argument in the skipped operand of
+// a macro call must be ignored (short-circuit boolean evaluation is on by default)
+#define SkipDeadIntParam(int X) X
+#call CheckFalse(0 && SkipDeadIntParam('not an int'))
+#call CheckTrue(1 || SkipDeadIntParam('not an int'))
+#undef SkipDeadIntParam
+// Same for a @ argument of the wrong kind (an array where a func is expected)
+#define SkipDeadFuncParam(func Callback) Callback()
+#dim SkipDeadArrayArg[1]
+#call CheckFalse(0 && SkipDeadFuncParam(@SkipDeadArrayArg))
+#undef SkipDeadFuncParam
+#undef SkipDeadArrayArg
+#pragma parseroption -u+
+#define SkipDeadUndeclaredArg(X) X
+#call CheckFalse(0 && SkipDeadUndeclaredArg(UndeclaredIdentifier_SkipDeadArg_Test))
+#undef SkipDeadUndeclaredArg
+#pragma parseroption -u-
+//
 // Comma operator
 //
 #call CheckEqualsInt(3, (1, 2, 3))
@@ -769,6 +796,15 @@
 #endsub
 #call OuterSubTestsInnerRestore()
 #call CheckFalse(Defined(AfterInnerCall))
+// #sub called from within an expression returns NULL, not an undefined type
+#sub SubExprNullResult
+  #emit '; SUB_EXPR_NULL_MARKER'
+#endsub
+#define SubExprResultHolder = SubExprNullResult()
+#call CheckEqualsInt(TYPE_NULL, TypeOf(SubExprResultHolder))
+#call CheckTrue(Find(0, 'SUB_EXPR_NULL_MARKER', FIND_CONTAINS) >= 0)
+#undef SubExprResultHolder
+#undef SubExprNullResult
 #undef SimpleSub
 #undef SubArgValue
 #undef SubWithVariable
@@ -861,6 +897,8 @@
 #call CheckEqualsInt(8, NamedParamFunc(A = 5, B = 3))
 #call CheckEqualsInt(8, NamedParamFunc(B = 3, A = 5))
 #call CheckEqualsInt(15, NamedParamFunc(A = 5))
+// A trailing comma (omitted argument) after a named one should be allowed
+#call CheckEqualsInt(15, NamedParamFunc(A = 5,))
 #undef NamedParamFunc
 //
 // Directive shorthands and the echo alias
@@ -975,9 +1013,47 @@
 #undef IncludeSeesMainPrivate
 #undef IncludePathFilename
 //
+// A sub called with arguments in a short-circuited expression inside an include
+// must not leak the include's private and protected defines into this script
+//
+#sub ScopeLeakSub
+#endsub
+#define public CheckIncludeScopeLeak
+#include "Script.ISPP.Include.Test.iss"
+#call CheckFalse(Defined(IncludeProtectedVar))
+#call CheckFalse(Defined(IncludePrivateVar))
+#undef CheckIncludeScopeLeak
+#undef ScopeLeakSub
+#undef IncludeSeesMainProtected
+#undef IncludeSeesMainPrivate
+#undef IncludePathFilename
+//
 // Directive shorthand for #include
 //
 #+ "Script.ISPP.Include.Test.iss"
+#call CheckTrue(Defined(IncludePathFilename))
+#undef IncludeSeesMainProtected
+#undef IncludeSeesMainPrivate
+#undef IncludePathFilename
+//
+// #include with a span at end of file: the include file's last two lines each
+// end with the span symbol, so the whole pending span must be flushed within
+// the include (in full and in order), and not glued onto the next line here
+//
+#include "Script.ISPP.Include.Test.iss"
+#emit '; SPAN_EOF_PARENT_NEXTLINE'
+#call CheckTrue(Find(0, '; SPAN_EOF_INCLUDE_PART1 SPAN_EOF_INCLUDE_PART2', FIND_MATCH | FIND_TRIM) >= 0)
+#call CheckTrue(Find(0, '; SPAN_EOF_PARENT_NEXTLINE', FIND_MATCH) >= 0)
+#undef IncludeSeesMainProtected
+#undef IncludeSeesMainPrivate
+#undef IncludePathFilename
+//
+// #include directive split by a span mid-file: the directive ends with the span
+// symbol, so it is queued and only flushed when the next line arrives. Flushing
+// it re-enters the include machinery, which must not see the stale span queue
+//
+#include \
+"Script.ISPP.Include.Test.iss"
 #call CheckTrue(Defined(IncludePathFilename))
 #undef IncludeSeesMainProtected
 #undef IncludeSeesMainPrivate
@@ -1220,6 +1296,19 @@ AppContact={#% ISTESTTOOLPROJ_TEST_ENV}
 #pragma inlinestart "{#"
 #pragma inlineend "}"
 #call CheckTrue(Find(0, 'CUSTOM_INLINE_MARKER', FIND_CONTAINS) >= 0)
+//
+// Multi-character inline end, overlapping match: the closing quote of the
+// emitted string and the inline end together form an overlapping run (such as
+// '"">'), so the scanner must not skip the real end delimiter at offset 1
+//
+#pragma inlineend '">'
+{#emit "; INLINE_END_2CH"">
+#pragma inlineend "}"
+#call CheckTrue(Find(0, 'INLINE_END_2CH', FIND_CONTAINS) >= 0)
+#pragma inlineend '"->'
+{#emit "; INLINE_END_3CH""->
+#pragma inlineend "}"
+#call CheckTrue(Find(0, 'INLINE_END_3CH', FIND_CONTAINS) >= 0)
 #define SavedIncludePath = __INCLUDE__
 #pragma include "."
 #pragma include SavedIncludePath
@@ -1324,3 +1413,11 @@ AppContact={#% ISTESTTOOLPROJ_TEST_ENV}
 //
 #call CheckEqualsInt(4, Len(GetDateTimeString('yyyy')))
 #call CheckTrue(Pos('-', GetDateTimeString('yyyy/mm', '-')) > 0)
+//
+// Re-entrant span flush at end of file: this last line is a #include that ends
+// with the span symbol, so the directive is queued and only flushed at end of
+// file. Flushing it re-enters the include machinery, which must not see this
+// file's stale span queue. Keep it last, keep the trailing '\', and do not add
+// any line after it.
+//
+#include "Script.ISPP.Include.Test.iss" \

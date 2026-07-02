@@ -261,12 +261,12 @@ begin
   SlashPathLen := Length(SlashPath);
   if SlashPathLen > 0 then begin   { ...sanity check }
     for I := 0 to List.Count-1 do begin
-      if List[I] = Path then begin
+      if PathSame(List[I], Path) then begin
         Result := True;
         Exit;
       end;
       if (Length(List[I]) > SlashPathLen) and
-         CompareMem(Pointer(List[I]), Pointer(SlashPath), SlashPathLen * SizeOf(SlashPath[1])) then begin
+         PathStartsWith(List[I], SlashPath) then begin
         Result := True;
         Exit;
       end;
@@ -981,6 +981,7 @@ begin
               const Is64Bit = CurRec^.ExtraData and utDeleteDirOrFiles_Is64Bit <> 0;
               const Path = ApplyPathRedirRules(Is64Bit, CurRecData[0], tpCurrent);
               if DelTree(Path, CurRec^.ExtraData and utDeleteDirOrFiles_IsDir <> 0,
+                 True,
                  CurRec^.ExtraData and utDeleteDirOrFiles_DeleteFiles <> 0,
                  CurRec^.ExtraData and utDeleteDirOrFiles_DeleteSubdirsAlso <> 0,
                  False, LoggedDeleteDirProc, LoggedDeleteFileProc, @DeleteDirData) then begin

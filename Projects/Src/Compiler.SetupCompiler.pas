@@ -366,7 +366,7 @@ type
   TFileLocationSign = (fsNoSetting, fsYes, fsOnce, fsCheck);
   PFileLocationEntryExtraInfo = ^TFileLocationEntryExtraInfo;
   TFileLocationEntryExtraInfo = record
-    Flags: set of (floVersionInfoNotValid, floIsUninstExe, floTouch,
+    Flags: set of (floVersionInfoNotValid, floTouch,
       floSolidBreak, floNoTimeStamp);
     Sign: TFileLocationSign;
     Verification: TSetupFileVerification;
@@ -541,6 +541,7 @@ begin
         for I := 0 to AFilesList.Count-1 do begin
           Filename := PrependSourceDirName(AFilesList[I]);
           if IsWildcard(FileName) then begin
+            var FileFound := False;
             H := FindFirstFile(PChar(Filename), FindData);
             if H <> INVALID_HANDLE_VALUE then begin
               try
@@ -548,12 +549,15 @@ begin
                 repeat
                   if FindData.dwFileAttributes and (FILE_ATTRIBUTE_DIRECTORY or FILE_ATTRIBUTE_HIDDEN) <> 0 then
                     Continue;
-                   AddFile(SearchSubDir + FindData.cFilename);
+                  AddFile(SearchSubDir + FindData.cFilename);
+                  FileFound := True;
                 until not FindNextFile(H, FindData);
               finally
                 Windows.FindClose(H);
               end;
             end;
+            if not FileFound then
+              AbortCompileFmt(SCompilerFilesWildcardNotMatched, [Filename]);
           end else
             AddFile(Filename);  { use the case specified in the script }
         end;
@@ -5355,8 +5359,6 @@ type
           FileLocationEntryExtraInfos.Add(NewFileLocationEntryExtraInfo);
           FileLocationEntryFilenames.Add(SourceFile);
           NewFileEntry^.LocationEntry := Integer(FileLocationEntries.Count-1);
-          if NewFileEntry^.FileType = ftUninstExe then
-            Include(NewFileLocationEntryExtraInfo^.Flags, floIsUninstExe);
           Inc(TotalBytesToCompress, FileListRec.Size);
           if SetupHeader.CompressMethod <> cmStored then
             Include(NewFileLocationEntry^.Flags, floChunkCompressed);

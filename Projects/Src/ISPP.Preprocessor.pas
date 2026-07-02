@@ -38,7 +38,7 @@ type
     FPreproc: TPreprocessor;
     FCache: Boolean;
     FCacheValid: Boolean;
-    procedure VerboseMsg(Msg: TConditionalVerboseMsg; Eval: Boolean);
+    procedure VerboseMsg(Msg: TConditionalVerboseMsg);
   protected
     function Last: TConditionalBlockInfo;
     procedure UpdateLast(const Value: TConditionalBlockInfo);
@@ -105,6 +105,7 @@ type
       NonISS: Boolean);
     function InternalQueueLine(const LineRead: string; FileIndex, LineNo: Integer;
       NonISS: Boolean): Integer;
+    procedure InternalFlushQueuedLine(FileIndex, LineNo: Integer);
     function ParseFormalParams(Parser: TParser; var ParamList: PParamList): Integer;
     { IUnknown }
     function QueryInterface(const IID: TGUID; out Obj): HRESULT; stdcall;
@@ -135,6 +136,7 @@ type
     procedure GetNextOutputLineReset;
     procedure IncludeFile(FileName: string; Builtins, UseIncludePathOnly, ResetCurrentFile: Boolean);
     procedure QueueLine(const LineRead: string);
+    procedure FlushQueuedLine;
     function PrependDirName(const FileName, Dir: string): string;
     procedure RegisterFunction(const Name: string; Handler: TIsppFunction; Ext: NativeInt);
     procedure RaiseError(const Message: string);
@@ -192,7 +194,7 @@ end;
 function ParsePreprocCommand(var P: PChar; ExtraTerminator: Char): TPreprocessorCommand;
 begin
   for Result := TPreprocessorCommand(1) to High(TPreprocessorCommand) do begin
-    if (P^ = PpCmdSynonyms[Result]) then
+    if (PpCmdSynonyms[Result] <> #0) and (P^ = PpCmdSynonyms[Result]) then
       Inc(P)
     else if (StrLIComp(P, @PreprocCommands[Result][1], ULength(PreprocCommands[Result])) = 0) and
             CharInSet(P[Length(PreprocCommands[Result])], [#0..#32, ExtraTerminator]) then
@@ -439,8 +441,6 @@ var
   LineStart, P1, DStart, DEnd: PChar;
 
   function ScanForInlineStart(var P, D: PChar): Boolean;
-  var
-    I: Integer;
   begin
     Result := False;
     while P^ <> #0 do
@@ -449,7 +449,7 @@ var
       begin
         D := P;
         Result := True;
-        for I := 2 to Length(FOptions.InlineStart) do
+        for var I := 2 to Length(FOptions.InlineStart) do
         begin
           Inc(D);
           if D^ <> FOptions.InlineStart[I] then
@@ -466,27 +466,30 @@ var
   end;
 
   function ScanForInlineEnd(var P: PChar): PChar;
-  var
-    I: Integer;
   begin
     Result := nil;
     while P^ <> #0 do
     begin
       if P^ = FOptions.InlineEnd[1] then
       begin
+        var D := P;
         Result := P;
-        for I := 2 to Length(FOptions.InlineEnd) do
+        for var I := 2 to Length(FOptions.InlineEnd) do
         begin
-          Inc(P);
-          if P^ <> FOptions.InlineEnd[I] then
+          Inc(D);
+          if D^ <> FOptions.InlineEnd[I] then
           begin
             Result := nil;
             Break;
           end;
         end;
-        Inc(P);
+        if Result <> nil then
+        begin
+          Inc(D);
+          P := D;
+          Exit;
+        end;
       end;
-      if Result <> nil then Exit;
       Inc(P);
     end;
     RaiseError(SUnterminatedPreprocessorDirectiv);
@@ -509,7 +512,6 @@ begin
       SetString(S, DStart, ScanForInlineEnd(DEnd) - DStart);
 
       case Command of
-        pcError: RaiseError(SUnknownPreprocessorDirective);
         pcIf..pcIfNExist:
           LineStack.IfInstruction(LineStack.Include and
             ProcessPreprocCommand(Command, S, DStart - LineStart));
@@ -522,7 +524,7 @@ begin
       else
         if LineStack.Include then
           case Command of
-            pcInclude, pcInsert..pcEndSub:
+            pcInclude, pcInsert..pcEndSub, pcReDim:
               RaiseError(Format(SDirectiveCannotBeInline,
                 [PreprocCommands[Command]]));
             pcEmit, pcEnv, pcFile:
@@ -882,6 +884,7 @@ function TPreprocessor.ProcessPreprocCommand(Command: TPreprocessorCommand;
             ALine := F.ReadLine;
             Preprocessor.QueueLine(ALine);
           end;
+          Preprocessor.FlushQueuedLine;
         finally
           F.Free;
         end;
@@ -1048,10 +1051,12 @@ begin
   else
     if FQueuedLineCount > 0 then
     begin
-      InternalAddLine(FQueuedLine + TrimLeft(LineRead), FileIndex, LineNo, NonISS);
-      FQueuedLine := '';
+      { Clear the queue before adding the line because adding it may reenter }
+      const QueuedLine = FQueuedLine + TrimLeft(LineRead);
       Result := FQueuedLineCount + 1;
+      FQueuedLine := '';
       FQueuedLineCount := 0;
+      InternalAddLine(QueuedLine, FileIndex, LineNo, NonISS);
     end
     else
     begin
@@ -1063,6 +1068,22 @@ end;
 procedure TPreprocessor.QueueLine(const LineRead: string);
 begin
   Inc(FMainCounter, InternalQueueLine(LineRead, 0, FMainCounter, False));
+end;
+
+procedure TPreprocessor.InternalFlushQueuedLine(FileIndex, LineNo: Integer);
+begin
+  if FQueuedLineCount > 0 then
+  begin
+    const QueuedLine = FQueuedLine; { See above }
+    FQueuedLine := '';
+    FQueuedLineCount := 0;
+    InternalAddLine(QueuedLine, FileIndex, LineNo, False);
+  end;
+end;
+
+procedure TPreprocessor.FlushQueuedLine;
+begin
+  InternalFlushQueuedLine(0, FMainCounter);
 end;
 
 procedure TPreprocessor.RegisterFunction(const Name: string; Handler: TIsppFunction; Ext: NativeInt);
@@ -1195,7 +1216,7 @@ begin
   A.HadElse := False;
   PushItem(A);
   FCacheValid := False;
-  VerboseMsg(cvmIf, Eval);
+  VerboseMsg(cvmIf);
 end;
 
 procedure TConditionalTranslationStack.ElseIfInstruction(Eval: Boolean);
@@ -1211,7 +1232,7 @@ begin
       FCacheValid := False;
     end;
     UpdateLast(A);
-    VerboseMsg(cvmElif, Eval);
+    VerboseMsg(cvmElif);
   end else
     FPreproc.RaiseError(SElseWithoutIf);
 end;
@@ -1230,7 +1251,7 @@ begin
       FCacheValid := False;
     end;
     UpdateLast(A);
-    VerboseMsg(cvmElse, False);
+    VerboseMsg(cvmElse);
   end else
     FPreproc.RaiseError(SElseWithoutIf);
 end;
@@ -1240,7 +1261,7 @@ begin
   if AtLeast(1) then begin
     PopItem;
     FCacheValid := False;
-    VerboseMsg(cvmEndif, False);
+    VerboseMsg(cvmEndif);
   end else
     FPreproc.RaiseError(SEndifWithoutIf);
 end;
@@ -1289,9 +1310,7 @@ begin
 end;
 
 procedure TConditionalTranslationStack.VerboseMsg(
-  Msg: TConditionalVerboseMsg; Eval: Boolean);
-const
-  B: array[Boolean] of string = ('false', 'true');
+  Msg: TConditionalVerboseMsg);
 var
   M: string;
 begin
@@ -1371,6 +1390,7 @@ type
     procedure EnsureLocals;
   public
     constructor Create(Proprocessor: TPreprocessor; ProcBody: TStrings);
+    destructor Destroy; override;
     procedure Add(const Name: String; const Value: TIsppVariant);
     function Call: TIsppVariant;
     procedure Clone(out NewContext: ICallContext);
@@ -1702,6 +1722,7 @@ begin
           Inc(J, InternalQueueLine(LineTextStr, FileIndex, J, False));
           Inc(I);
         end;
+        InternalFlushQueuedLine(FileIndex, J);
       finally
         FIdentManager.EndLocal
       end;
@@ -1825,8 +1846,10 @@ begin
     FPreproc.ExecProc(FBody);
   finally
     FPreproc.FIdentManager.EndLocal;
+    FLocalsEnsured := False;
     FPreproc.SetDefaultScope(SavedScope);
   end;
+  Result := NULL;
 end;
 
 procedure TProcCallContext.Clone(out NewContext: ICallContext);
@@ -1839,6 +1862,13 @@ constructor TProcCallContext.Create(Proprocessor: TPreprocessor;
 begin
   FPreproc := Proprocessor;
   FBody := ProcBody
+end;
+
+destructor TProcCallContext.Destroy;
+begin
+  if FLocalsEnsured then
+    FPreproc.FIdentManager.EndLocal; { The call was parsed but never evaluated }
+  inherited;
 end;
 
 function TProcCallContext.GroupingStyle: TArgGroupingStyle;
@@ -1855,11 +1885,5 @@ begin
     FLocalsEnsured := True;
   end;
 end;
-
-initialization
-  { The code above stuffs TConditionalBlockInfo records in a TList without additional allocations.
-    In other words, TConditionalBlockInfo must fit into a Pointer. }
-  if SizeOf(TConditionalBlockInfo) > SizeOf(Pointer) then
-    raise Exception.Create('SizeOf(TConditionalBlockInfo) > SizeOf(Pointer)');
 
 end.
