@@ -1742,11 +1742,83 @@ begin
   CheckTrue(IntegerFunction <> IntegerFunction2);
 end;
 
+procedure Test_InnerfuseCallHelperTypeSizes;
+var
+  SmallRec: TTestInnerfuseSmallRec;
+  LargeRec: TTestInnerfuseLargeRec;
+  Rec3: TTestHandlerRec3;
+  Rec4: TTestHandlerRec4;
+  Rec6: TTestHandlerRec6;
+  Rec8: TTestHandlerRec8;
+  Rec10: TTestHandlerRec10;
+  Set3: TTestHandlerSet3;
+  Set4: TTestHandlerSet4;
+  Set6: TTestHandlerSet6;
+  Set8: TTestHandlerSet8;
+  Set10: TTestHandlerSet10;
+  Arr3: TTestHandlerArr3;
+  Arr4: TTestHandlerArr4;
+  Arr6: TTestHandlerArr6;
+  Arr8: TTestHandlerArr8;
+  Arr10: TTestHandlerArr10;
+begin
+  CheckEqualsInt64(2, SizeOf(SmallRec));
+#if arch == "x64"
+  CheckEqualsInt64(12, SizeOf(LargeRec));
+#else
+  CheckEqualsInt64(8, SizeOf(LargeRec));
+#endif
+  CheckEqualsInt64(3, SizeOf(Rec3));
+  CheckEqualsInt64(4, SizeOf(Rec4));
+  CheckEqualsInt64(6, SizeOf(Rec6));
+  CheckEqualsInt64(8, SizeOf(Rec8));
+  CheckEqualsInt64(10, SizeOf(Rec10));
+  CheckEqualsInt64(3, SizeOf(Set3));
+  CheckEqualsInt64(4, SizeOf(Set4));
+  CheckEqualsInt64(6, SizeOf(Set6));
+  CheckEqualsInt64(8, SizeOf(Set8));
+  CheckEqualsInt64(10, SizeOf(Set10));
+  CheckEqualsInt64(3, SizeOf(Arr3));
+  CheckEqualsInt64(4, SizeOf(Arr4));
+  CheckEqualsInt64(6, SizeOf(Arr6));
+  CheckEqualsInt64(8, SizeOf(Arr8));
+  CheckEqualsInt64(10, SizeOf(Arr10));
+
+  CheckEqualsInt64(2, TestTypes_NativeSizeOf('TTestInnerfuseSmallRec'));
+#if arch == "x64"
+  CheckEqualsInt64(12, TestTypes_NativeSizeOf('TTestInnerfuseLargeRec'));
+#else
+  CheckEqualsInt64(8, TestTypes_NativeSizeOf('TTestInnerfuseLargeRec'));
+#endif
+  CheckEqualsInt64(3, TestTypes_NativeSizeOf('TTestHandlerRec3'));
+  CheckEqualsInt64(4, TestTypes_NativeSizeOf('TTestHandlerRec4'));
+  CheckEqualsInt64(6, TestTypes_NativeSizeOf('TTestHandlerRec6'));
+  CheckEqualsInt64(8, TestTypes_NativeSizeOf('TTestHandlerRec8'));
+  CheckEqualsInt64(10, TestTypes_NativeSizeOf('TTestHandlerRec10'));
+  CheckEqualsInt64(4, TestTypes_NativeSizeOf('TTestHandlerSet3')); { Delphi rounds set sizes up }
+  CheckEqualsInt64(4, TestTypes_NativeSizeOf('TTestHandlerSet4'));
+#if arch == "x64"
+  CheckEqualsInt64(8, TestTypes_NativeSizeOf('TTestHandlerSet6')); { See above }
+#else
+  CheckEqualsInt64(6, TestTypes_NativeSizeOf('TTestHandlerSet6'));
+#endif
+  CheckEqualsInt64(8, TestTypes_NativeSizeOf('TTestHandlerSet8'));
+  CheckEqualsInt64(10, TestTypes_NativeSizeOf('TTestHandlerSet10'));
+  CheckEqualsInt64(3, TestTypes_NativeSizeOf('TTestHandlerArr3'));
+  CheckEqualsInt64(4, TestTypes_NativeSizeOf('TTestHandlerArr4'));
+  CheckEqualsInt64(6, TestTypes_NativeSizeOf('TTestHandlerArr6'));
+  CheckEqualsInt64(8, TestTypes_NativeSizeOf('TTestHandlerArr8'));
+  CheckEqualsInt64(10, TestTypes_NativeSizeOf('TTestHandlerArr10'));
+end;
+
 procedure Test_InnerfuseCallParamTypes;
 var
   SmallRec: TTestInnerfuseSmallRec;
   Rec8: TTestHandlerRec8;
   LargeRec: TTestInnerfuseLargeRec;
+  Set8: TTestHandlerSet8;
+  Arr8: TTestHandlerArr8;
+  I: Integer;
 begin
   { Exercises InnerfuseCall parameter and return type marshalling using the
     register (default Delphi) calling convention. Each echo function round-trips
@@ -1781,6 +1853,12 @@ begin
   Rec8.D := 33;
   CheckEqualsInt64(126, TestInnerfuse_SumRec8(Rec8));
 
+  Set8 := [TTestHandlerSet8Base(40), TTestHandlerSet8Base(2)];
+  CheckEqualsInt64(42, TestInnerfuse_SumSet8(Set8));
+  for I := 0 to 7 do
+    Arr8[I] := 10 + I;
+  CheckEqualsInt64(10 + 11 + 12 + 13 + 14 + 15 + 16 + 17, TestInnerfuse_SumArray8(Arr8));
+
   LargeRec.A := 42;
   LargeRec.B := 'hello';
   LargeRec := TestInnerfuse_EchoLargeRec(LargeRec);
@@ -1800,6 +1878,9 @@ var
 #if arch == "x64"
   Rec8: TTestHandlerRec8;
 #endif
+  Set8: TTestHandlerSet8;
+  Arr8: TTestHandlerArr8;
+  I: Integer;
   LargeRec: TTestInnerfuseLargeRec;
 begin
   { Repeats the echo tests from Test_InnerfuseCallParamTypes using the stdcall
@@ -1836,6 +1917,12 @@ begin
   Rec8.D := 33;
   CheckEqualsInt64(126, TestInnerfuse_SumRec8StdCall(Rec8));
 #endif
+
+  Set8 := [TTestHandlerSet8Base(40), TTestHandlerSet8Base(2)];
+  CheckEqualsInt64(42, TestInnerfuse_SumSet8StdCall(Set8));
+  for I := 0 to 7 do
+    Arr8[I] := 10 + I;
+  CheckEqualsInt64(10 + 11 + 12 + 13 + 14 + 15 + 16 + 17, TestInnerfuse_SumArray8StdCall(Arr8));
 
   LargeRec.A := 42;
   LargeRec.B := 'hello';
@@ -2315,10 +2402,29 @@ begin
     IntToStr(R.A) + ',' + IntToStr(R.B) + ',' + IntToStr(R.C) + ',' + IntToStr(R.D) + ';' + IntToStr(Tail);
 end;
 
+var
+  Test_CreateCallback_Set8Fields: String;
+  Test_CreateCallback_Arr8Fields: String;
+
+procedure Test_CreateCallback_CBSet8(S: TTestHandlerSet8; Tail: Integer);
+begin
+  { Stores '0' or '1' for the '.. in ..' result. Should all be '1'. }
+  Test_CreateCallback_Set8Fields :=
+    IntToStr(Ord(TTestHandlerSet8Base(3) in S)) + IntToStr(Ord(TTestHandlerSet8Base(60) in S)) + ';' + IntToStr(Tail);
+end;
+
+procedure Test_CreateCallback_CBArr8(A: TTestHandlerArr8; Tail: Integer);
+begin
+  Test_CreateCallback_Arr8Fields :=
+    IntToStr(A[0]) + ',' + IntToStr(A[7]) + ';' + IntToStr(Tail);
+end;
+
 procedure Test_CreateCallback;
 #if arch == "x64"
 var
   R: TTestHandlerRec8;
+  S: TTestHandlerSet8;
+  A: TTestHandlerArr8;
 #endif
 begin
   { Tests CreateCallback, which generates platform-specific machine code
@@ -2363,6 +2469,20 @@ begin
   Test_CreateCallback_Rec8Fields := '';
   TestCreateCallback_InvokeRec8(CreateCallback(@Test_CreateCallback_CBRec8), R, 99);
   CheckEqualsString('30,31,32,33;99', Test_CreateCallback_Rec8Fields);
+
+  { An 8-byte set at position 1 needs no bridging: stdcall passes it by
+    reference, already the pointer MyAllMethodsHandler expects }
+  S := [TTestHandlerSet8Base(3), TTestHandlerSet8Base(60)];
+  Test_CreateCallback_Set8Fields := '';
+  TestCreateCallback_InvokeSet8(CreateCallback(@Test_CreateCallback_CBSet8), S, 99);
+  CheckEqualsString('11;99', Test_CreateCallback_Set8Fields);
+
+  { An 8-byte static array by value at position 1 must be bridged to a pointer
+    for MyAllMethodsHandler, like the record above }
+  A[0] := 30; A[1] := 31; A[2] := 32; A[3] := 33; A[4] := 34; A[5] := 35; A[6] := 36; A[7] := 37;
+  Test_CreateCallback_Arr8Fields := '';
+  TestCreateCallback_InvokeArray8(CreateCallback(@Test_CreateCallback_CBArr8), A, 99);
+  CheckEqualsString('30,37;99', Test_CreateCallback_Arr8Fields);
 #endif
 
   CheckEqualsInt64(30, TestCreateCallback_InvokeReturnInteger(CreateCallback(@Test_CreateCallback_CBReturnInteger), 10, 20));
@@ -2461,7 +2581,49 @@ begin
   Result := R1.A + R2.A;
 end;
 
-procedure Test_MyAllMethodsHandlerByValueRecord;
+var
+  Test_MyAllMethodsHandlerByValueSet_Fields: String;
+
+function Test_MyAllMethodsHandlerByValueSet_Receive(S1: TTestHandlerSet4; S2: TTestHandlerSet6; S3: TTestHandlerSet8; Tail: Integer): Integer;
+begin
+  { This stores '0' or '1' for the '.. in ..' result. Should all be '1'. }
+  Test_MyAllMethodsHandlerByValueSet_Fields :=
+    IntToStr(Ord(TTestHandlerSet4Base(1) in S1)) + IntToStr(Ord(TTestHandlerSet4Base(30) in S1)) + ';' +
+    IntToStr(Ord(TTestHandlerSet6Base(2) in S2)) + IntToStr(Ord(TTestHandlerSet6Base(45) in S2)) + ';' +
+    IntToStr(Ord(TTestHandlerSet8Base(3) in S3)) + IntToStr(Ord(TTestHandlerSet8Base(60) in S3)) + ';' + IntToStr(Tail);
+  Result := Ord(TTestHandlerSet4Base(1) in S1) + Ord(TTestHandlerSet6Base(2) in S2) + Ord(TTestHandlerSet8Base(3) in S3);
+end;
+
+function Test_MyAllMethodsHandlerByValueSet_Receive2(S1: TTestHandlerSet3; S2: TTestHandlerSet10; Tail: Integer): Integer;
+begin
+  { See above }
+  Test_MyAllMethodsHandlerByValueSet_Fields :=
+    IntToStr(Ord(TTestHandlerSet3Base(1) in S1)) + IntToStr(Ord(TTestHandlerSet3Base(20) in S1)) + ';' +
+    IntToStr(Ord(TTestHandlerSet10Base(4) in S2)) + IntToStr(Ord(TTestHandlerSet10Base(70) in S2)) + ';' + IntToStr(Tail);
+  Result := Ord(TTestHandlerSet3Base(1) in S1) + Ord(TTestHandlerSet10Base(4) in S2);
+end;
+
+var
+  Test_MyAllMethodsHandlerByValueArray_Fields: String;
+
+function Test_MyAllMethodsHandlerByValueArray_Receive(A1: TTestHandlerArr4; A2: TTestHandlerArr6; A3: TTestHandlerArr8; Tail: Integer): Integer;
+begin
+  Test_MyAllMethodsHandlerByValueArray_Fields :=
+    IntToStr(A1[0]) + ',' + IntToStr(A1[3]) + ';' +
+    IntToStr(A2[0]) + ',' + IntToStr(A2[5]) + ';' +
+    IntToStr(A3[0]) + ',' + IntToStr(A3[7]) + ';' + IntToStr(Tail);
+  Result := A1[0] + A2[0] + A3[0];
+end;
+
+function Test_MyAllMethodsHandlerByValueArray_Receive2(A1: TTestHandlerArr3; A2: TTestHandlerArr10; Tail: Integer): Integer;
+begin
+  Test_MyAllMethodsHandlerByValueArray_Fields :=
+    IntToStr(A1[0]) + ',' + IntToStr(A1[2]) + ';' +
+    IntToStr(A2[0]) + ',' + IntToStr(A2[9]) + ';' + IntToStr(Tail);
+  Result := A1[0] + A2[0];
+end;
+
+procedure Test_MyAllMethodsHandlerByValueRecordSetArray;
 begin
   { Exercise by-value record parameters at positions 1-3: a 4-byte record
     passed directly in a register, a 6-byte record passed as a pointer, and
@@ -2476,6 +2638,22 @@ begin
   Test_MyAllMethodsHandlerByValueRecord_Fields := '';
   CheckEqualsInt64(10 + 100, TestHandler_InvokeRec2(@Test_MyAllMethodsHandlerByValueRecord_Receive2));
   CheckEqualsString('10,11,12;100,101,102,103,104;99', Test_MyAllMethodsHandlerByValueRecord_Fields);
+
+  { Sets, same size sweep }
+  Test_MyAllMethodsHandlerByValueSet_Fields := '';
+  CheckEqualsInt64(3, TestHandler_InvokeSet(@Test_MyAllMethodsHandlerByValueSet_Receive));
+  CheckEqualsString('11;11;11;99', Test_MyAllMethodsHandlerByValueSet_Fields);
+  Test_MyAllMethodsHandlerByValueSet_Fields := '';
+  CheckEqualsInt64(2, TestHandler_InvokeSet2(@Test_MyAllMethodsHandlerByValueSet_Receive2));
+  CheckEqualsString('11;11;99', Test_MyAllMethodsHandlerByValueSet_Fields);
+
+  { Static arrays, same size sweep }
+  Test_MyAllMethodsHandlerByValueArray_Fields := '';
+  CheckEqualsInt64(10 + 20 + 30, TestHandler_InvokeArray(@Test_MyAllMethodsHandlerByValueArray_Receive));
+  CheckEqualsString('10,13;20,25;30,37;99', Test_MyAllMethodsHandlerByValueArray_Fields);
+  Test_MyAllMethodsHandlerByValueArray_Fields := '';
+  CheckEqualsInt64(10 + 100, TestHandler_InvokeArray2(@Test_MyAllMethodsHandlerByValueArray_Receive2));
+  CheckEqualsString('10,12;100,109;99', Test_MyAllMethodsHandlerByValueArray_Fields);
 end;
 
 procedure Test_TypelessParamFunctions;
@@ -2903,6 +3081,7 @@ begin
   Test_IsAsOperators;
   Test_IdentifierResolution;
   Test_ProcVarScript;
+  Test_InnerfuseCallHelperTypeSizes;
   Test_InnerfuseCallParamTypes;
   Test_InnerfuseCallParamTypesStdCall;
   Test_InnerfuseCallSafeCall;
@@ -2919,7 +3098,7 @@ begin
   Test_RaiseLastException;
   Test_CreateCallback;
   Test_MyAllMethodsHandlerByValue;
-  Test_MyAllMethodsHandlerByValueRecord;
+  Test_MyAllMethodsHandlerByValueRecordSetArray;
   Test_TypelessParamFunctions;
   Test_DefProcFloatToInt;
   Test_AnyStringFunctions;

@@ -657,6 +657,15 @@ _XMM0: Double;
     end;
   end;
   {$ENDIF}
+
+  procedure StoreRegBytes(const Data: Pointer; const Size: Longint);
+  var
+    RegData: IPointer;
+  begin
+    RegData := 0;
+    Move(Data^, RegData, Size);
+    StoreReg(RegData);
+  end;
   
   {$IFDEF DELPHI}
   type
@@ -718,17 +727,6 @@ _XMM0: Double;
     end else begin
 //      UseReg := True;
       case fVar^.aType.BaseType of
-        btSet:
-          begin
-            case TPSTypeRec_Set(fvar.aType).aByteSize of
-              1: StoreReg(IPointer(byte(fvar.dta^)));
-              2: StoreReg(IPointer(word(fvar.dta^)));
-              3, 4: StoreReg(IPointer(cardinal(fvar.dta^)));
-              5,6,7,8: StoreReg(IPointer(fVar.Dta^));
-              else
-                StoreReg(IPointer(fvar.Dta));
-            end;
-          end;
         btArray:
           begin
             if Copy(fvar^.aType.ExportName, 1, 10) = '!OPENARRAY' then
@@ -750,47 +748,58 @@ _XMM0: Double;
             {$ENDIF}
             end;
           end;
-        btRecord:
+        btSet,
+        btRecord,
+        btStaticArray:
           begin
-            { In the by-value cases below, StoreReg(IPointer(fvar.dta^)) reads a
-              full 8-byte IPointer even when RealSize is smaller. The callee uses
-              only the low RealSize bytes, so reading past the record is harmless. }
             {$IFDEF WINDOWS}
             {$IFDEF DELPHI}
-            { Delphi Win64 ABI: a record is passed by value (in a register)
-              at sizes 1, 2, or 4 and for stdcall/cdecl/safecall also at size 8.
-              All other sizes (3, 5, 6, 7, and > 8) are passed by reference,
-              except: before Rio 10.3 the register convention additionally passed
-              sizes 5, 6, 7, and 8 by value, see
+            { Delphi Win64 ABI: a record or static array is passed by value (in
+              a register) at sizes 1, 2, or 4 and for stdcall/cdecl/safecall
+              also at size 8; all other sizes (3, 5, 6, 7, and > 8) are passed
+              by reference. A set follows the same rules, except that it has no
+              8-byte stdcall/cdecl/safecall by-value case (not in the blog
+              below, found empirically; likely because C has no sets) and that Delphi
+              rounds set storage up (a native set is never 3 bytes, and on Win64
+              never 5-7 bytes), so a 3-byte ROPS set is a native 4-byte set
+              passed by value, and a 5-8 byte ROPS set is a native 8-byte set
+              passed by reference. Before Rio 10.3 the register convention
+              additionally passed sizes 5, 6, 7, and 8 by value, see
               https://blogs.embarcadero.com/abi-changes-in-rad-studio-10-3/ }
             if (fvar^.aType.RealSize in [1, 2, 4]) or
-               ((fvar^.aType.RealSize = 8) and (CallingConv in [cdCdecl, cdStdCall, cdSafeCall]))
+               ((fvar^.aType.BaseType = btSet) and (fvar^.aType.RealSize = 3)) or
+               ((fvar^.aType.BaseType <> btSet) and (fvar^.aType.RealSize = 8) and (CallingConv in [cdCdecl, cdStdCall, cdSafeCall]))
                {$IFNDEF DELPHI_RIO_UP}
                or ((fvar^.aType.RealSize in [5, 6, 7, 8]) and not (CallingConv in [cdCdecl, cdStdCall, cdSafeCall]))
                {$ENDIF}
                then
-              StoreReg(IPointer(fvar.dta^))
+              StoreRegBytes(fvar.Dta, fvar^.aType.RealSize)
             else
               StoreReg(IPointer(fVar.Dta));
             {$ELSE}
-            { FPC Win64 ABI: a record is passed by value (in a register) only at
-              sizes 1, 2, 4, or 8, for all calling conventions; all other sizes are
-              passed by reference. See aggregate_in_registers_win64 in the FPC
-              compiler's x86_64/cpupara.pas. }
-            if fvar^.aType.RealSize in [1, 2, 4, 8] then
-              StoreReg(IPointer(fvar.dta^))
+            { FPC Win64 ABI: a record is passed by value (in a register) only
+              at sizes 1, 2, 4, or 8, a set only when it is a small set of at
+              most 4 bytes, and a static array never, for all calling
+              conventions. See aggregate_in_registers_win64 and the arraydef
+              and setdef cases of push_addr_param in
+              https://gitlab.com/freepascal.org/fpc/source/-/blob/main/compiler/x86_64/cpupara.pas
+              and is_smallset in
+              https://gitlab.com/freepascal.org/fpc/source/-/blob/main/compiler/defutil.pas }
+            if ((fvar^.aType.BaseType = btRecord) and (fvar^.aType.RealSize in [1, 2, 4, 8])) or
+               ((fvar^.aType.BaseType = btSet) and (fvar^.aType.RealSize in [1, 2, 3, 4])) then
+              StoreRegBytes(fvar.Dta, fvar^.aType.RealSize)
             else
               StoreReg(IPointer(fVar.Dta));
             {$ENDIF}
             {$ELSE}
-            if fvar^.aType.RealSize <= sizeof(IPointer) then
-              StoreReg(IPointer(fvar.dta^))
+            if (fvar^.aType.BaseType <> btStaticArray) and
+               (fvar^.aType.RealSize <= sizeof(IPointer)) then
+              StoreRegBytes(fvar.Dta, fvar^.aType.RealSize)
             else
               StoreReg(IPointer(fVar.Dta));
             {$ENDIF}
           end;
-        btVariant
-        , btStaticArray:
+        btVariant:
           begin
             StoreReg(IPointer(fVar.Dta));
           end;
@@ -974,9 +983,9 @@ begin
             case res.aType.RealSize of
               1: byte(res.Dta^) := _RAX;
               2: word(res.Dta^) := _RAX;
-              3,
               4: Longint(res.Dta^) := _RAX;
-              5,6,7,8: IPointer(res.dta^) := _RAX;
+              8: IPointer(res.dta^) := _RAX;
+              3, 5, 6, 7: Move(_RAX, res.Dta^, res.aType.RealSize);
               {$IFNDEF WINDOWS}
               9..16:
                 begin

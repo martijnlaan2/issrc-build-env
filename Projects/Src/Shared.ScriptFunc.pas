@@ -41,8 +41,17 @@ var
     'function TestInnerfuse_EchoCurrency(Value: Currency): Currency;',
     'function TestInnerfuse_EchoInt64(Value: Int64): Int64;',
     'function TestInnerfuse_EchoSmallRec(Value: TTestInnerfuseSmallRec): TTestInnerfuseSmallRec;',
+    'function TestInnerfuse_SumRec3(Value: TTestHandlerRec3): Integer;',
+    'function TestInnerfuse_SumRec6StdCall(Value: TTestHandlerRec6): Integer;',
     'function TestInnerfuse_SumRec8(Value: TTestHandlerRec8): Integer;',
     'function TestInnerfuse_SumRec8StdCall(Value: TTestHandlerRec8): Integer;',
+    'function TestInnerfuse_SumSet3(Value: TTestHandlerSet3): Integer;',
+    'function TestInnerfuse_SumSet8(Value: TTestHandlerSet8): Integer;',
+    'function TestInnerfuse_SumSet8StdCall(Value: TTestHandlerSet8): Integer;',
+    'function TestInnerfuse_SumArray3(Value: TTestHandlerArr3): Integer;',
+    'function TestInnerfuse_SumArray4(Value: TTestHandlerArr4): Integer;',
+    'function TestInnerfuse_SumArray8(Value: TTestHandlerArr8): Integer;',
+    'function TestInnerfuse_SumArray8StdCall(Value: TTestHandlerArr8): Integer;',
     'function TestInnerfuse_EchoLargeRec(Value: TTestInnerfuseLargeRec): TTestInnerfuseLargeRec;',
     'function TestInnerfuse_EchoPAnsiChar(Value: PAnsiChar): String;',
     'function TestInnerfuse_EchoSingleStdCall(Value: Single): Single;',
@@ -65,7 +74,9 @@ var
     'procedure TestCreateCallback_InvokeExtended4(Callback: NativeInt; A, B, C: Integer; D: Extended);',
     'function TestCreateCallback_InvokeReturnInteger(Callback: NativeInt; A, B: Integer): Integer;',
     'function TestCreateCallback_InvokeReturnDouble(Callback: NativeInt; A, B: Integer): Double;',
-    'procedure TestCreateCallback_InvokeRec8(Callback: NativeInt; const R: TTestHandlerRec8; Tail: Integer);'
+    'procedure TestCreateCallback_InvokeRec8(Callback: NativeInt; const R: TTestHandlerRec8; Tail: Integer);',
+    'procedure TestCreateCallback_InvokeSet8(Callback: NativeInt; const S: TTestHandlerSet8; Tail: Integer);',
+    'procedure TestCreateCallback_InvokeArray8(Callback: NativeInt; const A: TTestHandlerArr8; Tail: Integer);'
   ];
 
 {$IFDEF ISIDEPROJ}

@@ -1885,6 +1885,40 @@ type
   end;
   PDynArrayRec = ^TDynArrayRec;
 
+{ True when the type is managed and needs reference counting or finalization,
+  so cannot simply be copied. Unlike NeedFinalization this looks inside records
+  and static arrays. Matches what Delphi considers managed, with btPointer as
+  an exception. btPointer has no native counterpart but it can own and destroy
+  the data it points to, see FinalizeVariant, so cannot simply be copied. }
+function IsManagedType(aType: TPSTypeRec): Boolean;
+var
+  t: TPSTypeRec;
+  i: Longint;
+begin
+  case aType.BaseType of
+    btString, {$IFNDEF PS_NOWIDESTRING} btUnicodeString, btWideString, {$ENDIF}
+    {$IFNDEF PS_NOINTERFACES} btInterface, {$ENDIF} btArray, btPointer, btVariant:
+      Result := True;
+    btRecord:
+      begin
+        for i := 0 to TPSTypeRec_Record(aType).FieldTypes.Count -1 do
+        begin
+          t := TPSTypeRec_Record(aType).FieldTypes[i];
+          if IsManagedType(t) then
+          begin
+            Result := True;
+            exit;
+          end;
+        end;
+        Result := False;
+      end;
+    btStaticArray:
+      Result := IsManagedType(TPSTypeRec_Array(aType).ArrayType);
+  else
+    Result := False;
+  end;
+end;
+
 procedure FinalizeVariant(p: Pointer; aType: TPSTypeRec);
 var
   t: TPSTypeRec;
@@ -12218,13 +12252,13 @@ function AlwaysAsVariable(aType: TPSTypeRec): Boolean;
 begin
   case atype.BaseType of
     btVariant: Result := true;
-    btSet: Result := atype.RealSize > PointerSize;
 {$IFDEF CPU64}
-    btRecord: Result := not (atype.RealSize in [1, 2, 4]);
+    { See the btSet/btRecord/btStaticArray comment in x64.inc }
+    btSet: Result := not (atype.RealSize in [1, 2, 3, 4{$IFDEF DELPHI}{$IFNDEF DELPHI_RIO_UP}, 5, 6, 7, 8{$ENDIF}{$ENDIF}]);
+    btRecord, btStaticArray: Result := not (atype.RealSize in [1, 2, 4{$IFDEF DELPHI}{$IFNDEF DELPHI_RIO_UP}, 5, 6, 7, 8{$ENDIF}{$ENDIF}]);
 {$ELSE}
-    btRecord: Result := atype.RealSize > PointerSize;
+    btSet, btRecord, btStaticArray: Result := atype.RealSize > PointerSize;
 {$ENDIF}
-    btStaticArray: Result := atype.RealSize > PointerSize;
   else
     Result := false;
   end;
@@ -12382,6 +12416,13 @@ begin
     btChar,
     btclass,
     btEnum: Result := true;
+{$IFDEF DELPHI}
+    { The Delphi x64 ABI returns a record of 1, 2, or 4 bytes in RAX, and
+      the x86 ABI a record of 1 or 2 bytes in AL/AX (see System.Rtti's
+      UseResultPointer). Records of these sizes never contain a managed
+      field, so no managed check is needed. }
+    btRecord: Result := b.RealSize in [1, 2{$IFDEF CPU64}, 4{$ENDIF}];
+{$ENDIF}
     btSet: Result := b.RealSize <= PointerSize;
     btStaticArray: Result := b.RealSize <= PointerSize;
   else
@@ -12418,10 +12459,16 @@ begin
     btChar,
     btArray,
     btEnum: Result := true;
+{$IFDEF DELPHI}
+    { See the btSet/btRecord/btStaticArray comment in x64.inc. Delphi's set
+      storage rounding needs a case here only when it crosses the by-value/
+      by-reference boundary: 3 (by reference) rounds to 4 (by value), while
+      the rounding of 5-7 to 8 does not (all by reference) }
+    btSet: Result := b.RealSize in [1, 2, 3, 4{$IFDEF CPU64}{$IFNDEF DELPHI_RIO_UP}, 5, 6, 7, 8{$ENDIF}{$ENDIF}];
+    btRecord, btStaticArray: Result := b.RealSize in [1, 2, 4{$IFDEF CPU64}{$IFNDEF DELPHI_RIO_UP}, 5, 6, 7, 8{$ENDIF}{$ENDIF}];
+{$ELSE}
     btSet: Result := b.RealSize <= PointerSize;
     btStaticArray: Result := b.RealSize <= PointerSize;
-{$IFDEF DELPHI}
-    btRecord: Result := b.RealSize in [1, 2, 4];
 {$ENDIF}
 {$IFDEF CPU64}
     btSingle,
