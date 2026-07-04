@@ -72,18 +72,23 @@ type
   TTestHandlerRec6 = record A, B, C: Word; end;
   TTestHandlerRec8 = record A, B, C, D: Word; end;
   TTestHandlerRec10 = record A, B, C, D, E: Word; end;
+  TTestHandlerRecString = record S: String; end;
   TTestHandlerSet3Item = 0..23;
   TTestHandlerSet3 = set of TTestHandlerSet3Item;
   TTestHandlerSet4 = set of 0..31;
-  TTestHandlerSet6 = set of 0..47;
+  TTestHandlerSet6Item = 0..47;
+  TTestHandlerSet6 = set of TTestHandlerSet6Item;
   TTestHandlerSet8Item = 0..63;
   TTestHandlerSet8 = set of TTestHandlerSet8Item;
   TTestHandlerSet10 = set of 0..79;
+  TTestHandlerArr1 = array[0..0] of Byte;
+  TTestHandlerArr2 = array[0..1] of Byte;
   TTestHandlerArr3 = array[0..2] of Byte;
   TTestHandlerArr4 = array[0..3] of Byte;
   TTestHandlerArr6 = array[0..5] of Byte;
   TTestHandlerArr8 = array[0..7] of Byte;
   TTestHandlerArr10 = array[0..9] of Byte;
+  TTestHandlerArrString = array[0..0] of String;
 
 var
   OrigScaleBaseUnitX, OrigScaleBaseUnitY: Integer;
@@ -148,6 +153,10 @@ function TestInnerfuse_SumArray3(Value: TTestHandlerArr3): Integer;
 function TestInnerfuse_SumArray4(Value: TTestHandlerArr4): Integer;
 function TestInnerfuse_SumArray8(Value: TTestHandlerArr8): Integer;
 function TestInnerfuse_SumArray8StdCall(Value: TTestHandlerArr8): Integer; stdcall;
+function TestInnerfuse_RecStringLength(Value: TTestHandlerRecString): Integer;
+function TestInnerfuse_RecStringLengthStdCall(Value: TTestHandlerRecString): Integer; stdcall;
+function TestInnerfuse_ArrStringLength(Value: TTestHandlerArrString): Integer;
+function TestInnerfuse_ArrStringLengthStdCall(Value: TTestHandlerArrString): Integer; stdcall;
 function TestInnerfuse_EchoLargeRec(Value: TTestInnerfuseLargeRec): TTestInnerfuseLargeRec;
 function TestInnerfuse_EchoPAnsiChar(Value: PAnsiChar): String;
 function TestInnerfuse_EchoSingleStdCall(Value: Single): Single; stdcall;
@@ -164,15 +173,34 @@ function TestInnerfuse_OpenArray(const Values: array of Integer): Integer;
 function TestInnerfuse_EchoIntegerSafeCall(Value: Integer): Integer; safecall;
 procedure TestInnerfuse_RaiseExceptionSafeCall; safecall;
 procedure TestInnerfuse_RaiseException;
+function TestInnerfuse_ReturnRec3(Base: Byte): TTestHandlerRec3;
+function TestInnerfuse_ReturnRec4(Base: Word): TTestHandlerRec4;
+function TestInnerfuse_ReturnRec8(Base: Word): TTestHandlerRec8;
+function TestInnerfuse_ReturnRecString(A, B: Integer): TTestHandlerRecString;
+function TestInnerfuse_ReturnSet6(A, B: Integer): TTestHandlerSet6;
+function TestInnerfuse_ReturnArr1(Base: Byte): TTestHandlerArr1;
+function TestInnerfuse_ReturnArr2(Base: Byte): TTestHandlerArr2;
+function TestInnerfuse_ReturnArr3(Base: Byte): TTestHandlerArr3;
+function TestInnerfuse_ReturnArr4(Base: Byte): TTestHandlerArr4;
+function TestInnerfuse_ReturnArr8(Base: Byte): TTestHandlerArr8;
+function TestInnerfuse_ReturnArrString(A, B: Integer): TTestHandlerArrString;
+function TestInnerfuse_ReturnArr4Pascal(Base: Byte): TTestHandlerArr4; pascal;
+function TestInnerfuse_ReturnArrStringPascal(A, B: Integer): TTestHandlerArrString; pascal;
+function TestInnerfuse_ReturnArr4Cdecl(Base: Byte): TTestHandlerArr4; cdecl;
+function TestInnerfuse_ReturnArrStringCdecl(A, B: Integer): TTestHandlerArrString; cdecl;
+function TestInnerfuse_ReturnArr4StdCall(Base: Byte): TTestHandlerArr4; stdcall;
+function TestInnerfuse_ReturnArrStringStdCall(A, B: Integer): TTestHandlerArrString; stdcall;
 procedure TestCreateCallback_Invoke0(Callback: NativeInt);
 procedure TestCreateCallback_Invoke5(Callback: NativeInt; const S: String; A, B, C, D: Integer);
 procedure TestCreateCallback_InvokeFloat4(Callback: NativeInt; A, B, C: Integer; D: Double);
 procedure TestCreateCallback_InvokeExtended4(Callback: NativeInt; A, B, C: Integer; D: Extended);
 function TestCreateCallback_InvokeReturnInteger(Callback: NativeInt; A, B: Integer): Integer;
 function TestCreateCallback_InvokeReturnDouble(Callback: NativeInt; A, B: Integer): Double;
+function TestCreateCallback_InvokeReturnInt64(Callback: NativeInt; A, B: Integer): Int64;
 procedure TestCreateCallback_InvokeRec8(Callback: NativeInt; const R: TTestHandlerRec8; Tail: Integer);
 procedure TestCreateCallback_InvokeSet8(Callback: NativeInt; const S: TTestHandlerSet8; Tail: Integer);
 procedure TestCreateCallback_InvokeArray8(Callback: NativeInt; const A: TTestHandlerArr8; Tail: Integer);
+function TestStringRefCount(const S: String): Integer;
 
 implementation
 
@@ -1014,6 +1042,26 @@ begin
   Result := TestInnerfuse_SumArray8(Value);
 end;
 
+function TestInnerfuse_RecStringLength(Value: TTestHandlerRecString): Integer;
+begin
+  Result := Length(Value.S);
+end;
+
+function TestInnerfuse_RecStringLengthStdCall(Value: TTestHandlerRecString): Integer; stdcall;
+begin
+  Result := TestInnerfuse_RecStringLength(Value);
+end;
+
+function TestInnerfuse_ArrStringLength(Value: TTestHandlerArrString): Integer;
+begin
+  Result := Length(Value[0]);
+end;
+
+function TestInnerfuse_ArrStringLengthStdCall(Value: TTestHandlerArrString): Integer; stdcall;
+begin
+  Result := TestInnerfuse_ArrStringLength(Value);
+end;
+
 function TestInnerfuse_EchoLargeRec(Value: TTestInnerfuseLargeRec): TTestInnerfuseLargeRec;
 begin
   Result := Value;
@@ -1098,6 +1146,113 @@ begin
   raise Exception.Create('InnerfuseCall test exception');
 end;
 
+function TestInnerfuse_ReturnRec3(Base: Byte): TTestHandlerRec3;
+begin
+  Result.A := Base;
+  Result.B := Byte(Base + 1);
+  Result.C := Byte(Base + 2);
+end;
+
+function TestInnerfuse_ReturnRec4(Base: Word): TTestHandlerRec4;
+begin
+  Result.A := Base;
+  Result.B := Word(Base + 1);
+end;
+
+function TestInnerfuse_ReturnRec8(Base: Word): TTestHandlerRec8;
+begin
+  Result.A := Base;
+  Result.B := Word(Base + 1);
+  Result.C := Word(Base + 2);
+  Result.D := Word(Base + 3);
+end;
+
+function TestInnerfuse_ReturnRecString(A, B: Integer): TTestHandlerRecString;
+begin
+  Result.S := SysUtils.IntToStr(A) + ',' + SysUtils.IntToStr(B);
+end;
+
+function TestInnerfuse_ReturnSet6(A, B: Integer): TTestHandlerSet6;
+begin
+  Result := [TTestHandlerSet6Item(A), TTestHandlerSet6Item(B)];
+end;
+
+function TestInnerfuse_ReturnArr1(Base: Byte): TTestHandlerArr1;
+begin
+  Result[0] := Base;
+end;
+
+function TestInnerfuse_ReturnArr2(Base: Byte): TTestHandlerArr2;
+begin
+  Result[0] := Base;
+  Result[1] := Byte(Base + 1);
+end;
+
+function TestInnerfuse_ReturnArr3(Base: Byte): TTestHandlerArr3;
+begin
+  Result[0] := Base;
+  Result[1] := Byte(Base + 1);
+  Result[2] := Byte(Base + 2);
+end;
+
+function TestInnerfuse_ReturnArr4(Base: Byte): TTestHandlerArr4;
+begin
+  Result[0] := Base;
+  Result[1] := Byte(Base + 1);
+  Result[2] := Byte(Base + 2);
+  Result[3] := Byte(Base + 3);
+end;
+
+function TestInnerfuse_ReturnArr8(Base: Byte): TTestHandlerArr8;
+begin
+  for var I := 0 to High(Result) do
+    Result[I] := Byte(Base + I);
+end;
+
+function TestInnerfuse_ReturnArrString(A, B: Integer): TTestHandlerArrString;
+begin
+  Result[0] := SysUtils.IntToStr(A) + ',' + SysUtils.IntToStr(B);
+end;
+
+function TestInnerfuse_ReturnArr4Pascal(Base: Byte): TTestHandlerArr4; pascal;
+begin
+  Result[0] := Base;
+  Result[1] := Byte(Base + 1);
+  Result[2] := Byte(Base + 2);
+  Result[3] := Byte(Base + 3);
+end;
+
+function TestInnerfuse_ReturnArrStringPascal(A, B: Integer): TTestHandlerArrString; pascal;
+begin
+  Result[0] := SysUtils.IntToStr(A) + ',' + SysUtils.IntToStr(B);
+end;
+
+function TestInnerfuse_ReturnArr4Cdecl(Base: Byte): TTestHandlerArr4; cdecl;
+begin
+  Result[0] := Base;
+  Result[1] := Byte(Base + 1);
+  Result[2] := Byte(Base + 2);
+  Result[3] := Byte(Base + 3);
+end;
+
+function TestInnerfuse_ReturnArrStringCdecl(A, B: Integer): TTestHandlerArrString; cdecl;
+begin
+  Result[0] := SysUtils.IntToStr(A) + ',' + SysUtils.IntToStr(B);
+end;
+
+function TestInnerfuse_ReturnArr4StdCall(Base: Byte): TTestHandlerArr4; stdcall;
+begin
+  Result[0] := Base;
+  Result[1] := Byte(Base + 1);
+  Result[2] := Byte(Base + 2);
+  Result[3] := Byte(Base + 3);
+end;
+
+function TestInnerfuse_ReturnArrStringStdCall(A, B: Integer): TTestHandlerArrString; stdcall;
+begin
+  Result[0] := SysUtils.IntToStr(A) + ',' + SysUtils.IntToStr(B);
+end;
+
 type
   TStdCallProc0 = procedure; stdcall;
   TStdCallProc5 = procedure(S: String; A, B, C, D: Integer); stdcall;
@@ -1105,6 +1260,7 @@ type
   TStdCallProcExtended4 = procedure(A, B, C: Integer; D: Extended); stdcall;
   TStdCallFuncReturnInteger = function(A, B: Integer): Integer; stdcall;
   TStdCallFuncReturnDouble = function(A, B: Integer): Double; stdcall;
+  TStdCallFuncReturnInt64 = function(A, B: Integer): Int64; stdcall;
   TStdCallProcRec8 = procedure(R: TTestHandlerRec8; Tail: Integer); stdcall;
   TStdCallProcSet8 = procedure(S: TTestHandlerSet8; Tail: Integer); stdcall;
   TStdCallProcArr8 = procedure(A: TTestHandlerArr8; Tail: Integer); stdcall;
@@ -1139,6 +1295,11 @@ begin
   Result := TStdCallFuncReturnDouble(Callback)(A, B);
 end;
 
+function TestCreateCallback_InvokeReturnInt64(Callback: NativeInt; A, B: Integer): Int64;
+begin
+  Result := TStdCallFuncReturnInt64(Callback)(A, B);
+end;
+
 procedure TestCreateCallback_InvokeRec8(Callback: NativeInt; const R: TTestHandlerRec8; Tail: Integer);
 begin
   TStdCallProcRec8(Callback)(R, Tail);
@@ -1152,6 +1313,16 @@ end;
 procedure TestCreateCallback_InvokeArray8(Callback: NativeInt; const A: TTestHandlerArr8; Tail: Integer);
 begin
   TStdCallProcArr8(Callback)(A, Tail);
+end;
+
+function TestStringRefCount(const S: String): Integer;
+begin
+  { The refcount field of a UnicodeString sits 8 bytes before the character
+    data, on 32 bit and 64 bit alike (StrRec in System.pas) }
+  if Pointer(S) = nil then
+    Result := 0
+  else
+    Result := PInteger(PByte(Pointer(S)) - 8)^;
 end;
 
 end.

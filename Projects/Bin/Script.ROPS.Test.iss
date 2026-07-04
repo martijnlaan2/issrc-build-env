@@ -1746,21 +1746,26 @@ procedure Test_InnerfuseCallHelperTypeSizes;
 var
   SmallRec: TTestInnerfuseSmallRec;
   LargeRec: TTestInnerfuseLargeRec;
+  Rec1: TTestHandlerRec1;
   Rec3: TTestHandlerRec3;
   Rec4: TTestHandlerRec4;
   Rec6: TTestHandlerRec6;
   Rec8: TTestHandlerRec8;
   Rec10: TTestHandlerRec10;
+  RecString: TTestHandlerRecString;
   Set3: TTestHandlerSet3;
   Set4: TTestHandlerSet4;
   Set6: TTestHandlerSet6;
   Set8: TTestHandlerSet8;
   Set10: TTestHandlerSet10;
+  Arr1: TTestHandlerArr1;
+  Arr2: TTestHandlerArr2;
   Arr3: TTestHandlerArr3;
   Arr4: TTestHandlerArr4;
   Arr6: TTestHandlerArr6;
   Arr8: TTestHandlerArr8;
   Arr10: TTestHandlerArr10;
+  ArrString: TTestHandlerArrString;
 begin
   CheckEqualsInt64(2, SizeOf(SmallRec));
 #if arch == "x64"
@@ -1768,21 +1773,34 @@ begin
 #else
   CheckEqualsInt64(8, SizeOf(LargeRec));
 #endif
+  CheckEqualsInt64(1, SizeOf(Rec1));
   CheckEqualsInt64(3, SizeOf(Rec3));
   CheckEqualsInt64(4, SizeOf(Rec4));
   CheckEqualsInt64(6, SizeOf(Rec6));
   CheckEqualsInt64(8, SizeOf(Rec8));
   CheckEqualsInt64(10, SizeOf(Rec10));
+#if arch == "x64"
+  CheckEqualsInt64(8, SizeOf(RecString));
+#else
+  CheckEqualsInt64(4, SizeOf(RecString));
+#endif
   CheckEqualsInt64(3, SizeOf(Set3));
   CheckEqualsInt64(4, SizeOf(Set4));
   CheckEqualsInt64(6, SizeOf(Set6));
   CheckEqualsInt64(8, SizeOf(Set8));
   CheckEqualsInt64(10, SizeOf(Set10));
+  CheckEqualsInt64(1, SizeOf(Arr1));
+  CheckEqualsInt64(2, SizeOf(Arr2));
   CheckEqualsInt64(3, SizeOf(Arr3));
   CheckEqualsInt64(4, SizeOf(Arr4));
   CheckEqualsInt64(6, SizeOf(Arr6));
   CheckEqualsInt64(8, SizeOf(Arr8));
   CheckEqualsInt64(10, SizeOf(Arr10));
+#if arch == "x64"
+  CheckEqualsInt64(8, SizeOf(ArrString));
+#else
+  CheckEqualsInt64(4, SizeOf(ArrString));
+#endif
 
   CheckEqualsInt64(2, TestTypes_NativeSizeOf('TTestInnerfuseSmallRec'));
 #if arch == "x64"
@@ -1790,11 +1808,17 @@ begin
 #else
   CheckEqualsInt64(8, TestTypes_NativeSizeOf('TTestInnerfuseLargeRec'));
 #endif
+  CheckEqualsInt64(1, TestTypes_NativeSizeOf('TTestHandlerRec1'));
   CheckEqualsInt64(3, TestTypes_NativeSizeOf('TTestHandlerRec3'));
   CheckEqualsInt64(4, TestTypes_NativeSizeOf('TTestHandlerRec4'));
   CheckEqualsInt64(6, TestTypes_NativeSizeOf('TTestHandlerRec6'));
   CheckEqualsInt64(8, TestTypes_NativeSizeOf('TTestHandlerRec8'));
   CheckEqualsInt64(10, TestTypes_NativeSizeOf('TTestHandlerRec10'));
+#if arch == "x64"
+  CheckEqualsInt64(8, TestTypes_NativeSizeOf('TTestHandlerRecString'));
+#else
+  CheckEqualsInt64(4, TestTypes_NativeSizeOf('TTestHandlerRecString'));
+#endif
   CheckEqualsInt64(4, TestTypes_NativeSizeOf('TTestHandlerSet3')); { Delphi rounds set sizes up }
   CheckEqualsInt64(4, TestTypes_NativeSizeOf('TTestHandlerSet4'));
 #if arch == "x64"
@@ -1804,19 +1828,30 @@ begin
 #endif
   CheckEqualsInt64(8, TestTypes_NativeSizeOf('TTestHandlerSet8'));
   CheckEqualsInt64(10, TestTypes_NativeSizeOf('TTestHandlerSet10'));
+  CheckEqualsInt64(1, TestTypes_NativeSizeOf('TTestHandlerArr1'));
+  CheckEqualsInt64(2, TestTypes_NativeSizeOf('TTestHandlerArr2'));
   CheckEqualsInt64(3, TestTypes_NativeSizeOf('TTestHandlerArr3'));
   CheckEqualsInt64(4, TestTypes_NativeSizeOf('TTestHandlerArr4'));
   CheckEqualsInt64(6, TestTypes_NativeSizeOf('TTestHandlerArr6'));
   CheckEqualsInt64(8, TestTypes_NativeSizeOf('TTestHandlerArr8'));
   CheckEqualsInt64(10, TestTypes_NativeSizeOf('TTestHandlerArr10'));
+#if arch == "x64"
+  CheckEqualsInt64(8, TestTypes_NativeSizeOf('TTestHandlerArrString'));
+#else
+  CheckEqualsInt64(4, TestTypes_NativeSizeOf('TTestHandlerArrString'));
+#endif
 end;
 
 procedure Test_InnerfuseCallParamTypes;
 var
   SmallRec: TTestInnerfuseSmallRec;
+  Rec3: TTestHandlerRec3;
   Rec8: TTestHandlerRec8;
   LargeRec: TTestInnerfuseLargeRec;
+  Set3: TTestHandlerSet3;
   Set8: TTestHandlerSet8;
+  Arr3: TTestHandlerArr3;
+  Arr4: TTestHandlerArr4;
   Arr8: TTestHandlerArr8;
   I: Integer;
 begin
@@ -1829,6 +1864,8 @@ begin
     - Small record: by value for small sizes (x64: 1, 2, or 4; x86: <= 4), else by pointer
     - 8-byte record: by reference under the register convention on Win64, because
       of Delphi's special rule: https://blogs.embarcadero.com/abi-changes-in-rad-studio-10-3/
+    - 3-byte record and array: by value on the stack on x86, by reference on x64
+    - 3-byte set (native size 4) and 4-byte array: by value in a register
     - Large record: hidden var-param return path for records > pointer size
     - Mixed Single+Double: tests per-slot SingleBits indexing on x64
     - PAnsiChar empty string: tests nil -> EmptyPchar substitution
@@ -1847,15 +1884,28 @@ begin
   CheckEqualsInt64(42, SmallRec.A);
   CheckEqualsInt64(99, SmallRec.B);
 
+  Rec3.A := 11;
+  Rec3.B := 12;
+  Rec3.C := 13;
+  CheckEqualsInt64(36, TestInnerfuse_SumRec3(Rec3));
+
   Rec8.A := 30;
   Rec8.B := 31;
   Rec8.C := 32;
   Rec8.D := 33;
   CheckEqualsInt64(126, TestInnerfuse_SumRec8(Rec8));
 
+  Set3 := [TTestHandlerSet3Base(20), TTestHandlerSet3Base(3)];
+  CheckEqualsInt64(23, TestInnerfuse_SumSet3(Set3));
   Set8 := [TTestHandlerSet8Base(40), TTestHandlerSet8Base(2)];
   CheckEqualsInt64(42, TestInnerfuse_SumSet8(Set8));
-  for I := 0 to 7 do
+  for I := 0 to High(Arr3) do
+    Arr3[I] := 20 + I;
+  CheckEqualsInt64(20 + 21 + 22, TestInnerfuse_SumArray3(Arr3));
+  for I := 0 to High(Arr4) do
+    Arr4[I] := 30 + I;
+  CheckEqualsInt64(30 + 31 + 32 + 33, TestInnerfuse_SumArray4(Arr4));
+  for I := 0 to High(Arr8) do
     Arr8[I] := 10 + I;
   CheckEqualsInt64(10 + 11 + 12 + 13 + 14 + 15 + 16 + 17, TestInnerfuse_SumArray8(Arr8));
 
@@ -1875,9 +1925,8 @@ end;
 procedure Test_InnerfuseCallParamTypesStdCall;
 var
   SmallRec: TTestInnerfuseSmallRec;
-#if arch == "x64"
+  Rec6: TTestHandlerRec6;
   Rec8: TTestHandlerRec8;
-#endif
   Set8: TTestHandlerSet8;
   Arr8: TTestHandlerArr8;
   I: Integer;
@@ -1908,19 +1957,23 @@ begin
   CheckEqualsInt64(42, SmallRec.A);
   CheckEqualsInt64(99, SmallRec.B);
 
-#if arch == "x64"
-  { On x64, an 8-byte record under stdcall is passed by value, unlike under the
+  { A 6-byte record under stdcall on x86 occupies two 4-byte stack slots }
+  Rec6.A := 20;
+  Rec6.B := 21;
+  Rec6.C := 22;
+  CheckEqualsInt64(63, TestInnerfuse_SumRec6StdCall(Rec6));
+
+  { An 8-byte record under stdcall is passed by value, unlike under the
     register convention where Delphi passes it by reference }
   Rec8.A := 30;
   Rec8.B := 31;
   Rec8.C := 32;
   Rec8.D := 33;
   CheckEqualsInt64(126, TestInnerfuse_SumRec8StdCall(Rec8));
-#endif
 
   Set8 := [TTestHandlerSet8Base(40), TTestHandlerSet8Base(2)];
   CheckEqualsInt64(42, TestInnerfuse_SumSet8StdCall(Set8));
-  for I := 0 to 7 do
+  for I := 0 to High(Arr8) do
     Arr8[I] := 10 + I;
   CheckEqualsInt64(10 + 11 + 12 + 13 + 14 + 15 + 16 + 17, TestInnerfuse_SumArray8StdCall(Arr8));
 
@@ -1929,6 +1982,124 @@ begin
   LargeRec := TestInnerfuse_EchoLargeRecStdCall(LargeRec);
   CheckEqualsInt64(42, LargeRec.A);
   CheckEqualsString('hello', LargeRec.B);
+end;
+
+procedure Test_InnerfuseCallPointerSizeManagedByValueRecordArray;
+var
+  R: TTestHandlerRecString;
+  A: TTestHandlerArrString;
+  S: String;
+  RefCountBefore: Integer;
+begin
+  { A record and a static array with a String field, passed by value under
+    the register and stdcall conventions. The string's refcount should remain
+    unchanged: see the DELPHI_SMALL_MANAGED_BORROW comment in x86.inc }
+  S := 'refcount' + IntToStr(9999);
+  R.S := S;
+  A[0] := S;
+  RefCountBefore := TestRefCount_StringRefCount(S);
+
+  CheckEqualsInt64(Length(S), TestInnerfuse_RecStringLength(R));
+  CheckEqualsInt64(RefCountBefore, TestRefCount_StringRefCount(S));
+
+  CheckEqualsInt64(Length(S), TestInnerfuse_RecStringLengthStdCall(R));
+  CheckEqualsInt64(RefCountBefore, TestRefCount_StringRefCount(S));
+
+  CheckEqualsInt64(Length(S), TestInnerfuse_ArrStringLength(A));
+  CheckEqualsInt64(RefCountBefore, TestRefCount_StringRefCount(S));
+
+  CheckEqualsInt64(Length(S), TestInnerfuse_ArrStringLengthStdCall(A));
+  CheckEqualsInt64(RefCountBefore, TestRefCount_StringRefCount(S));
+end;
+
+procedure Test_InnerfuseCallRecordArrayReturn;
+var
+  Rec3: TTestHandlerRec3;
+  Rec4: TTestHandlerRec4;
+  Rec8: TTestHandlerRec8;
+  RecString: TTestHandlerRecString;
+  Set6: TTestHandlerSet6;
+  Arr1: TTestHandlerArr1;
+  Arr2: TTestHandlerArr2;
+  Arr3: TTestHandlerArr3;
+  Arr4: TTestHandlerArr4;
+  Arr8: TTestHandlerArr8;
+  ArrString: TTestHandlerArrString;
+begin
+  Rec3 := TestInnerfuse_ReturnRec3(30);
+  CheckEqualsInt64(30, Rec3.A);
+  CheckEqualsInt64(31, Rec3.B);
+  CheckEqualsInt64(32, Rec3.C);
+
+  Rec4 := TestInnerfuse_ReturnRec4(300);
+  CheckEqualsInt64(300, Rec4.A);
+  CheckEqualsInt64(301, Rec4.B);
+
+  Rec8 := TestInnerfuse_ReturnRec8(300);
+  CheckEqualsInt64(300, Rec8.A);
+  CheckEqualsInt64(301, Rec8.B);
+  CheckEqualsInt64(302, Rec8.C);
+  CheckEqualsInt64(303, Rec8.D);
+
+  RecString := TestInnerfuse_ReturnRecString(310, 311);
+  CheckEqualsString('310,311', RecString.S);
+
+  Set6 := TestInnerfuse_ReturnSet6(1, 42);
+  CheckTrue(TTestHandlerSet6Base(1) in Set6);
+  CheckTrue(TTestHandlerSet6Base(42) in Set6);
+  CheckFalse(TTestHandlerSet6Base(0) in Set6);
+
+  Arr1 := TestInnerfuse_ReturnArr1(10);
+  CheckEqualsInt64(10, Arr1[0]);
+
+  Arr2 := TestInnerfuse_ReturnArr2(20);
+  CheckEqualsInt64(20, Arr2[0]);
+  CheckEqualsInt64(21, Arr2[1]);
+
+  Arr3 := TestInnerfuse_ReturnArr3(30);
+  CheckEqualsInt64(30, Arr3[0]);
+  CheckEqualsInt64(31, Arr3[1]);
+  CheckEqualsInt64(32, Arr3[2]);
+
+  Arr4 := TestInnerfuse_ReturnArr4(40);
+  CheckEqualsInt64(40, Arr4[0]);
+  CheckEqualsInt64(41, Arr4[1]);
+  CheckEqualsInt64(42, Arr4[2]);
+  CheckEqualsInt64(43, Arr4[3]);
+
+  Arr8 := TestInnerfuse_ReturnArr8(80);
+  CheckEqualsInt64(80, Arr8[0]);
+  CheckEqualsInt64(87, Arr8[7]);
+
+  ArrString := TestInnerfuse_ReturnArrString(310, 311);
+  CheckEqualsString('310,311', ArrString[0]);
+
+  Arr4 := TestInnerfuse_ReturnArr4Pascal(50);
+  CheckEqualsInt64(50, Arr4[0]);
+  CheckEqualsInt64(51, Arr4[1]);
+  CheckEqualsInt64(52, Arr4[2]);
+  CheckEqualsInt64(53, Arr4[3]);
+
+  ArrString := TestInnerfuse_ReturnArrStringPascal(312, 313);
+  CheckEqualsString('312,313', ArrString[0]);
+
+  Arr4 := TestInnerfuse_ReturnArr4Cdecl(60);
+  CheckEqualsInt64(60, Arr4[0]);
+  CheckEqualsInt64(61, Arr4[1]);
+  CheckEqualsInt64(62, Arr4[2]);
+  CheckEqualsInt64(63, Arr4[3]);
+
+  ArrString := TestInnerfuse_ReturnArrStringCdecl(314, 315);
+  CheckEqualsString('314,315', ArrString[0]);
+
+  Arr4 := TestInnerfuse_ReturnArr4StdCall(70);
+  CheckEqualsInt64(70, Arr4[0]);
+  CheckEqualsInt64(71, Arr4[1]);
+  CheckEqualsInt64(72, Arr4[2]);
+  CheckEqualsInt64(73, Arr4[3]);
+
+  ArrString := TestInnerfuse_ReturnArrStringStdCall(316, 317);
+  CheckEqualsString('316,317', ArrString[0]);
 end;
 
 procedure Test_InnerfuseCallSafeCall;
@@ -2393,6 +2564,12 @@ begin
   Result := A * 0.1 + B;
 end;
 
+function Test_CreateCallback_CBReturnInt64(A, B: Integer): Int64;
+begin
+  { 6000000000 exceeds 32 bits, so both halves of the result are checked }
+  Result := 6000000000 + A + B;
+end;
+
 var
   Test_CreateCallback_Rec8Fields: String;
 
@@ -2487,6 +2664,9 @@ begin
 
   CheckEqualsInt64(30, TestCreateCallback_InvokeReturnInteger(CreateCallback(@Test_CreateCallback_CBReturnInteger), 10, 20));
   CheckEqualsFloat(5.3, TestCreateCallback_InvokeReturnDouble(CreateCallback(@Test_CreateCallback_CBReturnDouble), 3, 5), 1e-9);
+
+  { Int64 return value: tests return via EDX:EAX (x86) / RAX (x64) }
+  CheckEqualsInt64(6000000015, TestCreateCallback_InvokeReturnInt64(CreateCallback(@Test_CreateCallback_CBReturnInt64), 10, 5));
 end;
 
 var
@@ -2654,6 +2834,125 @@ begin
   Test_MyAllMethodsHandlerByValueArray_Fields := '';
   CheckEqualsInt64(10 + 100, TestHandler_InvokeArray2(@Test_MyAllMethodsHandlerByValueArray_Receive2));
   CheckEqualsString('10,12;100,109;99', Test_MyAllMethodsHandlerByValueArray_Fields);
+end;
+
+var
+  Test_MyAllMethodsHandlerRecordReturn_Params: String;
+
+{ The following 5 functions also store their parameters, because a result bug
+  can also show up as bad parameters }
+function Test_MyAllMethodsHandlerRecordReturn_Receive1(A, B: Integer): TTestHandlerRec1;
+begin
+  Test_MyAllMethodsHandlerRecordReturn_Params := IntToStr(A) + ',' + IntToStr(B);
+  Result.A := 30;
+end;
+
+function Test_MyAllMethodsHandlerRecordReturn_Receive3(A, B: Integer): TTestHandlerRec3;
+begin
+  Test_MyAllMethodsHandlerRecordReturn_Params := IntToStr(A) + ',' + IntToStr(B);
+  Result.A := 30;
+  Result.B := 31;
+  Result.C := 32;
+end;
+
+function Test_MyAllMethodsHandlerRecordReturn_Receive4(A, B: Integer): TTestHandlerRec4;
+begin
+  Test_MyAllMethodsHandlerRecordReturn_Params := IntToStr(A) + ',' + IntToStr(B);
+  Result.A := 300;
+  Result.B := 301;
+end;
+
+function Test_MyAllMethodsHandlerRecordReturn_Receive8(A, B: Integer): TTestHandlerRec8;
+begin
+  Test_MyAllMethodsHandlerRecordReturn_Params := IntToStr(A) + ',' + IntToStr(B);
+  Result.A := 300;
+  Result.B := 301;
+  Result.C := 302;
+  Result.D := 303;
+end;
+
+function Test_MyAllMethodsHandlerRecordReturn_ReceiveString(A, B: Integer): TTestHandlerRecString;
+begin
+  Test_MyAllMethodsHandlerRecordReturn_Params := IntToStr(A) + ',' + IntToStr(B);
+  { Force real reference counting }
+  Result.S := '310,' + IntToStr(311);
+end;
+
+var
+  Test_MyAllMethodsHandlerArrayReturn_Params: String;
+
+{ The following 4 functions also store their parameters, because a result bug
+  can also show up as bad parameters }
+function Test_MyAllMethodsHandlerArrayReturn_Receive3(A, B: Integer): TTestHandlerArr3;
+begin
+  Test_MyAllMethodsHandlerArrayReturn_Params := IntToStr(A) + ',' + IntToStr(B);
+  Result[0] := 30;
+  Result[1] := 31;
+  Result[2] := 32;
+end;
+
+function Test_MyAllMethodsHandlerArrayReturn_Receive4(A, B: Integer): TTestHandlerArr4;
+begin
+  Test_MyAllMethodsHandlerArrayReturn_Params := IntToStr(A) + ',' + IntToStr(B);
+  Result[0] := 40;
+  Result[1] := 41;
+  Result[2] := 42;
+  Result[3] := 43;
+end;
+
+function Test_MyAllMethodsHandlerArrayReturn_Receive8(A, B: Integer): TTestHandlerArr8;
+var
+  I: Integer;
+begin
+  Test_MyAllMethodsHandlerArrayReturn_Params := IntToStr(A) + ',' + IntToStr(B);
+  for I := 0 to High(Result) do
+    Result[I] := 80 + I;
+end;
+
+function Test_MyAllMethodsHandlerArrayReturn_ReceiveString(A, B: Integer): TTestHandlerArrString;
+begin
+  Test_MyAllMethodsHandlerArrayReturn_Params := IntToStr(A) + ',' + IntToStr(B);
+  { Force real reference counting }
+  Result[0] := '310,' + IntToStr(311);
+end;
+
+procedure Test_MyAllMethodsHandlerRecordArrayReturn;
+begin
+  Test_MyAllMethodsHandlerRecordReturn_Params := '';
+  CheckEqualsString('30', TestHandler_InvokeRecRet1(@Test_MyAllMethodsHandlerRecordReturn_Receive1));
+  CheckEqualsString('10,20', Test_MyAllMethodsHandlerRecordReturn_Params);
+
+  Test_MyAllMethodsHandlerRecordReturn_Params := '';
+  CheckEqualsString('30,31,32', TestHandler_InvokeRecRet3(@Test_MyAllMethodsHandlerRecordReturn_Receive3));
+  CheckEqualsString('10,20', Test_MyAllMethodsHandlerRecordReturn_Params);
+
+  Test_MyAllMethodsHandlerRecordReturn_Params := '';
+  CheckEqualsString('300,301', TestHandler_InvokeRecRet4(@Test_MyAllMethodsHandlerRecordReturn_Receive4));
+  CheckEqualsString('10,20', Test_MyAllMethodsHandlerRecordReturn_Params);
+
+  Test_MyAllMethodsHandlerRecordReturn_Params := '';
+  CheckEqualsString('300,301,302,303', TestHandler_InvokeRecRet8(@Test_MyAllMethodsHandlerRecordReturn_Receive8));
+  CheckEqualsString('10,20', Test_MyAllMethodsHandlerRecordReturn_Params);
+
+  Test_MyAllMethodsHandlerRecordReturn_Params := '';
+  CheckEqualsString('310,311', TestHandler_InvokeRecRetString(@Test_MyAllMethodsHandlerRecordReturn_ReceiveString));
+  CheckEqualsString('10,20', Test_MyAllMethodsHandlerRecordReturn_Params);
+
+  Test_MyAllMethodsHandlerArrayReturn_Params := '';
+  CheckEqualsString('30,31,32', TestHandler_InvokeArrRet3(@Test_MyAllMethodsHandlerArrayReturn_Receive3));
+  CheckEqualsString('10,20', Test_MyAllMethodsHandlerArrayReturn_Params);
+
+  Test_MyAllMethodsHandlerArrayReturn_Params := '';
+  CheckEqualsString('40,41,42,43', TestHandler_InvokeArrRet4(@Test_MyAllMethodsHandlerArrayReturn_Receive4));
+  CheckEqualsString('10,20', Test_MyAllMethodsHandlerArrayReturn_Params);
+
+  Test_MyAllMethodsHandlerArrayReturn_Params := '';
+  CheckEqualsString('80,87', TestHandler_InvokeArrRet8(@Test_MyAllMethodsHandlerArrayReturn_Receive8));
+  CheckEqualsString('10,20', Test_MyAllMethodsHandlerArrayReturn_Params);
+
+  Test_MyAllMethodsHandlerArrayReturn_Params := '';
+  CheckEqualsString('310,311', TestHandler_InvokeArrRetString(@Test_MyAllMethodsHandlerArrayReturn_ReceiveString));
+  CheckEqualsString('10,20', Test_MyAllMethodsHandlerArrayReturn_Params);
 end;
 
 procedure Test_TypelessParamFunctions;
@@ -3084,6 +3383,8 @@ begin
   Test_InnerfuseCallHelperTypeSizes;
   Test_InnerfuseCallParamTypes;
   Test_InnerfuseCallParamTypesStdCall;
+  Test_InnerfuseCallPointerSizeManagedByValueRecordArray;
+  Test_InnerfuseCallRecordArrayReturn;
   Test_InnerfuseCallSafeCall;
   Test_InnerfuseCallSafeCallException;
   Test_InnerfuseCallException;
@@ -3099,6 +3400,7 @@ begin
   Test_CreateCallback;
   Test_MyAllMethodsHandlerByValue;
   Test_MyAllMethodsHandlerByValueRecordSetArray;
+  Test_MyAllMethodsHandlerRecordArrayReturn;
   Test_TypelessParamFunctions;
   Test_DefProcFloatToInt;
   Test_AnyStringFunctions;

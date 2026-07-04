@@ -74,9 +74,31 @@ var
     'procedure TestCreateCallback_InvokeExtended4(Callback: NativeInt; A, B, C: Integer; D: Extended);',
     'function TestCreateCallback_InvokeReturnInteger(Callback: NativeInt; A, B: Integer): Integer;',
     'function TestCreateCallback_InvokeReturnDouble(Callback: NativeInt; A, B: Integer): Double;',
+    'function TestCreateCallback_InvokeReturnInt64(Callback: NativeInt; A, B: Integer): Int64;',
     'procedure TestCreateCallback_InvokeRec8(Callback: NativeInt; const R: TTestHandlerRec8; Tail: Integer);',
     'procedure TestCreateCallback_InvokeSet8(Callback: NativeInt; const S: TTestHandlerSet8; Tail: Integer);',
-    'procedure TestCreateCallback_InvokeArray8(Callback: NativeInt; const A: TTestHandlerArr8; Tail: Integer);'
+    'procedure TestCreateCallback_InvokeArray8(Callback: NativeInt; const A: TTestHandlerArr8; Tail: Integer);',
+    'function TestInnerfuse_RecStringLength(Value: TTestHandlerRecString): Integer;',
+    'function TestInnerfuse_RecStringLengthStdCall(Value: TTestHandlerRecString): Integer;',
+    'function TestInnerfuse_ArrStringLength(Value: TTestHandlerArrString): Integer;',
+    'function TestInnerfuse_ArrStringLengthStdCall(Value: TTestHandlerArrString): Integer;',
+    'function TestInnerfuse_ReturnRec3(Base: Byte): TTestHandlerRec3;',
+    'function TestInnerfuse_ReturnRec4(Base: Word): TTestHandlerRec4;',
+    'function TestInnerfuse_ReturnRec8(Base: Word): TTestHandlerRec8;',
+    'function TestInnerfuse_ReturnRecString(A, B: Integer): TTestHandlerRecString;',
+    'function TestInnerfuse_ReturnSet6(A, B: Integer): TTestHandlerSet6;',
+    'function TestInnerfuse_ReturnArr1(Base: Byte): TTestHandlerArr1;',
+    'function TestInnerfuse_ReturnArr2(Base: Byte): TTestHandlerArr2;',
+    'function TestInnerfuse_ReturnArr3(Base: Byte): TTestHandlerArr3;',
+    'function TestInnerfuse_ReturnArr4(Base: Byte): TTestHandlerArr4;',
+    'function TestInnerfuse_ReturnArr8(Base: Byte): TTestHandlerArr8;',
+    'function TestInnerfuse_ReturnArrString(A, B: Integer): TTestHandlerArrString;',
+    'function TestInnerfuse_ReturnArr4Pascal(Base: Byte): TTestHandlerArr4;',
+    'function TestInnerfuse_ReturnArrStringPascal(A, B: Integer): TTestHandlerArrString;',
+    'function TestInnerfuse_ReturnArr4Cdecl(Base: Byte): TTestHandlerArr4;',
+    'function TestInnerfuse_ReturnArrStringCdecl(A, B: Integer): TTestHandlerArrString;',
+    'function TestInnerfuse_ReturnArr4StdCall(Base: Byte): TTestHandlerArr4;',
+    'function TestInnerfuse_ReturnArrStringStdCall(A, B: Integer): TTestHandlerArrString;'
   ];
 
 {$IFDEF ISIDEPROJ}
