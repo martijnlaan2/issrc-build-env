@@ -886,6 +886,7 @@ const
 function PIFVariantToVariant(Src: PIFVariant; var Dest: Variant): Boolean;
 function VariantToPIFVariant(Exec: TPSExec; const Src: Variant; Dest: PIFVariant): Boolean;
 function ParamAsVariable(const Modifier: tbtchar; aType: TPSTypeRec): Boolean;
+function ResultAsRegister(b: TPSTypeRec): Boolean;
 
 function PSGetRecField(const avar: TPSVariantIFC; Fieldno: Longint): TPSVariantIFC;
 function PSGetArrayField(const avar: TPSVariantIFC; Fieldno: Longint): TPSVariantIFC;
@@ -12688,7 +12689,10 @@ begin
         CopyArrayContents(Pointer(IPointer(Stack)-IPointer(PointerSize2)), @PPSVariantData(res)^.Data, 1, Res^.FType);
       end;
 {$ENDIF}
-    end;
+    end{$IFDEF DELPHI} else begin
+      { The Win64 ABI requires returning the hidden result pointer in RAX }
+      PPointer(ResPtr)^ := PPSVariantPointer(Res).DataDest;
+    end{$ENDIF};
     DestroyHeapVariant(res);
   end;
   for i := 0 to Params.Count - 1 do

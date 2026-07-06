@@ -597,7 +597,7 @@ procedure TWizardForm.NextButtonClick(Sender: TObject);
   begin
     Result := False;
 
-    if AppGroupNameEdit.Text = '' then begin
+    if AppGroupNameEdit.Enabled and (AppGroupNameEdit.Text = '') then begin
       MsgBox(LFmtMessage(SWizardAppGroupNameError), '', mbError, MB_OK);
       ActiveControl := AppGroupNameEdit;
     end else
@@ -627,6 +627,7 @@ begin
     wpAppDir: if not CheckAppDirPage then Exit;
     wpAppFiles: if not CheckAppFilesPage then Exit;
     wpAppIcons: if not CheckAppIconsPage then Exit;
+    wpAppRegistry: if not FRegistryHelper.ValidateOptionalFile then Exit;
     wpLanguages: if not CheckLanguagesPage then Exit;
   end;
 
@@ -1155,7 +1156,7 @@ begin
           Setup := Setup + 'DisableProgramGroupPage=yes' + SNewLine;
         if AllowNoIconsCheck.Checked and NotDisableProgramGroupPageCheck.Checked then
           Setup := Setup + 'AllowNoIcons=yes' + SNewLine;
-        if CreateURLIconCheck.Enabled and CreateURLIconCheck.Checked then
+        if CreateURLIconCheck.Enabled and CreateURLIconCheck.Checked and (AppURLEdit.Text <> '') then
           Icons := Icons + 'Name: "{group}\{cm:ProgramOnTheWeb,' + AppNameEdit.Text + '}"; Filename: "' + AppURLEdit.Text + '"' + SNewLine;
         if CreateUninstallIconCheck.Checked then
           Icons := Icons + 'Name: "{group}\{cm:UninstallProgram,' + AppNameEdit.Text + '}"; Filename: "{uninstallexe}"' + SNewLine;

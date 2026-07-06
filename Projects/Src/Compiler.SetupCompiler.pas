@@ -5821,6 +5821,8 @@ begin
         if (ADestDir = '{tmp}') or (Copy(ADestDir, 1, Length('{tmp}\')) = '{tmp}\') then
           Include(Options, foDeleteAfterInstall);
         if foDeleteAfterInstall in Options then begin
+          if ReadmeFile then
+            AbortCompileFmt(SCompilerFilesTmpBadFlag, ['isreadme']);
           if foRestartReplace in Options then
             AbortCompileFmt(SCompilerFilesTmpBadFlag, ['restartreplace']);
           if foUninsNeverUninstall in Options then
@@ -5862,6 +5864,8 @@ begin
           AbortCompileFmt(SCompilerParamFlagMissing, ['nocompression', 'dontverifychecksum']);
 
         if ExternalFile then begin
+          if ReadmeFile and (ADestName = '') then
+            AbortCompileFmt(SCompilerParamFlagMissingParam2, [ParamFilesDestName, 'external', 'isreadme']);
           if Sign <> fsNoSetting then
             AbortCompileFmt(SCompilerParamErrorBadCombo2,
               [ParamCommonFlags, 'external', SignFlags[Sign]]);
