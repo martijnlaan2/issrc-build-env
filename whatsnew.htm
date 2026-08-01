@@ -50,7 +50,7 @@ For conditions of distribution and use, see <tt><a href="files/is/license.txt">L
 <p><b>Want to be notified by e-mail of new Inno Setup releases?</b> <a href="ismail.php">Subscribe</a> to the Inno Setup Mailing List!</p>
 
 <details open="">
-<summary>Inno Setup 7.0</summary>
+<summary>Inno Setup 7.2</summary>
 
 <p><a name="7.2.0"></a><span class="ver">7.2.0-dev </span><span class="date">(?)</span></p>
 
@@ -63,14 +63,11 @@ For conditions of distribution and use, see <tt><a href="files/is/license.txt">L
   <ul>
     <li><tt>[Setup]</tt> section directive <tt>Compression</tt> can now be set to <tt>zstd</tt>, which enables <a href="https://facebook.github.io/zstd/">Zstandard</a> compression at level 19.<br/>
         It almost always compresses better than <tt>zip</tt> and <tt>bzip</tt>, and at its highest levels its compression ratio approaches that of <tt>lzma</tt> and <tt>lzma2</tt> while compressing faster. Decompression is extremely fast at every level.<br/>
-        When choosing between <tt>lzma2</tt> and <tt>zstd</tt>: at the same dictionary and window sizes, <tt>lzma2</tt> typically compresses 5 to 15% better than <tt>zstd</tt>, making it the best choice when a small download size is most important. In return, <tt>zstd</tt> decompresses roughly 20 times faster. This makes <tt>zstd</tt> the best choice when installation time is most important, such as with very large installations.
-    </li>
-    <li>Custom compression levels can be specified using <tt>zstd/1</tt> through <tt>zstd/22</tt>.
-    </li>
+        When choosing between <tt>lzma2</tt> and <tt>zstd</tt>: at the same dictionary and window sizes, <tt>lzma2</tt> typically compresses 5 to 15% better than <tt>zstd</tt>, making it the best choice when a small download size is most important. In return, <tt>zstd</tt> decompresses roughly 20 times faster. This makes <tt>zstd</tt> the best choice when installation time is most important, such as with very large installations.</li>
+    <li>Custom compression levels can be specified using <tt>zstd/1</tt> through <tt>zstd/22</tt>. Review <a href="https://jrsoftware.org/ishelp/index.php?topic=setup_compression">memory requirements</a> before using levels 21 and 22.</li>
     <li>Added new <tt>[Setup]</tt> section directive <tt>ZstdNumThreads</tt> to enable multi-threaded compression. Doing so has almost no effect on the compression ratio, unlike multi-threading for <tt>lzma2</tt> which has a negative effect.<br/>
         At level 20, the compiler lowers the compressor's default job size from 128 MB to 32 MB. This reduces memory use and allows compression to be aborted in a timely manner.<br/>
-        Levels 21 and 22 cannot be combined with this directive, because at those levels compression cannot be aborted in a timely manner.
-    </li>
+        Levels 21 and 22 cannot be combined with this directive, because at those levels compression cannot be aborted in a timely manner.</li>
     <li>Thanks to Amy Spark for their work on this, contributed via <a href="https://github.com/jrsoftware/issrc">GitHub</a>.</li>
   </ul>
   </li>
@@ -86,9 +83,14 @@ For conditions of distribution and use, see <tt><a href="files/is/license.txt">L
     <li>Supports screen readers, high-contrast themes, and dark mode.</li>
     <li>Shown by default and can be hidden via the <i>View</i> menu. New options control whether unspecified directives are shown and whether new values are quoted.<br/>
         Unspecified directives are only shown for the main file, and only when it contains a single occurrence of the section.</li>
+    <li>Thanks to the creators of <a href="https://github.com/project-jedi/jvcl">TJvInspector</a>: The (heavily modified) inspector control used in the Compiler IDE.</li>
   </ul>
   </li>
 </ul>
+
+</details>
+<details>
+<summary>Inno Setup 7.1</summary>
 
 <p><a name="7.1.0"></a><span class="ver">7.1.0-dev </span><span class="date">(2026-08-12)</span></p>
 
@@ -204,6 +206,10 @@ For conditions of distribution and use, see <tt><a href="files/is/license.txt">L
   <li><i>Fix:</i> A <tt>+</tt> in the username or password of a download URL is no longer decoded as a space.</li>
   <li>Many other minor improvements and fixes.</li>
 </ul>
+
+</details>
+<details>
+<summary>Inno Setup 7.0</summary>
 
 <p><a name="7.0.2"></a><span class="ver">7.0.2 </span><span class="date">(2026-07-13)</span></p>
 
@@ -404,7 +410,6 @@ For conditions of distribution and use, see <tt><a href="files/is/license.txt">L
       For example, if the archive contained a file in a subdirectory as its first entry (for example, <tt>subdir\file1.txt</tt> followed by <tt>file2.txt</tt>) and <tt>recursesubdirs</tt> was not used, no files would be extracted at all, not even <tt>file2.txt</tt>.</li>
   <li>Many other minor improvements and fixes.</li>
 </ul>
-
 
 </details>
 <details>
