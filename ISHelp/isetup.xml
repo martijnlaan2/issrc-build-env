@@ -1036,6 +1036,7 @@ Besides space separated lists, you may also use boolean expressions containing c
 <li><link topic="setup_versioninfoproductversion">VersionInfoProductVersion</link></li>
 <li><link topic="setup_versioninfotextversion">VersionInfoTextVersion</link></li>
 <li><link topic="setup_versioninfoversion">VersionInfoVersion</link></li>
+<li><link topic="setup_zstdnumthreads">ZstdNumThreads</link></li>
 </ul>
 
 <heading>Installer-related</heading>
@@ -3548,6 +3549,7 @@ Shown by default, but can be disabled in some cases via <sd>DisableFinishedPage<
 <keyword value="Compiler IDE Keyboard And Mouse Commands" />
 <keyword value="Keyboard commands" />
 <keyword value="Mouse commands" />
+<keyword value="Inspector keyboard and mouse commands" />
 <body>
 
 <p>Besides the keyboard commands listed in the menus, the Compiler IDE supports additional keyboard and mouse commands, some of which depend on the active editor key map.</p>
@@ -3585,13 +3587,13 @@ Shown by default, but can be disabled in some cases via <sd>DisableFinishedPage<
   <td>Delete to start of word</td><td>Ctrl+Backspace</td>
 </tr>
 <tr>
-  <td>Delete to end of word</td><td>Ctrl+Delete</td>
+  <td>Delete to end of word</td><td>Ctrl+Del</td>
 </tr>
 <tr>
   <td>Delete to start of line</td><td>Ctrl+Shift+Backspace</td>
 </tr>
 <tr>
-  <td>Delete to end of line</td><td>Ctrl+Shift+Delete</td>
+  <td>Delete to end of line</td><td>Ctrl+Shift+Del</td>
 </tr>
 <tr>
   <td>&nbsp;</td>
@@ -3642,7 +3644,7 @@ Shown by default, but can be disabled in some cases via <sd>DisableFinishedPage<
   <td>&nbsp;</td>
 </tr>
 <tr>
-  <td>Cut selection or line</td><td>Ctrl+X or Shift+Delete</td>
+  <td>Cut selection or line</td><td>Ctrl+X or Shift+Del</td>
 </tr>
 <tr>
   <td>Copy selection or line</td><td>Ctrl+C or Ctrl+Insert</td>
@@ -3789,7 +3791,64 @@ Shown by default, but can be disabled in some cases via <sd>DisableFinishedPage<
   <td>Close current tab</td><td>Ctrl+F4 or Ctrl+W</td>
 </tr>
 <tr>
-  <td>Switch between the active memo, the active bottom pane, and the active banner</td><td>F6</td>
+  <td>Switch between the active memo, the active bottom pane, the Inspector filter, the Inspector, and the active banner</td><td>F6</td>
+</tr>
+</table>
+
+<p>The Inspector supports its own keyboard and mouse commands, listed below.</p>
+
+<table>
+<tr><th>Command</th><th>Keyboard or mouse</th></tr>
+<tr>
+  <td>Move between rows</td><td>Up, Down, Page Up, or Page Down</td>
+</tr>
+<tr>
+  <td>Expand the selected row</td><td>Numpad + or Ctrl+Numpad +</td>
+</tr>
+<tr>
+  <td>Collapse the selected row</td><td>Numpad - or Ctrl+Numpad -</td>
+</tr>
+<tr>
+  <td>Expand or collapse the selected row</td><td>Enter or Space</td>
+</tr>
+<tr>
+  <td>Expand the selected row, or move to its first child</td><td>Right</td>
+</tr>
+<tr>
+  <td>Collapse the selected row, or move to its parent</td><td>Left</td>
+</tr>
+<tr>
+  <td>Expand or collapse any row</td><td>Click the expand button, or DoubleClick the row's name</td>
+</tr>
+<tr>
+  <td>Commit the value being edited</td><td>Enter</td>
+</tr>
+<tr>
+  <td>Discard changes to the value being edited</td><td>Esc</td>
+</tr>
+<tr>
+  <td>Open or close the drop-down list of a choice value</td><td>F4, Alt+Down, Alt+Up, or click the drop-down button</td>
+</tr>
+<tr>
+  <td>Change to the next value in the list</td><td>Ctrl+Down, Ctrl+Enter, or DoubleClick the value</td>
+</tr>
+<tr>
+  <td>Change to the previous value in the list</td><td>Ctrl+Up</td>
+</tr>
+<tr>
+  <td>Toggle a <tt>yes</tt>/<tt>no</tt> value</td><td>Space or click the checkbox</td>
+</tr>
+<tr>
+  <td>Go to the selected row's line in the script</td><td>Ctrl+G, or (if the row is not expandable) DoubleClick the row's name</td>
+</tr>
+<tr>
+  <td>Remove the selected key or parameter from the script</td><td>Ctrl+Del, or (if the row shows a checkbox) Del</td>
+</tr>
+<tr>
+  <td>Show help for the selected directive, parameter, or flag</td><td>F1</td>
+</tr>
+<tr>
+  <td>Clear the filter</td><td>Esc in the filter edit</td>
 </tr>
 </table>
 
@@ -4839,6 +4898,10 @@ Keep the default set of selected tasks, but deselect the "desktopicon" task:<br/
 
 <li>Igor Pavlov: Creator of the <extlink href="https://7-zip.org/">7-Zip</extlink> and <extlink href="http://www.7-zip.org/sdk.html">LZMA SDK</extlink> libraries that Inno Setup uses.</li>
 
+<li>Yann Collet: Creator of the <extlink href="https://facebook.github.io/zstd/">Zstandard</extlink> compression library that Inno Setup uses (7.2).</li>
+
+<li>Amy Spark: Most of the code for the Zstandard integration (7.2).</li>
+
 <li>Vince Valenti: Most of the code for the "Window" <sn>[Setup]</sn> section directives (1.12.4 - 6.3.3).</li>
 
 <li>Joe White: Code for <sd>ChangesAssociations</sd> <sn>[Setup]</sn> section directive (1.2).</li>
@@ -4856,6 +4919,8 @@ Keep the default set of selected tasks, but deselect the "desktopicon" task:<br/
 <li>Creators of UniSynEdit: The syntax-highlighting editor used in the Compiler IDE (5.3 - 5.3.11).</li>
 
 <li>Creators of <extlink href="http://www.scintilla.org/">Scintilla</extlink>: The syntax-highlighting editor used in the Compiler IDE (5.4).</li>
+
+<li>Creators of <extlink href="https://github.com/project-jedi/jvcl">TJvInspector</extlink>: The inspector control used in the Compiler IDE (7.2).</li>
 
 <li>Zaher Dirkey: Initial work on improved right-to-left languages support (5.2.3).</li>
 
@@ -5282,7 +5347,7 @@ CreateMutex <num>0</num><key>&amp;</key>, <num>0</num><key>&amp;</key>, <str>"My
 </setuptopic>
 
 <setuptopic directive="DisablePrecompiledFileVerifications">
-<setupvalid>One or more of the following, separated by spaces:<br/><tt>setup</tt><br/><tt>setupcustomstyle</tt><br/><tt>setupldr</tt><br/><tt>is7z</tt><br/><tt>isbunzip</tt><br/><tt>isunzlib</tt><br/><tt>islzma</tt></setupvalid>
+<setupvalid>One or more of the following, separated by spaces:<br/><tt>setup</tt><br/><tt>setupcustomstyle</tt><br/><tt>setupldr</tt><br/><tt>is7z</tt><br/><tt>isbunzip</tt><br/><tt>isunzlib</tt><br/><tt>islzma</tt><br/><tt>isunzstd</tt></setupvalid>
 <setupdefault><i>(blank)</i></setupdefault>
 <body>
 <p>The compiler verifies precompiled files before using them. For certain files, you can disable verification if necessary. Use this directive to specify the list of files that should not be verified.</p>
@@ -5371,11 +5436,15 @@ CreateMutex <num>0</num><key>&amp;</key>, <num>0</num><key>&amp;</key>, <str>"My
 <keyword value="zip" />
 <keyword value="bzip" />
 <keyword value="lzma" />
+<keyword value="zstd" />
 <keyword value="lzma2" />
 <setupvalid><tt>zip</tt><br/>
 <tt>zip/1</tt> through <tt>zip/9</tt><br/>
 <tt>bzip</tt><br/>
 <tt>bzip/1</tt> through <tt>bzip/9</tt><br/>
+<tt>zstd</tt><br/>
+<tt>zstd/1</tt> through <tt>zstd/20</tt><br/>
+<tt>zstd/21</tt> and <tt>zstd/22</tt> &nbsp;&nbsp;(review memory requirements below before using)<br/>
 <tt>lzma</tt><br/>
 <tt>lzma/fast</tt><br/>
 <tt>lzma/normal</tt><br/>
@@ -5394,7 +5463,25 @@ CreateMutex <num>0</num><key>&amp;</key>, <num>0</num><key>&amp;</key>, <str>"My
 <p>This specifies the method of compression to use on the files, and optionally the level of compression. Higher levels compress better but take longer doing so, and may also require more memory while compressing/decompressing.</p>
 <p><tt>zip</tt> is the method of compression employed by <tt>.zip</tt> files ("deflate"). It is fast in both compression and decompression, and has very low memory requirements (less than 1 MB for both compression and decompression at level 9), but generally does not compress nearly as well as the other supported methods. <tt>zip</tt>, like <tt>lzma2</tt>, has one special property, though: it will not expand incompressible data (e.g., files that are already compressed). If a compression level isn't specified, it defaults to 7.</p>
 <p><tt>bzip</tt> is the method of compression employed by the <extlink href="http://www.bzip.org/">bzip2</extlink> compressor. It almost always compresses better than <tt>zip</tt> but is usually slower in both compression and decompression. Up to 4 MB of memory is required during decompression, and up to 8 MB during compression. If a compression level isn't specified, it defaults to 9.</p>
-<p><tt>lzma</tt> is the method of compression employed by the <extlink href="http://www.7-zip.org/">7-Zip LZMA</extlink> compressor. It typically compresses significantly better than the <tt>zip</tt> and <tt>bzip</tt> methods. However, depending on the compression level used, it can be significantly slower at compressing, and consume a <i>lot</i> more memory. The following table summarizes the approximate memory requirements for each of the supported <tt>lzma</tt> compression levels. If a compression level isn't specified, it defaults to <tt>max</tt>.</p>
+<p><tt>zstd</tt> is the method of compression employed by the <extlink href="https://facebook.github.io/zstd/">Zstandard</extlink> compressor. It almost always compresses better than <tt>zip</tt> and <tt>bzip</tt>, and at its highest levels its compression ratio approaches that of <tt>lzma</tt> and <tt>lzma2</tt> while compressing faster. Decompression is extremely fast at every level. Optionally it can compress multiple parts of large files in parallel, greatly increasing compression speed with almost no reduction in compression ratio (see <sd>ZstdNumThreads</sd>). The following table summarizes the approximate memory requirements for the most meaningful <tt>zstd</tt> compression levels. If a compression level isn't specified, it defaults to 19.</p>
+<indent>
+<table>
+<tr><th>Level</th><th>Decompression<br/>(window size + 0.5 MB)</th><th>Compression<br/>(1 MB + match tables + 2 * window size)</th></tr>
+<tr><td><tt>1</tt></td><td>1 MB</td><td>2 MB</td></tr>
+<tr><td><tt>3</tt></td><td>2.5 MB</td><td>6 MB</td></tr>
+<tr><td><tt>6</tt></td><td>2.5 MB</td><td>7.5 MB</td></tr>
+<tr><td><tt>8</tt></td><td>2.5 MB</td><td>10 MB</td></tr>
+<tr><td><tt>13</tt></td><td>4.5 MB</td><td>41 MB</td></tr>
+<tr><td><tt>16</tt></td><td>4.5 MB</td><td>42 MB</td></tr>
+<tr><td><tt>18</tt></td><td>8.5 MB</td><td>66 MB</td></tr>
+<tr><td><tt>19</tt> (default)</td><td>8.5 MB</td><td>98 MB</td></tr>
+<tr><td><tt>20</tt></td><td>33 MB</td><td>226 MB</td></tr>
+<tr><td><tt>21</tt></td><td>65 MB</td><td>450 MB</td></tr>
+<tr><td><tt>22</tt></td><td>129 MB</td><td>898 MB</td></tr>
+</table>
+<p>See <sd>ZstdNumThreads</sd> for the compression memory required when multiple compression threads are used. Levels 21 and 22 cannot be combined with multiple compression threads.</p>
+</indent>
+<p><tt>lzma</tt> is the method of compression employed by the <extlink href="http://www.7-zip.org/">7-Zip LZMA</extlink> compressor. It typically compresses significantly better than the <tt>zip</tt> and <tt>bzip</tt> methods, and somewhat better than <tt>zstd</tt>. However, depending on the compression level used, it can be significantly slower at compressing, and consume a <i>lot</i> more memory. The following table summarizes the approximate memory requirements for each of the supported <tt>lzma</tt> compression levels. If a compression level isn't specified, it defaults to <tt>max</tt>.</p>
 <indent>
 <table>
 <tr><th>Level</th><th>Decompression<br/>(dictionary size)</th><th>Compression<br/>(6 MB + 11.5 * dictionary size)</th></tr>
@@ -5414,7 +5501,8 @@ CreateMutex <num>0</num><key>&amp;</key>, <num>0</num><key>&amp;</key>, <str>"My
 <p>Dictionary sizes larger than 1 GB are only supported by <link topic="setup_setuparchitecture">64-bit Setup</link>.</p>
 <p>The compression memory requirements are approximately 60% of the above when <sd>LZMAMatchFinder</sd> is set to <tt>HC</tt> at the expense of compression ratio.</p>
 </indent>
-<p><tt>lzma2</tt> is the method of compression employed by the <extlink href="http://www.7-zip.org/">7-Zip LZMA2</extlink> compressor. LZMA2 is a modified version of LZMA that offers a better compression ratio for incompressible data (random data expands about 0.005%, compared to 1.35% with original LZMA), and optionally can compress multiple parts of large files in parallel, greatly increasing compression speed but with a possible reduction in compression ratio (see <sd>LZMANumBlockThreads</sd>). If a compression level isn't specified, it defaults to <tt>max</tt>. Like LZMA, LZMA2 can consume a <i>lot</i> of memory; see the above table. Do note: LZMA2 only supports a limited number of dictionary sizes and other sizes will be rounded up to the next supported size. Supported sizes are powers of two starting at 4 (4, 8, 16, 32, etc.) and the midway points between them (6, 12, 24, etc.). For instance, a dictionary size of 524289 (512 MB + 1 byte) has the same memory requirements as one of 786432 (768 MB).</p>
+<p><tt>lzma2</tt> is the method of compression employed by the <extlink href="http://www.7-zip.org/">7-Zip LZMA2</extlink> compressor. LZMA2 is a modified version of LZMA that offers a better compression ratio for incompressible data (random data expands about 0.005%, compared to 1.35% with original LZMA), and optionally can compress multiple parts of large files in parallel, greatly increasing compression speed but (unlike <tt>zstd</tt>) with a possible reduction in compression ratio (see <sd>LZMANumBlockThreads</sd>). If a compression level isn't specified, it defaults to <tt>max</tt>. Like LZMA, LZMA2 can consume a <i>lot</i> of memory; see the above table. Do note: LZMA2 only supports a limited number of dictionary sizes and other sizes will be rounded up to the next supported size. Supported sizes are powers of two starting at 4 (4, 8, 16, 32, etc.) and the midway points between them (6, 12, 24, etc.). For instance, a dictionary size of 524289 (512 MB + 1 byte) has the same memory requirements as one of 786432 (768 MB).</p>
+<p>When choosing between <tt>lzma2</tt> and <tt>zstd</tt>: at the same dictionary and window sizes, <tt>lzma2</tt> typically compresses 5 to 15% better than <tt>zstd</tt>, making it the best choice when a small download size is most important. In return, <tt>zstd</tt> decompresses roughly 20 times faster. This makes <tt>zstd</tt> the best choice when installation time is most important, such as with very large installations.</p>
 <p><tt>none</tt> specifies that no compression be used.</p>
 <p><b>See also:</b><br/>
 <sd>SolidCompression</sd><br/>
@@ -5424,7 +5512,8 @@ CreateMutex <num>0</num><key>&amp;</key>, <num>0</num><key>&amp;</key>, <str>"My
 <sd>LZMAMatchFinder</sd><br/>
 <sd>LZMANumBlockThreads</sd><br/>
 <sd>LZMANumFastBytes</sd><br/>
-<sd>LZMAUseSeparateProcess</sd>
+<sd>LZMAUseSeparateProcess</sd><br/>
+<sd>ZstdNumThreads</sd>
 </p>
 </body>
 </setuptopic>
@@ -5443,7 +5532,8 @@ CreateMutex <num>0</num><key>&amp;</key>, <num>0</num><key>&amp;</key>, <str>"My
 <p>Values of <tt>2</tt> or higher are currently equivalent to <tt>auto</tt>.</p>
 <p>Note that for the LZMA2 compressor, this directive only controls whether the multi-threaded match finder is used. To enable support for compressing multiple parts of large files in parallel, set <sd>LZMANumBlockThreads</sd>.</p>
 <p><b>See also:</b><br/>
-<sd>LZMANumBlockThreads</sd></p>
+<sd>LZMANumBlockThreads</sd><br/>
+<sd>ZstdNumThreads</sd></p>
 </body>
 </setuptopic>
 
@@ -7156,6 +7246,19 @@ Or, a boolean expression containing <link topic="archidentifiers">architecture i
 <p><link topic="64bit">32-bit compiler</link>: If an "Out of memory" error is seen when multiple block threads are enabled in combination with a compression level that uses a large dictionary size (such as <tt>ultra64</tt>), <sd>LZMAUseSeparateProcess</sd> may need to be set.</p>
 <p><b>See also:</b><br/>
 <sd>LZMABlockSize</sd></p>
+</body>
+</setuptopic>
+
+<setuptopic directive="ZstdNumThreads">
+<setupvalid><tt>1</tt> through <tt>64</tt></setupvalid>
+<setupdefault><tt>1</tt></setupdefault>
+<body>
+<p>When compressing a large file, the zstd compressor has the ability to divide its data into "jobs" and compress two or more of these jobs in parallel through the use of additional threads (provided sufficient processor power is available). This directive specifies the maximum number of threads to use -- that is, the maximum number of jobs that the zstd compressor may compress in parallel. Using a high maximum requires a very large file before this maximum is fully used. At the default setting of <tt>1</tt>, the data is not divided into jobs and a single thread is used.</p>
+<p>The memory required during compression when multiple threads are used is roughly:</p>
+<indent><p><tt>ZstdNumThreads</tt> * (<link topic="setup_compression">Normal memory usage</link> + (job size * 2)) + (job size * 4)</p></indent>
+<p>The job size is 2 MB at level 1, 4 MB at level 2, 8 MB at levels 3-8, 16 MB at levels 9-16, and 32 MB at levels 17-20. At level 20, the compiler lowers the zstd compressor's default job size from 128 MB to 32 MB. This reduces memory use and allows compression to be aborted in a timely manner.</p>
+<p>Dividing the data into multiple jobs has almost no effect on the compression ratio, as consecutive jobs overlap and the compressor can still find nearby matches across job boundaries.</p>
+<p>Setting this directive to <tt>2</tt> or higher is not supported at <link topic="setup_compression">compression levels</link> 21 and 22, because at those levels compression cannot be aborted in a timely manner.</p>
 </body>
 </setuptopic>
 
