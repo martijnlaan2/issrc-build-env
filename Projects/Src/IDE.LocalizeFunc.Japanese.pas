@@ -15,7 +15,7 @@ uses
   IDE.LocalizeFunc;
 
 const
-  JapaneseIDETranslations: array [0..971] of TTranslationPair = (
+  JapaneseIDETranslations: array [0..977] of TTranslationPair = (
     (English: 'Command-line usage:'; Localized: 'コマンドラインの使用法:'),
     (English: 'Examples:'; Localized: '使用例:'),
     (English: 'script file'; Localized: 'スクリプトファイル'),
@@ -37,6 +37,11 @@ const
     (English: 'Rich Text Format files'; Localized: 'リッチ テキスト形式ファイル'),
     (English: 'Registry files'; Localized: 'レジストリファイル'),
     (English: 'Icon files'; Localized: 'アイコンファイル'),
+    (English: 'Image files'; Localized: '画像ファイル'),
+    (English: 'VCL Styles files'; Localized: 'VCL Styles ファイル'),
+    (English: 'Inno Setup Messages files'; Localized: 'Inno Setup メッセージファイル'),
+    (English: 'Public key files'; Localized: '公開鍵ファイル'),
+    (English: 'Text files'; Localized: 'テキストファイル'),
     (English: 'Inno Setup Script Wizard'; Localized: 'Inno Setup スクリプトウィザード'),
     (English: 'Welcome'; Localized: 'ようこそ'),
     (English: 'Application Information'; Localized: 'アプリケーション情報'),
@@ -177,6 +182,7 @@ const
     (English: 'Invalid command.'; Localized: '無効なコマンドです。'),
     (English: '%1 must be an integer value'; Localized: '%1 は整数値である必要があります'),
     (English: 'The script cannot be edited because it is read-only'; Localized: 'スクリプトは読み取り専用のため編集できません'),
+    (English: 'Parameter "%1" cannot be browsed for when the "%2" flag is used'; Localized: '"%2" フラグが使用されている場合、"%1" パラメーターは参照できません'),
     (English: 'Move to a key/value section or parameter entry'; Localized: 'キー/値のセクションまたはパラメーターエントリに移動してください'),
     (English: 'Unspecified directives are hidden because this section occurs more than once'; Localized: '未指定のディレクティブは、このセクションが複数回出現するため非表示になっています'),
     (English: 'Unspecified directives are hidden because this is not the main script file'; Localized: '未指定のディレクティブは、これがメインスクリプトファイルではないため非表示になっています'),

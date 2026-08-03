@@ -27,9 +27,17 @@ const
   SLitRegExt = 'reg';
   SLitIcoExt = 'ico';
   SLit7zExt  = '7z';
-  SLitExtAndAllFilter = '%s (*.%s)|*.%1:s|%s|*.*';
-  SLitDocsAndAllFilter = '%s (*.rtf,*.txt)|*.rtf;*.txt|%s|*.*';
+  SLitBmpExt = 'bmp';
+  SLitPngExt = 'png';
+  SLitVsfExt = 'vsf';
+  SLitIslExt = 'isl';
+  SLitTxtExt = 'txt';
+  SLitIsPublicKeyExt = 'ispublickey';
+  SLitExtFilter = '*.%s';
+  SLitExtsAndAllFilter = '%s (%s)|%s|%s|*.*';
   SLitAllFilesFilter = '%s|*.*';
+
+  { Do localize - should not contain script text }
 
   { Compiler-specific messages }
   SCompilerCommandLineHelpUsage = 'Command-line usage:';
@@ -57,6 +65,11 @@ const
   SRtfFiles = 'Rich Text Format files';
   SRegFiles = 'Registry files';
   SIcoFiles = 'Icon files';
+  SImageFiles = 'Image files';
+  SVclStylesFiles = 'VCL Styles files';
+  SIslFiles = 'Inno Setup Messages files';
+  SIsPublicKeyFiles = 'Public key files';
+  STxtFiles = 'Text files';
 
   { Compiler Script Wizard }
   SWizardDefaultName = 'Inno Setup Script Wizard';
@@ -225,11 +238,12 @@ const
   { Inspector }
   SInspectorIntegerValueError = '%1 must be an integer value';
   SInspectorReadOnlyError = 'The script cannot be edited because it is read-only';
+  SInspectorExternalSourceError = 'Parameter "%1" cannot be browsed for when the "%2" flag is used';
   SInspectorNothingToInspectNote = 'Move to a key/value section or parameter entry';
   SInspectorSiblingOccurrencesNote = 'Unspecified directives are hidden because this section occurs more than once';
   SInspectorShowAllKnownDirectivesSuppressedNote = 'Unspecified directives are hidden because this is not the main script file';
 
-  { Inspector category display names, must match IDE.ScriptModel.Metadata's
+  { Inspector category display names, must match IDE.ScriptModel.Metadata.Extra's
     category tables. These are not referenced by the code but must still be
     present here, to ensure localization. }
   SInspectorCategoryCompiler = 'Compiler';

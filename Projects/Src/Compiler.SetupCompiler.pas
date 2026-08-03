@@ -395,18 +395,6 @@ const
 
   DefaultKDFIterations = 220000;
 
-function ExtractStr(var S: String; const Separator: Char): String;
-var
-  I: Integer;
-begin
-  repeat
-    I := PathPos(Separator, S);
-    if I = 0 then I := Length(S)+1;
-    Result := Trim(Copy(S, 1, I-1));
-    S := Trim(Copy(S, I+1, Maxint));
-  until (Result <> '') or (S = '');
-end;
-
 { TISSigKeyEntryExtraInfo }
 
 function TISSigKeyEntryExtraInfo.HasGroupName(const GroupName: String): Boolean;
@@ -1501,7 +1489,8 @@ function TSetupCompiler.PrependDirName(const Filename, Dir: String): String;
 { Filename and/or Dir are allowed to be empty:
   - If Filename is empty, an empty string is returned.
   - If Dir is empty, any prefix on Filename (like "compiler:") is expanded,
-    but if there is no prefix then Filename is returned unchanged. }
+    but if there is no prefix then Filename is returned unchanged.
+  Also see ScriptPathExpand in IDE.Inspector.pas. }
 
   function GetShellFolderPathCached(const FolderID: Integer;
     var CachedDir: String): String;

@@ -33,12 +33,15 @@ type
     CheckBox: Boolean;
   end;
 
+  TInspectorGetBaseDirEvent = function: String of object;
+
   TInspector = class
   private
     FJvInspector: TJvInspector;
     FMessagesWnd: HWND;
     FNoteText: TNewStaticText;
     FFactory: TLiveScriptObjectFactory;
+    FOnGetBaseDir: TInspectorGetBaseDirEvent;
     FLiveParameterSectionEntry: TLiveScriptParameterSectionEntry;
     FLiveKeyValueSection: TLiveScriptKeyValueSection;
     FLiveKeyValueSectionName: String;
@@ -83,6 +86,8 @@ type
     procedure JvInspectorKeyDown(Sender: TObject; var Key: Word;
       Shift: TShiftState);
     procedure JvInspectorLeafNameDblClick(Item: TJvCustomInspectorItem);
+    procedure JvInspectorEditButtonClick(Item: TJvCustomInspectorItem;
+      var Value: String);
     procedure MessagesWndProc(var Message: TMessage);
     function GetDividerWidth: Integer;
     procedure SetDividerWidth(const Value: Integer);
@@ -96,7 +101,8 @@ type
     constructor Create(const AJvInspector: TJvInspector;
       const ANoteText: TNewStaticText;
       const AFactory: TLiveScriptObjectFactory;
-      const AShowAllKnownDirectives: Boolean);
+      const AShowAllKnownDirectives: Boolean;
+      const AOnGetBaseDir: TInspectorGetBaseDirEvent);
     destructor Destroy; override;
     procedure ForceFinishEdit(const AForceCancel: Boolean = False);
     function GetSelectedHelpKeyword: String;
@@ -133,8 +139,8 @@ implementation
 
 uses
   SysUtils, StrUtils, UITypes, Themes, Forms, Generics.Defaults,
-  NewUxTheme,
-  Shared.CommonFunc,
+  BrowseFunc, NewUxTheme, PathFunc,
+  Shared.CommonFunc, Shared.CommonFunc.Vcl,
   IDE.HelperFunc, IDE.Messages, IDE.LocalizeFunc, IDE.ScriptModel.Metadata.Extra;
 
 type
@@ -143,18 +149,45 @@ type
 const
   WM_RemoveSelectedRow = WM_USER + 1;
 
+var
+  ScriptBrowseFileTypeFilters: array [TScriptBrowseFileType] of record
+    FilesName: String;
+    Extensions: TArray<String>; { First is default }
+  end;
+
+procedure InitializeScriptBrowseFileTypeFilters;
+
+  procedure BF(const AFileType: TScriptBrowseFileType; const AFilesName: String;
+    const AExtensions: TArray<String>);
+  begin
+    ScriptBrowseFileTypeFilters[AFileType].FilesName := AFilesName;
+    ScriptBrowseFileTypeFilters[AFileType].Extensions := AExtensions;
+  end;
+
+begin
+  BF(bftDocs, SDocFiles, [SLitRtfExt, SLitTxtExt]);
+  BF(bftIco, SIcoFiles, [SLitIcoExt]);
+  BF(bftImages, SImageFiles, [SLitPngExt, SLitBmpExt]);
+  BF(bftVclStyle, SVclStylesFiles, [SLitVsfExt]);
+  BF(bftIsl, SIslFiles, [SLitIslExt]);
+  BF(bftKey, SIsPublicKeyFiles, [SLitIsPublicKeyExt]);
+  BF(bftTxt, STxtFiles, [SLitTxtExt]);
+end;
+
 { TInspector }
 
 constructor TInspector.Create(const AJvInspector: TJvInspector;
   const ANoteText: TNewStaticText;
   const AFactory: TLiveScriptObjectFactory;
-  const AShowAllKnownDirectives: Boolean);
+  const AShowAllKnownDirectives: Boolean;
+  const AOnGetBaseDir: TInspectorGetBaseDirEvent);
 { Takes ownership of AJvInspector but not of ANoteText }
 begin
   inherited Create;
 
   FNoteText := ANoteText;
   FFactory := AFactory;
+  FOnGetBaseDir := AOnGetBaseDir;
   FShowAllKnownDirectives := AShowAllKnownDirectives;
   {$IFDEF DEBUG}
   FDebugStatusRowString := 'Not updated yet';
@@ -168,6 +201,7 @@ begin
   FJvInspector.OnKeyDown := JvInspectorKeyDown;
   FJvInspector.OnEditorKeyDown := JvInspectorKeyDown;
   FJvInspector.OnLeafNameDblClick := JvInspectorLeafNameDblClick;
+  FJvInspector.OnEditButtonClick := JvInspectorEditButtonClick;
   FJvInspector.OnGetAsOrdinal := RowGetAsOrdinal;
   FJvInspector.OnGetAsString := RowGetAsString;
   FJvInspector.OnSetAsOrdinal := RowSetAsOrdinal;
@@ -399,6 +433,204 @@ end;
 procedure TInspector.JvInspectorLeafNameDblClick(Item: TJvCustomInspectorItem);
 begin
   GoToSelectedRow;
+end;
+
+procedure TInspector.JvInspectorEditButtonClick(Item: TJvCustomInspectorItem;
+  var Value: String);
+
+  function ScriptPathExpand(const ABaseDir, AValue: String;
+    out AExpandedPath: String): Boolean;
+  begin
+    Result := False;
+
+    { Fail when AValue is empty or uses ISPP syntax }
+    if (AValue = '') or (Pos('{#', AValue) <> 0) then
+      Exit;
+
+    { Fail when AValue is relative and either the base dir is unknown, or a path
+      prefix like 'compiler:' is used (see TSetupCompiler.PrependDirName) }
+    if not PathIsRooted(AValue) and ((ABaseDir = '') or (PathPos(':', AValue) <> 0)) then
+      Exit;
+
+    Result := PathExpand(PathCombine(ABaseDir, AValue), AExpandedPath);
+  end;
+
+  function GetBaseDirForMember(const ADefinition: TMemberDefinition): String;
+  begin
+    { Get base directory }
+    var BaseDir := '';
+    if Assigned(FOnGetBaseDir) then
+      BaseDir := FOnGetBaseDir;
+    if BaseDir = '' then
+      Exit('');
+    var ExpandedBaseDir: String;
+    if not PathExpand(BaseDir, ExpandedBaseDir) then
+      Exit('');
+
+    { SourceDir itself resolves against the plain base directory }
+    if (ADefinition.ValueKind = mvkCompilerPath) and
+       SameText(ADefinition.Name, 'SourceDir') then
+      Exit(ExpandedBaseDir);
+
+    { Combine with the main file's [Setup] SourceDir when present, like the
+      compiler's PrependSourceDirName }
+    var SourceDir := ExpandedBaseDir;
+    const SourceDirValue = FindSetupDirectiveValue('SourceDir');
+    if SourceDirValue <> '' then
+      if not ScriptPathExpand(ExpandedBaseDir, SourceDirValue, SourceDir) then
+        Exit('');
+
+    { mvkCompilerDestFile: Additionally combine with the main file's [Setup]
+      OutputDir, like the compiler's PrependDirName for OutputManifestFile.
+      Else: Done. }
+    if ADefinition.ValueKind <> mvkCompilerDestFile then
+      Exit(SourceDir);
+    const OutputDirValue = FindSetupDirectiveValue('OutputDir');
+    var OutputDir: String;
+    if not ScriptPathExpand(SourceDir, OutputDirValue, OutputDir) then
+      Exit('');
+    Result := OutputDir;
+  end;
+
+  procedure MakeRelative(var Path: String; const BaseDir: String);
+  begin
+    if BaseDir = '' then
+      Exit;
+    const Prefix = AddBackslash(BaseDir);
+    if PathStartsWith(AddBackslash(Path), Prefix) then begin
+      if Length(Path) > Length(Prefix) then
+        Path := Copy(Path, Length(Prefix)+1, Maxint)
+      else
+        Path := '.';
+    end;
+  end;
+
+begin
+  if FFactory.Memo.ReadOnly then
+    Exit;
+
+  var Row: TInspectorRow;
+  if not TryGetRow(Item, Row) then
+    Exit;
+
+  var Definition: TMemberDefinition;
+  var SectionName := '';
+  var Known := False;
+  case Row.Kind of
+    irkParameter:
+      if (FLiveParameterSectionEntry <> nil) and FLiveParameterSectionEntry.Valid then begin
+        Known := FLiveParameterSectionEntry.Entry.TryGetDefinition(Row.Name, Definition);
+        if Known then
+          SectionName := FLiveParameterSectionEntry.Entry.Metadata.SectionName;
+      end;
+    irkKey:
+      if (FLiveKeyValueSection <> nil) and FLiveKeyValueSection.Valid then begin
+        Known := FLiveKeyValueSection.Section.TryGetDefinition(Row.Name, Definition);
+        if Known then
+          SectionName := FLiveKeyValueSection.Section.Metadata.SectionName;
+      end;
+  end;
+  if not Known then
+    Exit;
+
+  { Special: [Files] Source can only be browsed for if not external }
+  if SameText(SectionName, 'Files') and SameText(Definition.Name, 'Source') then begin
+    const Entry = FLiveParameterSectionEntry.Entry; { Always exists }
+    var FlagsIndex := -1;
+    if Entry.TryResolve('Flags', FlagsIndex) and
+       Entry.FlagIncluded(FlagsIndex, 'external') then begin
+      MsgBox(LFmtMessage(SInspectorExternalSourceError, ['Source', 'external']),
+        LFmtMessage(SCompilerFormCaption), mbError, MB_OK);
+      Exit;
+    end;
+  end;
+
+  const Handle = GetParentForm(FJvInspector).Handle;
+
+  if Definition.ValueKind in [mvkCompilerSourceFile, mvkCompilerSourceFiles, mvkCompilerPath, mvkCompilerDestFile] then begin
+    { Determine base directory against which relative paths are resolved for this item }
+    const BaseDir = GetBaseDirForMember(Definition);
+
+    { Determine initial directory and file name }
+    var S := Trim(Value);
+    if Definition.ValueKind = mvkCompilerSourceFiles then
+      S := ExtractStr(S, ',');
+    if (S = '') and (Definition.ValueKind = mvkCompilerPath) and
+       SameText(Definition.Name, 'SignedUninstallerDir') then
+      S := FindSetupDirectiveValue('OutputDir'); { Special: blank SignedUninstallerDir means the output directory }
+    var InitialDir := '';
+    var InitialFileName := ''; { Not used by mvkCompilerSourceFiles/mvkCompilerPath }
+    var ExpandedPath: String;
+    if ScriptPathExpand(BaseDir, S, ExpandedPath) then begin
+      if Definition.ValueKind = mvkCompilerPath then
+        InitialDir := ExpandedPath
+      else begin
+        InitialDir := PathExtractDir(ExpandedPath);
+        InitialFileName := ExpandedPath;
+      end;
+    end else begin
+      InitialDir := BaseDir;
+      if (InitialDir = '') and Assigned(FOnGetBaseDir) then
+        InitialDir := FOnGetBaseDir;
+    end;
+
+    { Determine filter and default extension }
+    var FileType: TScriptBrowseFileType;
+    var Filter: String;
+    var DefaultExt: String;
+    if TryGetScriptBrowseFileType(SectionName, Definition.Name, FileType) then begin
+      const FileTypeFilter = ScriptBrowseFileTypeFilters[FileType];
+      Filter := FormatFileFilter(FileTypeFilter.FilesName, FileTypeFilter.Extensions);
+      DefaultExt := FileTypeFilter.Extensions[0];
+    end else begin
+      Filter := Format(SLitAllFilesFilter, [LFmtMessage(SAllFiles)]);
+      DefaultExt := '';
+    end;
+
+    { Browse }
+    case Definition.ValueKind of
+      mvkCompilerSourceFile:
+        begin
+          var FileName := InitialFileName;
+          if NewGetOpenFileName('', FileName, InitialDir, Filter, DefaultExt, Handle) then begin
+            MakeRelative(FileName, BaseDir);
+            Value := FileName;
+          end;
+        end;
+      mvkCompilerSourceFiles:
+        begin
+          const FileList = TStringList.Create;
+          try
+            if NewGetOpenFileNameMulti('', FileList, InitialDir, Filter, DefaultExt, Handle) then begin
+              for var I := 0 to FileList.Count-1 do begin
+                var FileName := FileList[I];
+                MakeRelative(FileName, BaseDir);
+                FileList[I] := FileName;
+              end;
+              Value := String.Join(',', FileList.ToStringArray);
+            end;
+          finally
+            FileList.Free;
+          end;
+        end;
+      mvkCompilerPath:
+        begin
+          var Directory := InitialDir;
+          if BrowseForFolder('', Directory, Handle) then begin
+            MakeRelative(Directory, BaseDir);
+            Value := Directory;
+          end;
+        end;
+      mvkCompilerDestFile:
+        begin
+          var FileName := InitialFileName;
+          if NewGetSaveFileName('', FileName, InitialDir, Filter, DefaultExt, Handle) then begin
+            MakeRelative(FileName, BaseDir);
+            Value := FileName;
+          end;
+        end;
+    end;
+  end;
 end;
 
 procedure TInspector.GoToSelectedRow(const AFirstLine: Integer);
@@ -686,7 +918,10 @@ procedure TInspector.UpdateFromCaret;
         if KeepAllFlags or NameMatchesFilter(FlagName) then
           AddParameterFlagRow(Item, ADefinition.Name, FlagName, AIndex); { Adds a child to Item }
     end else if ADefinition.ValueKind = mvkChoice then
-      Item.Flags := Item.Flags + [iifValueList];
+      Item.Flags := Item.Flags + [iifValueList]
+    else if ADefinition.ValueKind in [mvkCompilerSourceFile, mvkCompilerSourceFiles,
+       mvkCompilerPath, mvkCompilerDestFile] then
+      Item.Flags := Item.Flags + [iifEditButton];
   end;
 
   procedure AddParameterOccurrenceRows(const AParent: TJvCustomInspectorItem;
@@ -754,7 +989,10 @@ procedure TInspector.UpdateFromCaret;
             if KeepAllFlags or NameMatchesFilter(FlagName) then
               AddKeyFlagRow(Item, ARow.Name, FlagName, ARow.Index); { Adds a child to Item }
         end else if Definition.ValueKind in [mvkChoice, mvkYesNo] then
-          Item.Flags := Item.Flags + [iifValueList];
+          Item.Flags := Item.Flags + [iifValueList]
+        else if Definition.ValueKind in [mvkCompilerSourceFile, mvkCompilerSourceFiles,
+           mvkCompilerPath, mvkCompilerDestFile] then
+          Item.Flags := Item.Flags + [iifEditButton];
       end;
     end;
   end;
@@ -1465,4 +1703,6 @@ begin
   end;
 end;
 
+initialization
+  InitializeScriptBrowseFileTypeFilters;
 end.

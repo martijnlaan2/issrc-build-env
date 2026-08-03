@@ -22,8 +22,9 @@ uses
   Shared.SetupSectionDirectives;
 
 type
-  TMemberValueKind = (mvkString, mvkInteger, mvkVersion,
-    mvkChoice, mvkFlags, mvkYesNo);
+  TMemberValueKind = (mvkString, mvkInteger, mvkVersion, mvkColor,
+    mvkChoice, mvkFlags, mvkYesNo, mvkCompilerSourceFile, mvkCompilerSourceFiles,
+    mvkCompilerPath, mvkCompilerDestFile);
 
   TMemberDefinition = record
     Name: String;
@@ -108,11 +109,6 @@ const
 function TryGetScriptModelSectionMetadata(const ASectionName: String;
   out AMetadata: TScriptModelSectionMetadata): Boolean;
 
-function ScriptCategoryNamesOrdered: TArray<String>;
-
-function TryGetScriptCategory(const ASectionName, AName: String;
-  out ACategoryName: String): Boolean;
-
 implementation
 
 uses
@@ -172,124 +168,6 @@ begin
     end;
   end;
   Result := False;
-end;
-
-var
-  ScriptCategoryDictionary: TDictionary<String, String>;
-
-function ScriptCategoryDictionaryKey(const ASectionName, AName: String): String;
-begin
-  Result := ASectionName + '.' + AName;
-end;
-
-var
-  ScriptCategoryNameOrderedList: TArray<String>;
-
-function ScriptCategoryNamesOrdered: TArray<String>;
-begin
-  Result := Copy(ScriptCategoryNameOrderedList);
-end;
-
-function TryGetScriptCategory(const ASectionName, AName: String;
-  out ACategoryName: String): Boolean;
-begin
-  Result := ScriptCategoryDictionary.TryGetValue(
-    ScriptCategoryDictionaryKey(ASectionName, AName), ACategoryName);
-end;
-
-procedure InitializeScriptCategories;
-
-  procedure CD(const AName: String; const AMemberNames: TArray<String>;
-    const ASectionNames: TArray<String>);
-  begin
-    if Length(ASectionNames) = 0 then
-      raise Exception.CreateFmt('Internal error: Category %s has no section names', [AName]);
-    ScriptCategoryNameOrderedList := ScriptCategoryNameOrderedList + [AName];
-    for var SectionName in ASectionNames do begin
-      for var MemberName in AMemberNames do begin
-        ScriptCategoryDictionary.Add(ScriptCategoryDictionaryKey(SectionName, MemberName),
-          AName);
-      end;
-    end;
-  end;
-
-begin
-  const SetupSection: TArray<String> = ['Setup'];
-
-  CD('Compiler', ['ASLRCompatible', 'DEPCompatible',
-    'DisablePrecompiledFileVerifications', 'DiskClusterSize', 'DiskSliceSize',
-    'DiskSpanning', 'Encryption', 'EncryptionKeyDerivation',
-    'MergeDuplicateFiles', 'MissingMessagesWarning', 'MissingRunOnceIdsWarning',
-    'NotRecognizedMessagesWarning', 'Output', 'OutputBaseFilename', 'OutputDir',
-    'OutputManifestFile', 'ReserveBytes', 'SignedUninstaller',
-    'SignedUninstallerDir', 'SignTool', 'SignToolMinimumTimeBetween',
-    'SignToolRetryCount', 'SignToolRetryDelay', 'SignToolRunMinimized',
-    'SlicesPerDisk', 'SourceDir', 'TerminalServicesAware',
-    'UsedUserAreasWarning', 'UseSetupLdr', 'VersionInfoCompany',
-    'VersionInfoCopyright', 'VersionInfoDescription',
-    'VersionInfoOriginalFileName', 'VersionInfoProductName',
-    'VersionInfoProductTextVersion', 'VersionInfoProductVersion',
-    'VersionInfoTextVersion', 'VersionInfoVersion'],
-    SetupSection);
-
-  CD('Compression', ['Compression', 'CompressionThreads',
-    'InternalCompressLevel', 'LZMAAlgorithm', 'LZMABlockSize',
-    'LZMADictionarySize', 'LZMAMatchFinder', 'LZMANumBlockThreads',
-    'LZMANumFastBytes', 'LZMAUseSeparateProcess', 'SolidCompression',
-    'ZstdNumThreads'],
-    SetupSection);
-
-  CD('Installer', ['AllowCancelDuringInstall', 'AllowNetworkDrive',
-    'AllowNoIcons', 'AllowRootDirectory', 'AllowUNCPath', 'AlwaysRestart',
-    'AlwaysShowComponentsList', 'AlwaysShowDirOnReadyPage',
-    'AlwaysShowGroupOnReadyPage', 'AlwaysUsePersonalGroup',
-    'AppendDefaultDirName', 'AppendDefaultGroupName', 'AppComments',
-    'AppContact', 'AppId', 'AppModifyPath', 'AppMutex', 'AppName',
-    'AppPublisher', 'AppPublisherURL', 'AppReadmeFile', 'AppSupportPhone',
-    'AppSupportURL', 'AppUpdatesURL', 'AppVerName', 'AppVersion',
-    'ArchitecturesAllowed', 'ArchitecturesInstallIn64BitMode',
-    'ArchiveExtraction', 'ChangesAssociations', 'ChangesEnvironment',
-    'CloseApplications', 'CloseApplicationsFilter',
-    'CloseApplicationsFilterExcludes', 'CreateAppDir', 'CreateUninstallRegKey',
-    'DefaultDialogFontName', 'DefaultDirName', 'DefaultGroupName',
-    'DefaultUserInfoName', 'DefaultUserInfoOrg', 'DefaultUserInfoSerial',
-    'DirExistsWarning', 'DisableDirPage', 'DisableFinishedPage',
-    'DisableProgramGroupPage', 'DisableReadyMemo', 'DisableReadyPage',
-    'DisableStartupPrompt', 'DisableWelcomePage', 'EnableDirDoesntExistWarning',
-    'ExtraDiskSpaceRequired', 'InfoAfterFile', 'InfoBeforeFile',
-    'LanguageDetectionMethod', 'LicenseFile', 'MinVersion', 'OnlyBelowVersion',
-    'Password', 'PrivilegesRequired', 'PrivilegesRequiredOverridesAllowed',
-    'RedirectionGuard', 'RestartApplications', 'RestartIfNeededByRun',
-    'SetupArchitecture', 'SetupLogging', 'SetupMutex', 'ShowLanguageDialog',
-    'TimeStampRounding', 'TimeStampsInUTC', 'TouchDate', 'TouchTime',
-    'Uninstallable', 'UninstallDisplayIcon', 'UninstallDisplayName',
-    'UninstallDisplaySize', 'UninstallFilesDir', 'UninstallLogging',
-    'UninstallLogMode', 'UninstallRestartComputer', 'UpdateUninstallLogAppName',
-    'UsePreviousAppDir', 'UsePreviousGroup', 'UsePreviousLanguage',
-    'UsePreviousPrivileges', 'UsePreviousSetupType', 'UsePreviousTasks',
-    'UsePreviousUserInfo', 'UserInfoPage'],
-    SetupSection);
-
-  CD('Cosmetic', ['AppCopyright', 'FlatComponentsList', 'SetupIconFile',
-    'ShowComponentSizes', 'ShowTasksTreeLines', 'WizardBackColor',
-    'WizardBackColorDynamicDark', 'WizardBackImageFile',
-    'WizardBackImageFileDynamicDark', 'WizardBackImageOpacity',
-    'WizardImageAlphaFormat', 'WizardImageBackColor',
-    'WizardImageBackColorDynamicDark', 'WizardImageFile',
-    'WizardImageFileDynamicDark', 'WizardImageOpacity', 'WizardImageStretch',
-    'WizardKeepAspectRatio', 'WizardSizePercent', 'WizardSmallImageBackColor',
-    'WizardSmallImageBackColorDynamicDark', 'WizardSmallImageFile',
-    'WizardSmallImageFileDynamicDark', 'WizardStyle', 'WizardStyleFile',
-    'WizardStyleFileDynamicDark'],
-    SetupSection);
-
-  const CommonSections: TArray<String> = ['Components', 'Dirs', 'Files',
-    'Icons', 'INI', 'InstallDelete', 'ISSigKeys', 'Languages', 'Registry',
-    'Run', 'Tasks', 'Types', 'UninstallDelete', 'UninstallRun'];
-
-  CD('Common', ['Check', 'Components', 'Tasks', 'Languages', 'MinVersion',
-    'OnlyBelowVersion', 'BeforeInstall', 'AfterInstall'],
-    CommonSections);
 end;
 
 procedure InitializeSectionMetadata;
@@ -483,6 +361,20 @@ const
       ssUninstallDisplaySize, ssWizardBackImageOpacity, ssWizardImageOpacity,
       ssZstdNumThreads];
     SetupSectionDirectivesVersion = [ssMinVersion, ssOnlyBelowVersion];
+    SetupSectionDirectivesColor = [
+      ssWizardBackColor, ssWizardBackColorDynamicDark,
+      ssWizardImageBackColor, ssWizardImageBackColorDynamicDark,
+      ssWizardSmallImageBackColor, ssWizardSmallImageBackColorDynamicDark];
+    SetupSectionDirectivesCompilerSourceFile = [
+      ssInfoAfterFile, ssInfoBeforeFile, ssLicenseFile, ssSetupIconFile,
+      ssWizardStyleFile, ssWizardStyleFileDynamicDark];
+    SetupSectionDirectivesCompilerSourceFiles = [
+      ssWizardBackImageFile, ssWizardBackImageFileDynamicDark,
+      ssWizardImageFile, ssWizardImageFileDynamicDark,
+      ssWizardSmallImageFile, ssWizardSmallImageFileDynamicDark];
+    SetupSectionDirectivesCompilerPath = [
+      ssOutputDir, ssSignedUninstallerDir, ssSourceDir];
+    SetupSectionDirectivesCompilerDestFile = [ssOutputManifestFile];
   begin
     var Members: TArray<TMemberDefinition>;
     SetLength(Members, Ord(High(TSetupSectionDirective))+1);
@@ -502,6 +394,16 @@ const
         ValueKind := mvkInteger
       else if Directive in SetupSectionDirectivesVersion then
         ValueKind := mvkVersion
+      else if Directive in SetupSectionDirectivesColor then
+        ValueKind := mvkColor
+      else if Directive in SetupSectionDirectivesCompilerSourceFile then
+        ValueKind := mvkCompilerSourceFile
+      else if Directive in SetupSectionDirectivesCompilerSourceFiles then
+        ValueKind := mvkCompilerSourceFiles
+      else if Directive in SetupSectionDirectivesCompilerPath then
+        ValueKind := mvkCompilerPath
+      else if Directive in SetupSectionDirectivesCompilerDestFile then
+        ValueKind := mvkCompilerDestFile
       else begin
         KnownValues := SetupSectionDirectiveFlagValues(Directive);
         if KnownValues <> nil then
@@ -615,7 +517,7 @@ begin
     MD('MinVersion', mvkVersion),
     MD('OnlyBelowVersion', mvkVersion),
     MD('Permissions', mvkString),
-    MD('Source', mvkString),
+    MD('Source', mvkCompilerSourceFile),
     MD('StrongAssemblyName', mvkString),
     MD('Tasks', mvkString)],
     [FR('Flags', 'extractarchive', ['external', 'ignoreversion']),
@@ -735,7 +637,7 @@ begin
 
   SectionMetadataList.Add(TScriptModelSectionMetadata.Create('ISSigKeys',
     [MD('Group', mvkString),
-    MD('KeyFile', mvkString),
+    MD('KeyFile', mvkCompilerSourceFile),
     MD('KeyID', mvkString),
     MD('Name', mvkString),
     MD('PublicX', mvkString),
@@ -743,10 +645,10 @@ begin
     MD('RuntimeID', mvkString)]));
 
   SectionMetadataList.Add(TScriptModelSectionMetadata.Create('Languages',
-    [MD('InfoAfterFile', mvkString),
-    MD('InfoBeforeFile', mvkString),
-    MD('LicenseFile', mvkString),
-    MD('MessagesFile', mvkString),
+    [MD('InfoAfterFile', mvkCompilerSourceFile),
+    MD('InfoBeforeFile', mvkCompilerSourceFile),
+    MD('LicenseFile', mvkCompilerSourceFile),
+    MD('MessagesFile', mvkCompilerSourceFiles),
     MD('Name', mvkString)]));
 
   SectionMetadataList.Add(TScriptModelSectionMetadata.Create('Registry',
@@ -865,9 +767,6 @@ end;
 initialization
   SectionMetadataList := TObjectList<TScriptModelSectionMetadata>.Create;
   InitializeSectionMetadata;
-  ScriptCategoryDictionary := TDictionary<String, String>.Create(TIStringComparer.Ordinal);
-  InitializeScriptCategories;
 finalization
-  ScriptCategoryDictionary.Free;
   SectionMetadataList.Free;
 end.

@@ -575,6 +575,7 @@ type
     procedure FinishLocalization;
     function GetBorderStyle: TFormBorderStyle;
     function GetMainFilename: String;
+    function GetMainBaseDir: String;
     procedure Go(const AStepMode: TStepMode);
     procedure HideError;
     function InitializeFileMemo(const Memo: TIDEScintFileEdit; const PopupMenu: TPopupMenu): TIDEScintFileEdit;
@@ -732,6 +733,7 @@ type
     destructor Destroy; override;
     function IsShortCut(var Message: TWMKey): Boolean; override;
     property FullPathInTitleBar: Boolean read FOptions.FullPathInTitleBar;
+    function LiveScriptObjectFactoryForMainMemo: TLiveScriptObjectFactory;
     property MainFilename: String read GetMainFilename;
   published
     property BorderStyle: TFormBorderStyle read GetBorderStyle write SetBorderStyle;
@@ -876,6 +878,11 @@ begin
     FLiveScriptObjectFactories.TryGetValue(AMemo, Result);
 end;
 
+function TMainForm.LiveScriptObjectFactoryForMainMemo: TLiveScriptObjectFactory;
+begin
+  Result := LiveScriptObjectFactoryForMemo(FMainMemo);
+end;
+
 procedure TMainForm.InvalidateIndexForMemo(const AMemo: TScintEdit);
 begin
   const Factory = LiveScriptObjectFactoryForMemo(AMemo);
@@ -918,7 +925,7 @@ constructor TMainForm.Create(AOwner: TComponent);
       Ini.Free;
     end;
     FInspector := TInspector.Create(JvInspector, InspectorNoteText, LiveScriptObjectFactoryForMemo(FActiveMemo),
-      FOptions.InspectorShowAllKnownDirectives); { No main-memo check needed: FActiveMemo is FMainMemo at startup }
+      FOptions.InspectorShowAllKnownDirectives, GetMainBaseDir); { No main-memo check needed: FActiveMemo is FMainMemo at startup }
   end;
 
   procedure ReadAndApplyConfig;
@@ -1368,6 +1375,12 @@ end;
 function TMainForm.GetMainFilename: String;
 begin
   Result := FMainMemo.Filename;
+end;
+
+function TMainForm.GetMainBaseDir: String;
+{ Returns '' for an unsaved script }
+begin
+  Result := PathExtractDir(GetMainFilename);
 end;
 
 procedure TMainForm.SetBorderStyle(Value: TFormBorderStyle);
@@ -2157,7 +2170,7 @@ begin
       raise Exception.Create('Internal error: AMemo <> FMainMemo');
     var FN := AMemo.Filename;
     if not NewGetSaveFileName('', FN, '',
-             Format(SLitExtAndAllFilter, [LFmtMessage(SIssFiles), SLitIssExt, LFmtMessage(SAllFiles)]),
+             FormatFileFilter(SIssFiles, [SLitIssExt]),
              SLitIssExt, Handle) then
       Exit;
     FN := PathExpand(FN);
@@ -2713,7 +2726,7 @@ begin
   end;
   if ConfirmCloseFile(True) then
     if NewGetOpenFileName('', Filename, InitialDir,
-         Format(SLitExtAndAllFilter, [LFmtMessage(SIssFiles), SLitIssExt, LFmtMessage(SAllFiles)]),
+         FormatFileFilter(SIssFiles, [SLitIssExt]),
          SLitIssExt, Handle) then begin
       { Check if user actually wants to open tab for an included file }
       if FOptions.OpenIncludedFiles then begin

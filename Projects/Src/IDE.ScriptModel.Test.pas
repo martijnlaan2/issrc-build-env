@@ -6,7 +6,7 @@ unit IDE.ScriptModel.Test;
   Portions by Martijn Laan
   For conditions of distribution and use, see LICENSE.TXT.
 
-  Test unit for IDE.ScriptModel and IDE.ScriptModel.Metadata
+  Test unit for IDE.ScriptModel and IDE.ScriptModel.Metadata*
 
   Runs a self-test if DEBUG is defined
 }
@@ -20,7 +20,7 @@ implementation
 uses
   {$IFDEF DEBUG} Winapi.Windows, {$ENDIF} System.SysUtils,
   Shared.SetupSectionDirectives, Shared.LangOptionsSectionDirectives,
-  IDE.ScriptModel, IDE.ScriptModel.Metadata;
+  IDE.ScriptModel, IDE.ScriptModel.Metadata, IDE.ScriptModel.Metadata.Extra;
 
 {$C+}
 
@@ -570,6 +570,19 @@ begin
   Assert(Metadata.TryGetMember('DefaultGroupName', Definition));
   Assert(Definition.ValueKind = mvkString);
   Assert(Definition.DefaultValue = '(Default)');
+  { The compiler-path directives: a source file the compiler reads, a list of
+    such files, a directory, and a file the compiler writes, while run-time
+    paths stay plain strings }
+  Assert(Metadata.TryGetMember('LicenseFile', Definition));
+  Assert(Definition.ValueKind = mvkCompilerSourceFile);
+  Assert(Metadata.TryGetMember('WizardImageFile', Definition));
+  Assert(Definition.ValueKind = mvkCompilerSourceFiles);
+  Assert(Metadata.TryGetMember('OutputDir', Definition));
+  Assert(Definition.ValueKind = mvkCompilerPath);
+  Assert(Metadata.TryGetMember('OutputManifestFile', Definition));
+  Assert(Definition.ValueKind = mvkCompilerDestFile);
+  Assert(Metadata.TryGetMember('AppReadmeFile', Definition));
+  Assert(Definition.ValueKind = mvkString);
   Assert(Metadata.TryGetMember('UninstallStyle', Definition));
   Assert(Definition.Obsolete);
   { Every directive of a yes/no kind has a default: none was left out of the
@@ -589,16 +602,20 @@ begin
     Assert(Definition.ValueKind = mvkYesNo);
     Assert(not Section.TryGetDefinition('NoSuchKey', Definition));
 
-    { With the quoting option on, only text keys are quoted: a yes/no
-      or integer value is written bare }
+    { With the quoting option on, only text and compiler-path keys are quoted:
+      a yes/no or integer value is written bare }
     Section.QuoteNewValues := True;
     Section.Add('SolidCompression', 'yes');
     Section.Add('AppName', 'My App');
     Section.Add('ReserveBytes', '4096');
+    Section.Add('LicenseFile', 'license.txt');
+    Section.Add('WizardImageFile', 'image1.bmp,image2.bmp');
     const Lines = Section.GetLines;
     Assert(Lines[0] = 'SolidCompression=yes');
     Assert(Lines[1] = 'AppName="My App"');
     Assert(Lines[2] = 'ReserveBytes=4096');
+    Assert(Lines[3] = 'LicenseFile="license.txt"');
+    Assert(Lines[4] = 'WizardImageFile="image1.bmp,image2.bmp"');
   finally
     Section.Free;
   end;
@@ -715,6 +732,19 @@ begin
   var Definition: TMemberDefinition;
   Assert(Metadata.TryGetMember('ExtraDiskSpaceRequired', Definition));
   Assert(Definition.ValueKind = mvkInteger);
+
+  { The compiler source file parameters name a source file the compiler reads,
+    MessagesFile a comma-separated list of them. [Files] Source is one too, but
+    only if the entry doesn't have the external flag, which the inspector
+    checks before browsing }
+  Assert(TryGetScriptModelSectionMetadata('Languages', Metadata));
+  Assert(Metadata.TryGetMember('LicenseFile', Definition));
+  Assert(Definition.ValueKind = mvkCompilerSourceFile);
+  Assert(Metadata.TryGetMember('MessagesFile', Definition));
+  Assert(Definition.ValueKind = mvkCompilerSourceFiles);
+  Assert(TryGetScriptModelSectionMetadata('Files', Metadata));
+  Assert(Metadata.TryGetMember('Source', Definition));
+  Assert(Definition.ValueKind = mvkCompilerSourceFile);
 
   { Single-choice parameters carry their known values }
   Assert(TryGetScriptModelSectionMetadata('Registry', Metadata));
@@ -902,6 +932,55 @@ begin
   Assert(TryGetScriptModelSectionMetadata('UninstallRun', Metadata));
   Assert(Metadata.TryGetMember('StatusMsg', Definition));
   Assert(Definition.Obsolete);
+end;
+
+procedure TestScriptBrowseFileTypes;
+begin
+  { Every member the compiler resolves as a file it reads or writes has a
+    browse file type, so the inspector's "..." button can offer a matching
+    filter; directory members browse for a folder and need none, and no other
+    member has one }
+  const SectionNames: TArray<String> = ['Setup', 'LangOptions', 'Components',
+    'Dirs', 'Files', 'Icons', 'INI', 'InstallDelete', 'ISSigKeys', 'Languages',
+    'Registry', 'Run', 'Tasks', 'Types', 'UninstallDelete', 'UninstallRun'];
+  for var SectionName in SectionNames do begin
+    var Metadata: TScriptModelSectionMetadata;
+    Assert(TryGetScriptModelSectionMetadata(SectionName, Metadata));
+    for var Member in Metadata.Members do begin
+      var FileType: TScriptBrowseFileType;
+      { [Files] Source is the exception: it names a file of any type, so it has
+        no filter and the inspector falls back to All Files }
+      const AnyFileType = SameText(SectionName, 'Files') and
+        SameText(Member.Name, 'Source');
+      if (Member.ValueKind in [mvkCompilerSourceFile, mvkCompilerSourceFiles,
+         mvkCompilerDestFile]) and not AnyFileType then
+        Assert(TryGetScriptBrowseFileType(SectionName, Member.Name, FileType))
+      else
+        Assert(not TryGetScriptBrowseFileType(SectionName, Member.Name, FileType));
+    end;
+  end;
+
+  { Membership maps a member to its file type, case-insensitively, and only in
+    the sections that list it }
+  var FileType: TScriptBrowseFileType;
+  Assert(TryGetScriptBrowseFileType('Setup', 'licensefile', FileType) and
+    (FileType = bftDocs));
+  Assert(TryGetScriptBrowseFileType('Languages', 'LicenseFile', FileType) and
+    (FileType = bftDocs));
+  Assert(TryGetScriptBrowseFileType('Setup', 'SetupIconFile', FileType) and
+    (FileType = bftIco));
+  Assert(TryGetScriptBrowseFileType('Setup', 'WizardSmallImageFile', FileType) and
+    (FileType = bftImages));
+  Assert(TryGetScriptBrowseFileType('Setup', 'WizardStyleFileDynamicDark', FileType) and
+    (FileType = bftVclStyle));
+  Assert(TryGetScriptBrowseFileType('Setup', 'OutputManifestFile', FileType) and
+    (FileType = bftTxt));
+  Assert(TryGetScriptBrowseFileType('Languages', 'MessagesFile', FileType) and
+    (FileType = bftIsl));
+  Assert(TryGetScriptBrowseFileType('ISSigKeys', 'KeyFile', FileType) and
+    (FileType = bftKey));
+  Assert(not TryGetScriptBrowseFileType('Setup', 'MessagesFile', FileType));
+  Assert(not TryGetScriptBrowseFileType('Setup', 'OutputDir', FileType));
 end;
 
 procedure TestEntryRules;
@@ -1707,6 +1786,7 @@ begin
   TestSectionMetadataTables;
   TestMetadataConsistency;
   TestScriptCategories;
+  TestScriptBrowseFileTypes;
   TestEntryRules;
   TestEntryExcludeRules;
   TestKeyValueSection;

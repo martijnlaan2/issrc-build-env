@@ -78,10 +78,14 @@ function ReadScriptLines(const ALines: TStringList; const ReadFromFile: Boolean;
 function CreateBitmapInfo(const Width, Height: Integer; const BitCount: Word): TBitmapInfo;
 function GetPreferredMemoFont: String;
 function DoubleAmp(const S: String): String;
+function FormatFileFilter(const AFilesName: String;
+  const AExtensions: array of String): String;
 procedure LoadWindowState(const Form: TForm;
   const Section: String; const Ini: TConfigIniFile = nil);
 procedure SaveWindowState(const Form: TForm;
   const Section: String; const Ini: TConfigIniFile = nil);
+function FindSetupDirectiveValue(const DirectiveName: String): String;
+function FindSetupDirectiveValueAsBoolean(const DirectiveName: String): Boolean;
 
 implementation
 
@@ -89,7 +93,7 @@ uses
   ActiveX, ShlObj, ShellApi, CommDlg, SysUtils, IOUtils, StrUtils,
   Messages,
   Shared.CommonFunc, Shared.CommonFunc.Vcl, PathFunc, Shared.FileClass, NewUxTheme,
-  IDE.HtmlHelpFunc, IDE.MainForm, IDE.Messages;
+  IDE.HtmlHelpFunc, IDE.MainForm, IDE.Messages, IDE.ScriptModel.Metadata;
 
 procedure InitFormFont(Form: TForm);
 begin
@@ -854,6 +858,17 @@ begin
       Insert('&', Result, I + 1);
 end;
 
+function FormatFileFilter(const AFilesName: String;
+  const AExtensions: array of String): String;
+begin
+  var Masks: TArray<String>;
+  SetLength(Masks, Length(AExtensions));
+  for var I := 0 to High(AExtensions) do
+    Masks[I] := Format(SLitExtFilter, [AExtensions[I]]);
+  Result := Format(SLitExtsAndAllFilter, [LFmtMessage(AFilesName),
+    String.Join(',', Masks), String.Join(';', Masks), LFmtMessage(SAllFiles)]);
+end;
+
 procedure LoadWindowState(const Form: TForm;
   const Section: String; const Ini: TConfigIniFile);
 begin
@@ -919,6 +934,40 @@ begin
     if ConfigIni <> Ini then
       ConfigIni.Free;
   end;
+end;
+
+function GetSetupDirectiveDefaultValue(const DirectiveName: String): String;
+begin
+  Result := '';
+  var Metadata: TScriptModelSectionMetadata;
+  var Definition: TMemberDefinition;
+  if TryGetScriptModelSectionMetadata('Setup', Metadata) and
+     Metadata.TryGetMember(DirectiveName, Definition) then
+    Result := Definition.DefaultValue;
+end;
+
+function TryFindSetupDirectiveValue(const DirectiveName: String;
+  out Value: String): Boolean;
+begin
+  { Searches the main file and returns the last occurrence, trimmed and
+    with surrounding quotes removed }
+  const Factory = MainForm.LiveScriptObjectFactoryForMainMemo;
+  Result := (Factory <> nil) and
+    Factory.TryGetSetupDirectiveValue(DirectiveName, Value);
+end;
+
+function FindSetupDirectiveValue(const DirectiveName: String): String;
+begin
+  if not TryFindSetupDirectiveValue(DirectiveName, Result) then
+    Result := GetSetupDirectiveDefaultValue(DirectiveName);
+end;
+
+function FindSetupDirectiveValueAsBoolean(const DirectiveName: String): Boolean;
+begin
+  var Value: String;
+  if not TryFindSetupDirectiveValue(DirectiveName, Value) or not TryStrToBoolean(Value, Result) then
+    if not TryStrToBoolean(GetSetupDirectiveDefaultValue(DirectiveName), Result) then
+      Result := False;
 end;
 
 initialization
