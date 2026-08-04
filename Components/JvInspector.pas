@@ -48,8 +48,8 @@ type
   TInspectorItemFlag = (iifReadonly, iifExpanded, iifValueList, iifEditButton);
   TInspectorItemFlags = set of TInspectorItemFlag;
 
-  TInspectorPaintRect = (iprItem, iprBtnDstRect, iprNameArea, iprName,
-    iprValueArea, iprValue, iprEditValue, iprEditButton);
+  TInspectorPaintRect = (iprItem, iprExpandButton, iprMarker, iprNameArea, iprNameText,
+    iprValueArea, iprValueText, iprValueEdit, iprValueButton);
 
   TInspectorItemEvent = procedure(Item: TJvCustomInspectorItem) of object;
   TInspectorItemGetValueListEvent = procedure(Item: TJvCustomInspectorItem; Values: TStrings) of object;
@@ -76,6 +76,7 @@ type
     FHideSelectTextColor: TColor;
     FNameColor: TColor;
     FOnCustomizeItemCanvas: TOnJvInspectorCustomizeItemCanvas;
+    FMarkedItem: TJvCustomInspectorItem;
     FPaintItem: TJvCustomInspectorItem;
     FPaintItemIndex: Integer;
     FPaintRect: TRect;
@@ -114,15 +115,12 @@ type
     function ApplicationHook(var Msg: TMessage): Boolean;
     procedure ApplyNameFont;
     procedure ApplyValueFont;
-    procedure CalcButtonBasedRects(const ButtonArea: TRect);
-    procedure CalcEditBasedRects;
-    procedure CalcNameBasedRects;
-    procedure CalcValueBasedRects;
     procedure DoPaintItem;
     procedure InvalidateItem(const Item: TJvCustomInspectorItem);
     procedure InvalidateRow(const Index: Integer);
     procedure PaintItem(var ARect: TRect; const AItemIndex: Integer);
     procedure PaintItems;
+    procedure SetMarkedItem(const Value: TJvCustomInspectorItem);
     procedure SetupRects;
   protected
     FAccObject: IInterface;
@@ -181,6 +179,7 @@ type
     procedure Clear;
     property AccessibleName: string read FAccessibleName write FAccessibleName;
     property Divider: Integer read FDivider write SetDivider;
+    property MarkedItem: TJvCustomInspectorItem read FMarkedItem write SetMarkedItem;
     property PopupMenu;
     property ReadOnly: Boolean read FReadOnly write FReadOnly;
     property Root: TJvCustomInspectorItem read FRoot;
@@ -295,7 +294,7 @@ type
     procedure DrawValue(const ACanvas: TCanvas); virtual;
     procedure InitEdit; dynamic;
     procedure DoneEdit(const CancelEdits: Boolean = False); dynamic;
-    procedure ScrollInView;
+    procedure ScrollInView(const ACenter: Boolean);
     property Count: NativeInt read GetCount;
     property DisplayName: string read FDisplayName write FDisplayName;
     property DisplayValue: string read GetDisplayValue write SetDisplayValue;
@@ -575,7 +574,7 @@ begin
     var HintAreaLeft := 0;
     var HintAreaRight := 0;
     if (X >= NameAreaLeft) and (X < NameAreaRight) then begin
-      if TextIsClipped(Item, Item.DisplayName, Item.Rects[iprName].Width, ForceBoldFont) then
+      if TextIsClipped(Item, Item.DisplayName, Item.Rects[iprNameText].Width, ForceBoldFont) then
         HintStr := Item.DisplayName;
       HintAreaLeft := NameAreaLeft;
       HintAreaRight := NameAreaRight;
@@ -587,7 +586,7 @@ begin
       except
         Value := '';
       end;
-      if TextIsClipped(Item, Value, Item.Rects[iprValue].Width, ForceBoldFont) then
+      if TextIsClipped(Item, Value, Item.Rects[iprValueText].Width, ForceBoldFont) then
         HintStr := Value;
       HintAreaLeft := ValueAreaLeft;
       HintAreaRight := ValueAreaRight;
@@ -788,7 +787,7 @@ begin
   inherited;
   Item := Selected;
   if (Item <> nil) and Item.Editing then begin
-    Item.ScrollInView;
+    Item.ScrollInView(False);
     Item.EditKeyDown(Self, Key, Shift);
   end;
 end;
@@ -825,7 +824,7 @@ begin
       SelectedIndex := ItemIndex;
     if (Item <> nil) and
        ((Item.Count > 0) or (iifExpanded in Item.Flags)) then begin
-      if PtInRect(Item.Rects[iprBtnDstRect], Point(X, Y)) or
+      if PtInRect(Item.Rects[iprExpandButton], Point(X, Y)) or
          ((ssDouble in Shift) and (Item.IsCategory or (X < Pred(Divider)))) then
         Item.Expanded := not Item.Expanded;
     end;
@@ -846,7 +845,7 @@ begin
     if not (ssDouble in Shift) and not DraggingDivider and
        (Item <> nil) and Item.Editing and (Item.EditCtrl <> nil) and
        Item.EditCtrl.HandleAllocated and Item.EditCtrl.CanFocus and
-       PtInRect(Item.Rects[iprEditValue], Point(X, Y)) then begin
+       PtInRect(Item.Rects[iprValueEdit], Point(X, Y)) then begin
       FPressedItem := nil;
       ControlState := ControlState - [csLButtonDown, csClicked];
       MouseCapture := False;
@@ -879,7 +878,7 @@ begin
   else begin
     const Item = GetVisibleItems(CalcItemIndex(Y));
     if (Item <> nil) and Item.CanEdit and not (Item is TJvInspectorBooleanItem) and
-      not Item.Editing and PtInRect(Item.Rects[iprEditValue], Point(X, Y)) then
+      not Item.Editing and PtInRect(Item.Rects[iprValueEdit], Point(X, Y)) then
       Cursor := crIBeam
     else
       Cursor := crDefault;
@@ -992,6 +991,17 @@ begin
   end;
 end;
 
+procedure TJvInspector.SetMarkedItem(const Value: TJvCustomInspectorItem);
+begin
+  if Value <> FMarkedItem then begin
+    if FMarkedItem <> nil then
+      InvalidateItem(FMarkedItem);
+    FMarkedItem := Value;
+    if FMarkedItem <> nil then
+      InvalidateItem(FMarkedItem);
+  end;
+end;
+
 procedure TJvInspector.SetSelected(const Value: TJvCustomInspectorItem);
 begin
   SelectedIndex := Integer(FVisibleList.IndexOf(Value));
@@ -1009,8 +1019,9 @@ begin
       if Selected <> nil then
         Selected.DoneEdit(False);
       FSelectedIndex := Value;
+      MarkedItem := nil; { Changing selection auto unmarks }
       if Selected <> nil then begin
-        Selected.ScrollInView;
+        Selected.ScrollInView(False);
         Selected.InitEdit;
       end;
       InvalidateRow(OldIndex);
@@ -1317,7 +1328,7 @@ begin
     Inc(ItemIdx);
   end;
   if not SelItemVisible and (Selected <> nil) then
-    Selected.Rects[iprEditValue] := TRect.Empty;
+    Selected.Rects[iprValueEdit] := TRect.Empty;
 end;
 
 procedure TJvInspector.PaintItem(var ARect: TRect;
@@ -1342,30 +1353,27 @@ begin
 end;
 
 procedure TJvInspector.SetupRects;
-var
-  ItemRect2: TRect;
-  ButtonRect: TRect;
-  TmpRect: TRect;
 begin
+  { Base }
   FPaintItem.Rects[iprItem] := Rect(FPaintRect.Left, FPaintRect.Top,
     FPaintRect.Right, Pred(FPaintRect.Top + GetItemHeight));
-  ItemRect2 := FPaintItem.Rects[iprItem];
-  ButtonRect := Rect(ItemRect2.Left + (FPaintItem.Level * GetItemHeight), ItemRect2.Top,
+  const ItemRect2 = FPaintItem.Rects[iprItem];
+  var ExpandButtonArea := Rect(ItemRect2.Left + (FPaintItem.Level * GetItemHeight), ItemRect2.Top,
     ItemRect2.Left + (Succ(FPaintItem.Level) * GetItemHeight), ItemRect2.Bottom);
-  if not FPaintItem.IsCategory and (ButtonRect.Left > Pred(Divider)) then begin
-    ButtonRect.Left := 0;
-    ButtonRect.Right := 0;
+  if not FPaintItem.IsCategory and (ExpandButtonArea.Left > Pred(Divider)) then begin
+    ExpandButtonArea.Left := 0;
+    ExpandButtonArea.Right := 0;
   end;
-  if not FPaintItem.IsCategory and (ButtonRect.Right > Pred(Divider)) then
-    ButtonRect.Right := Pred(Divider);
-  TmpRect := ItemRect2;
+  if not FPaintItem.IsCategory and (ExpandButtonArea.Right > Pred(Divider)) then
+    ExpandButtonArea.Right := Pred(Divider);
+  var TmpRect := ItemRect2;
   TmpRect.Left := ItemRect2.Left + (Succ(FPaintItem.Level) * GetItemHeight);
   if FPaintItem.IsCategory then begin
     FPaintItem.Rects[iprNameArea] := TmpRect;
-    FPaintItem.Rects[iprValueArea] := Rect(0, 0, 0, 0);
+    FPaintItem.Rects[iprValueArea] := TRect.Empty;
   end else begin
     if TmpRect.Left > Pred(Divider) then
-      TmpRect := Rect(0, 0, 0, 0)
+      TmpRect := TRect.Empty
     else
       TmpRect.Right := ItemRect2.Left + Pred(Divider);
     FPaintItem.Rects[iprNameArea] := TmpRect;
@@ -1373,35 +1381,47 @@ begin
     TmpRect.Left := ItemRect2.Left + Divider + 1;
     FPaintItem.Rects[iprValueArea] := TmpRect;
   end;
-  CalcButtonBasedRects(ButtonRect);
-  CalcNameBasedRects;
-  CalcValueBasedRects;
-end;
 
-procedure TJvInspector.CalcButtonBasedRects(const ButtonArea: TRect);
-var
-  BtnDstRect: TRect;
-  Size: Integer;
-begin
-  if (FPaintItem.Expanded or (FPaintItem.Count > 0)) and (ButtonArea.Width > 0) then begin
-    Size := MulDiv(9, CurrentPPI, 96);
+  { Expand/collapse button }
+  var ExpandButtonRect: TRect;
+  if (FPaintItem.Expanded or (FPaintItem.Count > 0)) and (ExpandButtonArea.Width > 0) then begin
+    var Size := MulDiv(9, CurrentPPI, 96);
     if not Odd(Size) then
       Dec(Size);
-    BtnDstRect := Rect(0, 0, Size, Size);
-    OffsetRect(BtnDstRect, (GetItemHeight - Size) div 2,
-      (ButtonArea.Height - Size) div 2);
-    OffsetRect(BtnDstRect, ButtonArea.Left, ButtonArea.Top);
-    IntersectRect(BtnDstRect, BtnDstRect, ButtonArea);
+    ExpandButtonRect := Rect(0, 0, Size, Size);
+    OffsetRect(ExpandButtonRect, (GetItemHeight - Size) div 2,
+      (ExpandButtonArea.Height - Size) div 2);
+    OffsetRect(ExpandButtonRect, ExpandButtonArea.Left, ExpandButtonArea.Top);
+    IntersectRect(ExpandButtonRect, ExpandButtonRect, ExpandButtonArea);
   end else
-    BtnDstRect := Rect(0, 0, 0, 0);
-  FPaintItem.Rects[iprBtnDstRect] := BtnDstRect;
-end;
+    ExpandButtonRect := TRect.Empty;
+  FPaintItem.Rects[iprExpandButton] := ExpandButtonRect;
 
-procedure TJvInspector.CalcNameBasedRects;
-var
-  RowHeight: Integer;
-  TmpRect: TRect;
-begin
+  { Marker: it goes in the free 'gutter cell' left of and nearest to the name:
+    ExpandButtonArea itself, or the 'cell' left of it when the button occupies it.
+    Note that GetItemHeight determines the width of these cells. Limitation: a top
+    level item which is a parent has no free cell, so never gets a marker. }
+  var MarkerArea := ExpandButtonArea;
+  if not IsRectEmpty(ExpandButtonRect) then begin
+    OffsetRect(MarkerArea, -GetItemHeight, 0);
+    MarkerArea.Width := GetItemHeight; { Restore: the divider may have clipped ExpandButtonArea }
+  end;
+  var MarkerRect: TRect;
+  if (MarkerArea.Width > 0) and (MarkerArea.Left >= ItemRect2.Left) then begin
+    var Size := MulDiv(9, CurrentPPI, 96);
+    if not Odd(Size) then
+      Dec(Size);
+    MarkerRect := Rect(0, 0, Size, Size);
+    OffsetRect(MarkerRect, (GetItemHeight - Size) div 2,
+      (MarkerArea.Height - Size) div 2);
+    OffsetRect(MarkerRect, MarkerArea.Left, MarkerArea.Top);
+    IntersectRect(MarkerRect, MarkerRect, MarkerArea);
+  end else
+    MarkerRect := TRect.Empty;
+  FPaintItem.Rects[iprMarker] := MarkerRect;
+
+  { The name }
+  var RowHeight: Integer;
   if FPaintItem.IsCategory then
     RowHeight := FCategoryTextHeight
   else
@@ -1416,13 +1436,9 @@ begin
     Dec(TmpRect.Bottom, 1);
   end;
   IntersectRect(TmpRect, TmpRect, FPaintItem.Rects[iprNameArea]);
-  FPaintItem.Rects[iprName] := TmpRect;
-end;
+  FPaintItem.Rects[iprNameText] := TmpRect;
 
-procedure TJvInspector.CalcValueBasedRects;
-var
-  TmpRect: TRect;
-begin
+  { The value }
   TmpRect := FPaintItem.Rects[iprValueArea];
   if TmpRect.Height div FRegularTextHeight < 2 then begin
     OffsetRect(TmpRect, 0, (TmpRect.Height - FRegularTextHeight) div 2);
@@ -1432,28 +1448,23 @@ begin
     Dec(TmpRect.Bottom, 1);
     IntersectRect(TmpRect, TmpRect, FPaintItem.Rects[iprValueArea]);
   end;
-  FPaintItem.Rects[iprValue] := TmpRect;
-  CalcEditBasedRects;
-end;
+  FPaintItem.Rects[iprValueText] := TmpRect;
 
-procedure TJvInspector.CalcEditBasedRects;
-var
-  TmpRect: TRect;
-begin
+  { The value edit and value button }
   if not (FPaintItem.Editing and
-     (FPaintItem.Flags * [iifValueList, iifEditButton] <> [])) then begin // Value takes up entire edit value rect, there is no edit button:
-    FPaintItem.Rects[iprEditValue] := FPaintItem.Rects[iprValue];
-    FPaintItem.Rects[iprEditButton] := Rect(0, 0, 0, 0);
-  end else begin // The edit button is on the right of the edit value area:
+     (FPaintItem.Flags * [iifValueList, iifEditButton] <> [])) then begin // Value takes up entire value edit rect, there is no value button:
+    FPaintItem.Rects[iprValueEdit] := FPaintItem.Rects[iprValueText];
+    FPaintItem.Rects[iprValueButton] := TRect.Empty;
+  end else begin // The value button is on the right of the value area:
     var ButtonWidth := GetItemHeight;
     if iifEditButton in FPaintItem.Flags then
       ButtonWidth := MulDiv(ButtonWidth, 3, 2);
-    TmpRect := FPaintItem.Rects[iprValue];
+    TmpRect := FPaintItem.Rects[iprValueText];
     Dec(TmpRect.Right, ButtonWidth);
-    FPaintItem.Rects[iprEditValue] := TmpRect;
+    FPaintItem.Rects[iprValueEdit] := TmpRect;
     TmpRect := FPaintItem.Rects[iprValueArea];
     TmpRect.Left := TmpRect.Right - ButtonWidth;
-    FPaintItem.Rects[iprEditButton] := TmpRect;
+    FPaintItem.Rects[iprValueButton] := TmpRect;
   end;
 end;
 
@@ -1464,6 +1475,51 @@ var
   EndOfCat: Boolean;
   CatRect: TRect;
   LeftX: Integer;
+
+  procedure PaintGlyph(const PaintRect: TInspectorPaintRect);
+  begin
+    const GlyphRect = FPaintItem.Rects[PaintRect];
+    if IsRectEmpty(GlyphRect) then
+      Exit;
+    var Size := MulDiv(9, CurrentPPI, 96);
+    if not Odd(Size) then
+      Dec(Size);
+    const Mid = Size div 2;
+    const IsExpandButton = (PaintRect = iprExpandButton);
+    if IsExpandButton then
+      Canvas.Brush.Color := BackgroundColor
+    else
+      Canvas.Brush.Color := FNameColor;
+    Canvas.Pen.Color := FNameColor;
+    const SaveIndex = SaveDC(Canvas.Handle);
+    try
+      IntersectClipRect(Canvas.Handle, GlyphRect.Left, GlyphRect.Top,
+        GlyphRect.Right, GlyphRect.Bottom);
+      if IsExpandButton then begin
+        const Margin = MulDiv(2, Size, 9);
+        Canvas.Rectangle(GlyphRect.Left, GlyphRect.Top, GlyphRect.Left + Size,
+          GlyphRect.Top + Size);
+        Canvas.MoveTo(GlyphRect.Left + Margin, GlyphRect.Top + Mid);
+        Canvas.LineTo(GlyphRect.Left + Size - Margin, GlyphRect.Top + Mid);
+        if not FPaintItem.Expanded then begin
+          Canvas.MoveTo(GlyphRect.Left + Mid, GlyphRect.Top + Margin);
+          Canvas.LineTo(GlyphRect.Left + Mid, GlyphRect.Top + Size - Margin);
+        end;
+      end else begin
+        Canvas.Polygon([
+          Point(GlyphRect.Left, GlyphRect.Top + Mid - 1),
+          Point(GlyphRect.Left + Mid, GlyphRect.Top + Mid - 1),
+          Point(GlyphRect.Left + Mid, GlyphRect.Top),
+          Point(Pred(GlyphRect.Left + Size), GlyphRect.Top + Mid),
+          Point(GlyphRect.Left + Mid, Pred(GlyphRect.Top + Size)),
+          Point(GlyphRect.Left + Mid, GlyphRect.Top + Mid + 1),
+          Point(GlyphRect.Left, GlyphRect.Top + Mid + 1)]);
+      end;
+    finally
+      RestoreDC(Canvas.Handle, SaveIndex);
+    end;
+  end;
+
 begin
   // Determine item type (end of list, end of a category)
   EndOfList := Succ(FPaintItemIndex) >= GetVisibleCount;
@@ -1495,38 +1551,17 @@ begin
   Canvas.FillRect(NameFillRect);
   if Assigned(FOnCustomizeItemCanvas) then
     FOnCustomizeItemCanvas(FPaintItem, Canvas);
-  var NameRect := FPaintItem.Rects[iprName];
-  Canvas.TextRect(NameRect, NameRect.Left, NameRect.Top, FPaintItem.DisplayName);
+  var NameTextRect := FPaintItem.Rects[iprNameText];
+  Canvas.TextRect(NameTextRect, NameTextRect.Left, NameTextRect.Top, FPaintItem.DisplayName);
   ApplyValueFont;
   if Assigned(FOnCustomizeItemCanvas) then
     FOnCustomizeItemCanvas(FPaintItem, Canvas);
   FPaintItem.DrawValue(Canvas);
 
-  const BtnRect = FPaintItem.Rects[iprBtnDstRect];
-  if not IsRectEmpty(BtnRect) then begin
-    var Size := MulDiv(9, CurrentPPI, 96);
-    if not Odd(Size) then
-      Dec(Size);
-    const Margin = MulDiv(2, Size, 9);
-    const Mid = Size div 2;
-    Canvas.Brush.Color := BackgroundColor;
-    Canvas.Pen.Color := FNameColor;
-    const SaveIndex = SaveDC(Canvas.Handle);
-    try
-      IntersectClipRect(Canvas.Handle, BtnRect.Left, BtnRect.Top,
-        BtnRect.Right, BtnRect.Bottom);
-      Canvas.Rectangle(BtnRect.Left, BtnRect.Top, BtnRect.Left + Size,
-        BtnRect.Top + Size);
-      Canvas.MoveTo(BtnRect.Left + Margin, BtnRect.Top + Mid);
-      Canvas.LineTo(BtnRect.Left + Size - Margin, BtnRect.Top + Mid);
-      if not FPaintItem.Expanded then begin
-        Canvas.MoveTo(BtnRect.Left + Mid, BtnRect.Top + Margin);
-        Canvas.LineTo(BtnRect.Left + Mid, BtnRect.Top + Size - Margin);
-      end;
-    finally
-      RestoreDC(Canvas.Handle, SaveIndex);
-    end;
-  end;
+  PaintGlyph(iprExpandButton);
+
+  if FPaintItem = FMarkedItem then
+    PaintGlyph(iprMarker);
 
   if EndOfCat or FPaintItem.IsCategory then
     Canvas.Pen.Color := FCategoryDividerColor
@@ -2065,7 +2100,7 @@ begin
   if LastPaintGeneration = Inspector.PaintGeneration then
     Result := FRects[RectKind]
   else
-    Result := Rect(0, 0, 0, 0);
+    Result := TRect.Empty;
 end;
 
 procedure TJvCustomInspectorItem.GetValueList(const Strings: TStrings);
@@ -2104,7 +2139,7 @@ end;
 procedure TJvCustomInspectorItem.MouseDown(Button: TMouseButton;
   Shift: TShiftState; X, Y: Integer);
 begin
-  if (Button = mbLeft) and PtInRect(Rects[iprEditButton], Point(X, Y)) then begin
+  if (Button = mbLeft) and PtInRect(Rects[iprValueButton], Point(X, Y)) then begin
     if iifEditButton in Flags then begin
       Tracking := True;
       TrackButton(X, Y);
@@ -2144,7 +2179,7 @@ end;
 procedure TJvCustomInspectorItem.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
   const FireEditButtonClick = (Button = mbLeft) and Tracking and
-    (iifEditButton in Flags) and PtInRect(Rects[iprEditButton], Point(X, Y));
+    (iifEditButton in Flags) and PtInRect(Rects[iprValueButton], Point(X, Y));
   StopTracking;
   if FireEditButtonClick then
     EditButtonClick;
@@ -2252,8 +2287,8 @@ begin
   FLastPaintGen := Inspector.PaintGeneration;
   if not EqualRect(Rects[RectKind], Value) then begin
     FRects[RectKind] := Value;
-    if (RectKind = iprEditValue) and (EditCtrl <> nil) then begin
-      EditCtrl.BoundsRect := Rects[iprEditValue];
+    if (RectKind = iprValueEdit) and (EditCtrl <> nil) then begin
+      EditCtrl.BoundsRect := Rects[iprValueEdit];
       if DroppedDown then
         CloseUp(False);
     end;
@@ -2274,7 +2309,7 @@ var
   NewState: Boolean;
   R: TRect;
 begin
-  R := Rects[iprEditButton];
+  R := Rects[iprValueButton];
   NewState := PtInRect(R, Point(X, Y));
   if Pressed <> NewState then begin
     Pressed := NewState;
@@ -2296,6 +2331,8 @@ begin
   inherited;
   if Parent <> nil then
     Parent.FItems.Extract(Self); // FItems owns the items
+  if (Inspector <> nil) and (Inspector.FMarkedItem = Self) then
+    Inspector.FMarkedItem := nil;
   if (Inspector <> nil) and (Inspector.FPressedItem = Self) then
     Inspector.FPressedItem := nil;
   if (Inspector <> nil) and (Inspector.Root <> Self) then
@@ -2315,7 +2352,7 @@ begin
     S := RsJvInspItemValueException + ExceptObject.ClassName + ': ' +
       Exception(ExceptObject).Message;
   end;
-  ARect := Rects[iprValue];
+  ARect := Rects[iprValueText];
   if Editing then
     ACanvas.Brush.Color := Inspector.BackgroundColor;
   if not Editing then
@@ -2325,12 +2362,12 @@ begin
     ACanvas.FillRect(ARect);
     // Reposition the editor if the layout changed since InitEdit placed it,
     // for example when InitEdit ran before the item was first painted
-    if (EditCtrl <> nil) and (EditCtrl.BoundsRect <> Rects[iprEditValue]) then
-      EditCtrl.BoundsRect := Rects[iprEditValue];
+    if (EditCtrl <> nil) and (EditCtrl.BoundsRect <> Rects[iprValueEdit]) then
+      EditCtrl.BoundsRect := Rects[iprValueEdit];
     // This reduces the flickering when dragging the divider bar
     if EditCtrl <> nil then
       EditCtrl.PaintTo(ACanvas.Handle, EditCtrl.Left, EditCtrl.Top);
-    ARect := Rects[iprEditButton];
+    ARect := Rects[iprValueButton];
     if not IsRectEmpty(ARect) then begin
       if iifEditButton in Flags then begin
         var BFlags: UINT := DFCS_BUTTONPUSH;
@@ -2487,7 +2524,7 @@ begin
       ListBox.OnDeactivate := ListDeactivate;
       ListBox.Item := Self;
     end;
-    EditCtrl.BoundsRect := Rects[iprEditValue];
+    EditCtrl.BoundsRect := Rects[iprValueEdit];
     EditCtrl.OnKeyDown := EditKeyDown;
     EditCtrl.OnKeyUp := EditKeyUp;
     EditCtrl.OnKeyPress := EditKeyPress;
@@ -2518,7 +2555,7 @@ begin
   FEditing := False;
 end;
 
-procedure TJvCustomInspectorItem.ScrollInView;
+procedure TJvCustomInspectorItem.ScrollInView(const ACenter: Boolean);
 var
   ViewIdx: Integer;
   YDelta: Integer;
@@ -2529,9 +2566,17 @@ begin
     Exit; // bugfix attempt. WAP.Self
 
   ViewIdx := Integer(Inspector.FVisibleList.IndexOf(Self));
-  if Inspector.TopIndex > ViewIdx then
+  if ViewIdx < 0 then
+    Exit;
+  const Above = Inspector.TopIndex > ViewIdx;
+  const Below = not Above and
+    (Inspector.IdxToY(ViewIdx - Inspector.TopIndex) + Inspector.GetItemHeight > Inspector.ClientHeight);
+  if ACenter then begin
+    if Above or Below then
+      Inspector.TopIndex := ViewIdx - (Inspector.ClientHeight div Inspector.GetItemHeight) div 2;
+  end else if Above then
     Inspector.TopIndex := ViewIdx
-  else if (Inspector.IdxToY(ViewIdx - Inspector.TopIndex) + Inspector.GetItemHeight) > Inspector.ClientHeight then begin
+  else if Below then begin
     YDelta := Inspector.IdxToY(ViewIdx - Inspector.TopIndex) + Inspector.GetItemHeight - Inspector.ClientHeight;
     ViewIdx := Inspector.TopIndex + (YDelta + Inspector.GetItemHeight - 1) div Inspector.GetItemHeight;
     if ViewIdx < Inspector.GetVisibleCount then
