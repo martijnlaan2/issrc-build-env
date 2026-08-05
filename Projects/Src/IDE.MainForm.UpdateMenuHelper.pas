@@ -529,12 +529,12 @@ end;
 
 procedure TMainFormUpdateMenuHelper.UpdateInspectorPopupMenu(const Menu: TMenuItem);
 begin
-  PInspectorGoTo.Enabled := FInspector.TryGetSelectedRowFirstLine >= 0;
+  PInspectorGoTo.Enabled := FInspector.TryGetSelectedRowPosition;
   PInspectorRemove.Enabled := FInspector.CanRemoveSelectedRow;
   PInspectorShowAllKnownDirectives.Visible := FInspector.ShowingDirectiveSection;
   PInspectorShowAllKnownDirectives.Checked := FOptions.InspectorShowAllKnownDirectives;
   PInspectorShowAllKnownDirectives.Enabled := FActiveMemo = FMainMemo;
-  PInspectorShowAllKnownDirectivesSeparator.Visible := PInspectorShowAllKnownDirectives.Visible; { AutoLineReduction is maManual }
+  PInspectorFollowCaret.Checked := FOptions.InspectorFollowCaret;
 
   _ApplyMenuBitmapsAndNewShortCutText(Menu);
 end;

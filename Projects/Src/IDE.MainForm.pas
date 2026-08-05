@@ -147,6 +147,7 @@ type
     AutoHideNewIncludedFiles: Boolean;
     ShowCaretPosition: Boolean;
     InspectorShowAllKnownDirectives: Boolean;
+    InspectorFollowCaret: Boolean;
     InspectorQuoteNewParameterValues: Boolean;
     InspectorQuoteNewDirectiveValues: Boolean;
   end;
@@ -349,7 +350,8 @@ type
     PInspectorRemove: TMenuItem;
     N26: TMenuItem;
     PInspectorShowAllKnownDirectives: TMenuItem;
-    PInspectorShowAllKnownDirectivesSeparator: TMenuItem;
+    PInspectorFollowCaret: TMenuItem;
+    N27: TMenuItem;
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure FExitClick(Sender: TObject);
     procedure FOpenMainFileClick(Sender: TObject);
@@ -502,6 +504,7 @@ type
     procedure PInspectorHelpClick(Sender: TObject);
     procedure PInspectorRemoveClick(Sender: TObject);
     procedure PInspectorShowAllKnownDirectivesClick(Sender: TObject);
+    procedure PInspectorFollowCaretClick(Sender: TObject);
   private
     FCompilerVersion: PCompilerVersionInfo;
     FOptionsLoaded: Boolean;
@@ -928,11 +931,13 @@ constructor TMainForm.Create(AOwner: TComponent);
     const Ini = TConfigIniFile.Create;
     try
       FOptions.InspectorShowAllKnownDirectives := Ini.ReadBool('Options', 'InspectorShowAllKnownDirectives', True);
+      FOptions.InspectorFollowCaret := Ini.ReadBool('Options', 'InspectorFollowCaret', True);
     finally
       Ini.Free;
     end;
     FInspector := TInspector.Create(JvInspector, InspectorNoteText, LiveScriptObjectFactoryForMemo(FActiveMemo),
-      FOptions.InspectorShowAllKnownDirectives, GetMainBaseDir); { No main-memo check needed: FActiveMemo is FMainMemo at startup }
+      FOptions.InspectorShowAllKnownDirectives, FOptions.InspectorFollowCaret,
+      GetMainBaseDir); { No main-memo check needed: FActiveMemo is FMainMemo at startup }
   end;
 
   procedure ReadAndApplyConfig;
@@ -987,7 +992,7 @@ constructor TMainForm.Create(AOwner: TComponent);
       I := Ini.ReadInteger('Options', 'MemoKeyMappingType', Ord(GetDefaultMemoKeyMappingType));
       if (I >= 0) and (I <= Ord(High(TIDEScintKeyMappingType))) then
         FOptions.MemoKeyMappingType := TIDEScintKeyMappingType(I);
-      { FOptions.InspectorShowAllKnownDirectives already loaded }
+      { FOptions.InspectorShowAllKnownDirectives and InspectorFollowCaret already loaded }
       FOptions.InspectorQuoteNewParameterValues := Ini.ReadBool('Options', 'InspectorQuoteNewParameterValues', True);
       FOptions.InspectorQuoteNewDirectiveValues := Ini.ReadBool('Options', 'InspectorQuoteNewDirectiveValues', False);
       FMainMemo.Font.Name := Ini.ReadString('Options', 'EditorFontName', FMainMemo.Font.Name);
@@ -1523,14 +1528,20 @@ begin
     if VCloseCurrentTab.Enabled then
       VCloseCurrentTabClick(Self);
   end else if (Key = VK_F6) and not (ssAlt in Shift) then begin
-    { Move focus between the active memo, the active bottom pane, the
-      inspector filter, the inspector popup menu button, the inspector, and the
-      active banner }
+    { Move focus between the active memo, the inspector, the inspector filter,
+      the inspector popup menu button, the active bottom pane, and the active
+      banner }
     Key := 0;
 
     { First get the list of controls to toggle between }
     var Controls: TArray<TWinControl> := [FActiveMemo];
     var NControls: NativeInt := Length(Controls); { Explicit type for Delphi 10.4 }
+    if InspectorPanel.Visible then begin
+      AddControlToArray(FInspector.JvInspector, Controls, NControls);
+      if InspectorFilterEdit.Visible then
+        AddControlToArray(InspectorFilterEdit, Controls, NControls);
+      AddControlToArray(InspectorPopupMenuBitBtn, Controls, NControls);
+    end;
     if StatusPanel.Visible then begin
       var ControlToAdd: TWinControl := nil;
       case OutputTabSet.TabIndex of
@@ -1541,12 +1552,6 @@ begin
       end;
       if ControlToAdd <> nil then
         AddControlToArray(ControlToAdd, Controls, NControls);
-    end;
-    if InspectorPanel.Visible then begin
-      if InspectorFilterEdit.Visible then
-        AddControlToArray(InspectorFilterEdit, Controls, NControls);
-      AddControlToArray(InspectorPopupMenuBitBtn, Controls, NControls);
-      AddControlToArray(FInspector.JvInspector, Controls, NControls);
     end;
     if UpdatePanel.Visible then begin
       if FUpdatePanelMessages[UpdateLinkLabel.Tag].HasLink then
@@ -2700,6 +2705,7 @@ begin
   const ActiveMemoIsMainMemo = (FActiveMemo = FMainMemo);
   FInspector.ShowAllKnownDirectives := FOptions.InspectorShowAllKnownDirectives and ActiveMemoIsMainMemo;
   FInspector.ShowAllKnownDirectivesSuppressedNote := FOptions.InspectorShowAllKnownDirectives and not ActiveMemoIsMainMemo;
+  FInspector.FollowCaret := FOptions.InspectorFollowCaret;
   FInspector.QuoteNewDirectiveValues := FOptions.InspectorQuoteNewDirectiveValues;
   FInspector.QuoteNewParameterValues := FOptions.InspectorQuoteNewParameterValues;
 end;
@@ -3957,6 +3963,18 @@ begin
   end;
 end;
 
+procedure TMainForm.PInspectorFollowCaretClick(Sender: TObject);
+begin
+  FOptions.InspectorFollowCaret := not FOptions.InspectorFollowCaret;
+  SyncInspectorOptions;
+  const Ini = TConfigIniFile.Create;
+  try
+    Ini.WriteBool('Options', 'InspectorFollowCaret', FOptions.InspectorFollowCaret);
+  finally
+    Ini.Free;
+  end;
+end;
+
 procedure TMainForm.UpdateOccurrenceIndicators(const AMemo: TIDEScintEdit);
 
   procedure FindTextAndAddRanges(const AMemo: TIDEScintEdit;
@@ -4350,6 +4368,7 @@ begin
     OptionsForm.HighlightWordAtCursorOccurrencesCheck.Checked := FOptions.HighlightWordAtCursorOccurrences;
     OptionsForm.HighlightSelTextOccurrencesCheck.Checked := FOptions.HighlightSelTextOccurrences;
     OptionsForm.InspectorShowAllKnownDirectivesCheck.Checked := FOptions.InspectorShowAllKnownDirectives;
+    OptionsForm.InspectorFollowCaretCheck.Checked := FOptions.InspectorFollowCaret;
     OptionsForm.InspectorQuoteNewDirectiveValuesCheck.Checked := FOptions.InspectorQuoteNewDirectiveValues;
     OptionsForm.InspectorQuoteNewParameterValuesCheck.Checked := FOptions.InspectorQuoteNewParameterValues;
 
@@ -4391,6 +4410,7 @@ begin
     FOptions.HighlightWordAtCursorOccurrences := OptionsForm.HighlightWordAtCursorOccurrencesCheck.Checked;
     FOptions.HighlightSelTextOccurrences := OptionsForm.HighlightSelTextOccurrencesCheck.Checked;
     FOptions.InspectorShowAllKnownDirectives := OptionsForm.InspectorShowAllKnownDirectivesCheck.Checked;
+    FOptions.InspectorFollowCaret := OptionsForm.InspectorFollowCaretCheck.Checked;
     FOptions.InspectorQuoteNewDirectiveValues := OptionsForm.InspectorQuoteNewDirectiveValuesCheck.Checked;
     FOptions.InspectorQuoteNewParameterValues := OptionsForm.InspectorQuoteNewParameterValuesCheck.Checked;
 
@@ -4451,6 +4471,7 @@ begin
       Ini.WriteInteger('Options', 'EditorFontSize', FMainMemo.Font.Size);
       Ini.WriteInteger('Options', 'EditorFontCharset', FMainMemo.Font.Charset);
       Ini.WriteBool('Options', 'InspectorShowAllKnownDirectives', FOptions.InspectorShowAllKnownDirectives);
+      Ini.WriteBool('Options', 'InspectorFollowCaret', FOptions.InspectorFollowCaret);
       Ini.WriteBool('Options', 'InspectorQuoteNewParameterValues', FOptions.InspectorQuoteNewParameterValues);
       Ini.WriteBool('Options', 'InspectorQuoteNewDirectiveValues', FOptions.InspectorQuoteNewDirectiveValues);
     finally
@@ -6693,10 +6714,13 @@ end;
 
 procedure TMainForm.EGotoLineClick(Sender: TObject);
 begin
-  var FirstLine: Integer;
-  if FInspector.JvInspector.Focused and FInspector.TryGetSelectedRowFirstLine(FirstLine) then
-    FInspector.GoToSelectedRow(FirstLine)
-  else begin
+  if FInspector.JvInspector.Focused then begin
+    FInspector.GoToSelectedRow;
+    { If the goto failed then nothing happened. Do simple switch to allow
+      back and forth switching with F6 and Ctrl+G. }
+    if not FActiveMemo.Focused then
+      FActiveMemo.SetFocus;
+  end else begin
     var S := IntToStr(FActiveMemo.CaretLine + 1);
     if InputQueryEdit(LFmtMessage(SGotoLineTitle), LFmtMessage(SGotoLinePrompt), S) then begin
       const L = StrToIntDef(S, Low(Integer));

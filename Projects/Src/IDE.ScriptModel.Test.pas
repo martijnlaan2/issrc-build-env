@@ -1781,6 +1781,127 @@ begin
   end;
 end;
 
+procedure TestEntryParameterIndexAt;
+
+  procedure Check(const AEntry: TScriptModelParameterSectionEntry;
+    const ALineIndex, ACharIndex, AExpectedParameterIndex: Integer);
+  begin
+    var ParameterIndex: Integer;
+    Assert(AEntry.TryGetParameterIndexAt(ALineIndex, ACharIndex, ParameterIndex));
+    Assert(ParameterIndex = AExpectedParameterIndex);
+  end;
+
+begin
+  const Entry = TScriptModelParameterSectionEntry.Create(nil);
+  try
+    { Single line with an indent and a quoted ';'. A position right before the
+      separating ';' still belongs to the parameter before it, and the quoted
+      ';' separates nothing }
+    Entry.Parse(['  Source: "a;b"; DestDir: c']);
+    Assert(Entry.Count = 2);
+    Check(Entry, 0, 0, 0);  { Inside the indent }
+    Check(Entry, 0, 2, 0);  { At 'S' }
+    Check(Entry, 0, 12, 0); { On the quoted ';' }
+    Check(Entry, 0, 15, 0); { Right before the separating ';' }
+    Check(Entry, 0, 16, 1); { Right after it }
+    Check(Entry, 0, 27, 1); { At the line's end }
+
+    { A spanned entry maps positions on the continuation line, with its own
+      indent stripped, into the following parameters }
+    Entry.Parse(['Source: "a"; \', '  DestDir: "b"; Flags: x']);
+    Assert(Entry.Count = 3);
+    Check(Entry, 0, 0, 0);  { At 'S' }
+    Check(Entry, 0, 11, 0); { Right before the ';' }
+    Check(Entry, 0, 12, 1); { Right after it }
+    Check(Entry, 0, 14, 1); { At the line's end, after the stripped '\' }
+    Check(Entry, 1, 0, 1);  { Inside the continuation line's indent }
+    Check(Entry, 1, 2, 1);  { At 'D' }
+    Check(Entry, 1, 14, 1); { Right before the ';' }
+    Check(Entry, 1, 15, 2); { Right after it }
+    Check(Entry, 1, 24, 2); { At the line's end }
+
+    { Refuses lines outside the parsed lines }
+    var ParameterIndex: Integer;
+    Assert(not Entry.TryGetParameterIndexAt(-1, 0, ParameterIndex));
+    Assert(not Entry.TryGetParameterIndexAt(2, 0, ParameterIndex));
+
+    { Refuses once modified: the remembered offsets no longer match }
+    Entry.SetValue(0, 'z');
+    Assert(not Entry.TryGetParameterIndexAt(0, 0, ParameterIndex));
+
+    { Refuses an empty entry }
+    Entry.Parse(['']);
+    Assert(not Entry.TryGetParameterIndexAt(0, 0, ParameterIndex));
+  finally
+    Entry.Free;
+  end;
+end;
+
+procedure TestEntryParameterPosition;
+
+  procedure Check(const AEntry: TScriptModelParameterSectionEntry;
+    const AParameterIndex, AExpectedLineIndex, AExpectedCharIndex: Integer);
+  begin
+    var LineIndex, CharIndex: Integer;
+    Assert(AEntry.TryGetParameterPosition(AParameterIndex, LineIndex, CharIndex));
+    Assert(LineIndex = AExpectedLineIndex);
+    Assert(CharIndex = AExpectedCharIndex);
+    { The position must map back to the parameter it came from, so that going
+      to a parameter and looking up what is at the caret agree }
+    var ParameterIndex: Integer;
+    Assert(AEntry.TryGetParameterIndexAt(LineIndex, CharIndex, ParameterIndex));
+    Assert(ParameterIndex = AParameterIndex);
+  end;
+
+begin
+  const Entry = TScriptModelParameterSectionEntry.Create(nil);
+  try
+    { Single line with an indent: the position is that of the value, so past
+      the ':' and the whitespace after it, and a quote counts as value }
+    Entry.Parse(['  Source: "a;b"; DestDir: c']);
+    Assert(Entry.Count = 2);
+    Check(Entry, 0, 0, 10);
+    Check(Entry, 1, 0, 26);
+
+    { A spanned entry: a parameter whose whitespace started on the previous
+      line still reports the position of its value on the continuation line }
+    Entry.Parse(['Source: "a"; \', '  DestDir: "b"; Flags: x']);
+    Assert(Entry.Count = 3);
+    Check(Entry, 0, 0, 8);
+    Check(Entry, 1, 1, 11);
+    Check(Entry, 2, 1, 23);
+
+    { A continuation line holding nothing but its indent and the backslash
+      doesn't claim the parameter which follows it }
+    Entry.Parse(['Source: x; \', '  \', '  DestDir: y']);
+    Assert(Entry.Count = 2);
+    Check(Entry, 0, 0, 8);
+    Check(Entry, 1, 2, 11);
+
+    { Refuses a chunk which isn't a named parameter, so has no value }
+    Entry.Parse(['Source: x;']);
+    Assert(Entry.Count = 2);
+    Check(Entry, 0, 0, 8);
+    var ChunkLineIndex, ChunkCharIndex: Integer;
+    Assert(not Entry.TryGetParameterPosition(1, ChunkLineIndex, ChunkCharIndex));
+
+    { Refuses parameters outside the parsed parameters }
+    var LineIndex, CharIndex: Integer;
+    Assert(not Entry.TryGetParameterPosition(-1, LineIndex, CharIndex));
+    Assert(not Entry.TryGetParameterPosition(2, LineIndex, CharIndex));
+
+    { Refuses once modified: the remembered offsets no longer match }
+    Entry.SetValue(0, 'z');
+    Assert(not Entry.TryGetParameterPosition(0, LineIndex, CharIndex));
+
+    { Refuses an empty entry }
+    Entry.Parse(['']);
+    Assert(not Entry.TryGetParameterPosition(0, LineIndex, CharIndex));
+  finally
+    Entry.Free;
+  end;
+end;
+
 procedure IDEScriptModelRunTests;
 begin
   TestLineHelpers;
@@ -1797,6 +1918,8 @@ begin
   TestKeyValueSection;
   TestKeyValueSectionFlags;
   TestEntrySpanning;
+  TestEntryParameterIndexAt;
+  TestEntryParameterPosition;
 end;
 
 {$IFDEF DEBUG}

@@ -69,6 +69,7 @@ type
     FLineSpans: TList<TParameterSectionEntryLineSpan>;
     FIndent: String; { First line indent }
     FOriginalLines: TArray<String>; { Before modification }
+    FLineStartOffsets: TArray<Integer>; { Before modification, set by Parse }
     FModified: Boolean;
     FOnChange: TNotifyEvent;
     FUpdateLevel: Integer;
@@ -110,6 +111,10 @@ type
       const AInclude: Boolean);
     function TryGetDefinition(const AName: String;
       out ADefinition: TMemberDefinition): Boolean;
+    function TryGetParameterIndexAt(const AOriginalLineIndex, AOriginalCharIndex: Integer;
+      out AParameterIndex: Integer): Boolean;
+    function TryGetParameterPosition(const AParameterIndex: Integer;
+      out AOriginalLineIndex, AOriginalCharIndex: Integer): Boolean;
     function LineSpanCount: Integer;
     property LineSpanParameterIndexes[Index: Integer]: Integer read GetLineSpanParameterIndex;
     property Indent: String read FIndent;
@@ -509,8 +514,7 @@ begin
     The first line's leading whitespace is kept as the entry's indentation.
     Remembers where each line started within the joined line, for later use. }
   var Joined := '';
-  var LineStartOffsets: TArray<Integer>;
-  SetLength(LineStartOffsets, Length(ALines));
+  SetLength(FLineStartOffsets, Length(ALines));
   for var I := 0 to High(ALines) do begin
     var S := ALines[I];
     if (I < High(ALines)) and ScriptLineSpans(S) then
@@ -520,7 +524,7 @@ begin
       S := Copy(S, Length(FIndent)+1, MaxInt);
     end else
       S := TrimLeft(S);
-    LineStartOffsets[I] := Length(Joined)+1;
+    FLineStartOffsets[I] := Length(Joined)+1;
     Joined := Joined + S;
   end;
 
@@ -551,7 +555,7 @@ begin
     { Map each physical line break to the parameter containing its offset;
       a break that fell between parameters belongs to the following one }
     for var I := 1 to High(ALines) do begin
-      const Offset = LineStartOffsets[I];
+      const Offset = FLineStartOffsets[I];
       var ParameterIndex := Integer(FParameters.Count);
       for var K := 0 to Integer(ChunkStartOffsets.Count)-1 do begin
         if Offset <= ChunkStartOffsets[K] + Length(FParameters[K].RawText) - 1 then begin
@@ -665,6 +669,77 @@ function TScriptModelParameterSectionEntry.GetLineSpanParameterIndex(
   Index: Integer): Integer;
 begin
   Result := FLineSpans[Index].ParameterIndex;
+end;
+
+function TScriptModelParameterSectionEntry.TryGetParameterIndexAt(
+  const AOriginalLineIndex, AOriginalCharIndex: Integer;
+  out AParameterIndex: Integer): Boolean;
+{ The inverse of TryGetParameterPosition: returns the index of the
+  parameter occupying the position. Cannot be used after modification:
+  uses information from Parse. }
+begin
+  if FModified or (AOriginalLineIndex < 0) or (AOriginalLineIndex > High(FOriginalLines)) or
+     (FParameters.Count = 0) then
+    Exit(False);
+
+  { FLineStartOffsets excludes leading whitespace length, and was stored
+    as (F)Indent instead, so use that }
+  var OriginalIndent: String;
+  if AOriginalLineIndex = 0 then
+    OriginalIndent := FIndent
+  else
+    OriginalIndent := FLineSpans[AOriginalLineIndex-1].Indent;
+  var Offset := FLineStartOffsets[AOriginalLineIndex] + AOriginalCharIndex - Length(OriginalIndent);
+  if Offset < FLineStartOffsets[AOriginalLineIndex] then
+    Offset := FLineStartOffsets[AOriginalLineIndex];
+
+  { The parameter at the offset is the last one starting at or before it }
+  AParameterIndex := 0;
+  var ChunkStart := 1;
+  for var I := 1 to FParameters.Count-1 do begin
+    Inc(ChunkStart, Length(FParameters[I-1].RawText) + 1);
+    if ChunkStart > Offset then
+      Break;
+    AParameterIndex := Integer(I);
+  end;
+  Result := True;
+end;
+
+function TScriptModelParameterSectionEntry.TryGetParameterPosition(
+  const AParameterIndex: Integer;
+  out AOriginalLineIndex, AOriginalCharIndex: Integer): Boolean;
+{ The inverse of TryGetParameterIndexAt: returns the position at which the
+  indexed parameter's value starts, so past its ':' and any whitespace after
+  it. Cannot be used after modification: uses information from Parse. }
+begin
+  if FModified or (AParameterIndex < 0) or
+     (AParameterIndex >= Integer(FParameters.Count)) then
+    Exit(False);
+  const Parameter = FParameters[AParameterIndex];
+  if Parameter.Kind <> pkParameter then
+    Exit(False);
+
+  var Offset := 1;
+  for var I := 0 to AParameterIndex-1 do
+    Inc(Offset, Length(FParameters[I].RawText) + 1);
+  Inc(Offset, Parameter.FValueStartIndex - 1 +
+    Length(LeadingWhitespace(Parameter.RawValue)));
+
+  AOriginalLineIndex := 0;
+  for var I := 1 to High(FOriginalLines) do begin
+    if FLineStartOffsets[I] > Offset then
+      Break;
+    AOriginalLineIndex := Integer(I);
+  end;
+
+  var OriginalIndent: String;
+  if AOriginalLineIndex = 0 then
+    OriginalIndent := FIndent
+  else
+    OriginalIndent := FLineSpans[AOriginalLineIndex-1].Indent;
+  AOriginalCharIndex := Offset - FLineStartOffsets[AOriginalLineIndex] +
+    Length(OriginalIndent);
+  Result := True;
 end;
 
 function TScriptModelParameterSectionEntry.IndexOf(

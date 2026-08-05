@@ -16,11 +16,12 @@ interface
 uses
   Windows, Messages, Classes, Graphics, Controls, StdCtrls, Generics.Collections,
   JvInspector, ModernColors, NewStaticText,
-  IDE.LiveScriptObjectFactory, IDE.ScriptModel, IDE.ScriptModel.Metadata;
+  IDE.LiveScriptObjectFactory, IDE.ScriptModel, IDE.ScriptModel.Metadata, IDE.ScriptModel.Metadata.Extra;
 
 type
   TInspectorRowKind = (irkParameter, irkParameterFlag, irkKey,
-    irkKeyFlag {$IFDEF DEBUG}, irkDebugStatus, irkDebugSections, irkDebugEarlyExits{$ENDIF});
+    irkKeyFlag {$IFDEF DEBUG}, irkDebugStatus, irkDebugSections, irkDebugEarlyExits,
+    irkDebugCaretAt {$ENDIF});
 
   TInspectorRow = record
     Kind: TInspectorRowKind;
@@ -33,34 +34,52 @@ type
     CheckBox: Boolean;
   end;
 
+  TCaretAtKind = (cakParameterSectionEntry, cakKeyValueSection);
+
+  TCaretAt = record
+    Valid: Boolean;
+    Kind: TCaretAtKind;
+    Name: String;   { Protects against a stale Index. As in the script, so not cleaned }
+    Index: Integer; { Protects against duplicated Name }
+  end;
+
   TInspectorGetBaseDirEvent = function: String of object;
 
   TInspector = class
   private
-    FJvInspector: TJvInspector;
-    FMessagesWnd: HWND;
-    FNoteText: TNewStaticText;
-    FFactory: TLiveScriptObjectFactory;
-    FOnGetBaseDir: TInspectorGetBaseDirEvent;
-    FLiveParameterSectionEntry: TLiveScriptParameterSectionEntry;
-    FLiveKeyValueSection: TLiveScriptKeyValueSection;
-    FLiveKeyValueSectionName: String;
-    FLiveKeyValueSectionIsDirectiveSection: Boolean;
-    FLiveKeyValueSectionHasSiblingOccurrences: Boolean;
-    FLiveKeyValueSectionIndex: Integer; { Factory section index it was created for }
-    FChangeCountAtCreation: Int64; { Factory ChangeCount at the live object's creation }
-    FRows: TList<TInspectorRow>;
-    FRowSetSignature: String;
-    {$IFDEF DEBUG}
-    FDebugStatusRowString: String;
-    FUpdateFromCaretEarlyExitCount: Integer;
-    {$ENDIF}
-    FInEdit: Boolean;
-    FFilterText: String;
-    FShowAllKnownDirectives: Boolean;
-    FShowAllKnownDirectivesSuppressedNote: Boolean;
-    FQuoteNewParameterValues: Boolean;
-    FQuoteNewDirectiveValues: Boolean;
+    class var
+      FScriptBrowseFileTypeFilters: array [TScriptBrowseFileType] of record
+        FilesName: String;
+        Extensions: TArray<String>; { First is default }
+      end;
+    var
+      FJvInspector: TJvInspector;
+      FMessagesWnd: HWND;
+      FNoteText: TNewStaticText;
+      FFactory: TLiveScriptObjectFactory;
+      FOnGetBaseDir: TInspectorGetBaseDirEvent;
+      FLiveParameterSectionEntry: TLiveScriptParameterSectionEntry;
+      FLiveKeyValueSection: TLiveScriptKeyValueSection;
+      FLiveKeyValueSectionName: String;
+      FLiveKeyValueSectionIsDirectiveSection: Boolean;
+      FLiveKeyValueSectionHasSiblingOccurrences: Boolean;
+      FLiveKeyValueSectionIndex: Integer; { Factory section index it was created for }
+      FChangeCountAtCreation: Int64; { Factory ChangeCount at the live object's creation }
+      FRows: TList<TInspectorRow>;
+      FRowSetSignature: String;
+      FFollowCaret: Boolean;
+      FCaretAt: TCaretAt;
+      {$IFDEF DEBUG}
+      FDebugStatusRowString: String;
+      FUpdateFromCaretEarlyExitCount: Integer;
+      {$ENDIF}
+      FInEdit: Boolean;
+      FFilterText: String;
+      FShowAllKnownDirectives: Boolean;
+      FShowAllKnownDirectivesSuppressedNote: Boolean;
+      FQuoteNewParameterValues: Boolean;
+      FQuoteNewDirectiveValues: Boolean;
+    class constructor Create;
     procedure InvalidateChangedRows;
     function TryGetRow(const AItem: TJvCustomInspectorItem;
       out ARow: TInspectorRow): Boolean;
@@ -89,9 +108,13 @@ type
     procedure JvInspectorEditButtonClick(Item: TJvCustomInspectorItem;
       var Value: String);
     procedure MessagesWndProc(var Message: TMessage);
+    function RowMatchesCaretAt(const ARow: TInspectorRow): Boolean;
+    procedure ApplyCaretAtTimerUpdate(const ACancel: Boolean);
+    procedure ApplyCaretAt;
     function GetDividerWidth: Integer;
     procedure SetDividerWidth(const Value: Integer);
     procedure SetFilterText(const Value: String);
+    procedure SetFollowCaret(const Value: Boolean);
     procedure SetQuoteNewDirectiveValues(const Value: Boolean);
     procedure SetQuoteNewParameterValues(const Value: Boolean);
     procedure SetShowAllKnownDirectives(const Value: Boolean);
@@ -101,14 +124,14 @@ type
     constructor Create(const AJvInspector: TJvInspector;
       const ANoteText: TNewStaticText;
       const AFactory: TLiveScriptObjectFactory;
-      const AShowAllKnownDirectives: Boolean;
+      const AShowAllKnownDirectives, AFollowCaret: Boolean;
       const AOnGetBaseDir: TInspectorGetBaseDirEvent);
     destructor Destroy; override;
     procedure ForceFinishEdit(const AForceCancel: Boolean = False);
     function GetSelectedHelpKeyword: String;
-    function TryGetSelectedRowFirstLine: Integer; overload;
-    function TryGetSelectedRowFirstLine(out AFirstLine: Integer): Boolean; overload;
-    procedure GoToSelectedRow(const AFirstLine: Integer = -1);
+    function TryGetSelectedRowPosition: Boolean; overload;
+    function TryGetSelectedRowPosition(out ALine, ACharIndex: Integer): Boolean; overload;
+    procedure GoToSelectedRow;
     function TryResolveSelectedRow(out AEntry: TScriptModelParameterSectionEntry;
       out ASection: TScriptModelKeyValueSection; out AIndex: Integer): Boolean; overload;
     function TryResolveSelectedRow: Boolean; overload;
@@ -121,6 +144,7 @@ type
     procedure UpdateReadOnly;
     procedure UpdateTheme(const ATheme: TTheme; const AHighContrastActive: Boolean);
     property FilterText: String read FFilterText write SetFilterText;
+    property FollowCaret: Boolean read FFollowCaret write SetFollowCaret;
     property ShowAllKnownDirectives: Boolean read FShowAllKnownDirectives
       write SetShowAllKnownDirectives;
     property ShowAllKnownDirectivesSuppressedNote: Boolean
@@ -141,45 +165,45 @@ uses
   SysUtils, StrUtils, UITypes, Themes, Forms, Generics.Defaults,
   BrowseFunc, NewUxTheme, PathFunc,
   Shared.CommonFunc, Shared.CommonFunc.Vcl,
-  IDE.HelperFunc, IDE.Messages, IDE.LocalizeFunc, IDE.ScriptModel.Metadata.Extra;
+  IDE.HelperFunc, IDE.Messages, IDE.LocalizeFunc;
 
 type
   EInspectorValueRejected = class(EScriptModelError);
 
 const
   WM_RemoveSelectedRow = WM_USER + 1;
+  ApplyCaretAtTimerID = 1;
 
-var
-  ScriptBrowseFileTypeFilters: array [TScriptBrowseFileType] of record
-    FilesName: String;
-    Extensions: TArray<String>; { First is default }
-  end;
+{ TInspector }
 
-procedure InitializeScriptBrowseFileTypeFilters;
+class constructor TInspector.Create;
 
   procedure BF(const AFileType: TScriptBrowseFileType; const AFilesName: String;
     const AExtensions: TArray<String>);
   begin
-    ScriptBrowseFileTypeFilters[AFileType].FilesName := AFilesName;
-    ScriptBrowseFileTypeFilters[AFileType].Extensions := AExtensions;
+    FScriptBrowseFileTypeFilters[AFileType].FilesName := AFilesName;
+    FScriptBrowseFileTypeFilters[AFileType].Extensions := AExtensions;
+  end;
+
+  procedure InitializeScriptBrowseFileTypeFilters;
+  begin
+    BF(bftDocs, SDocFiles, [SLitRtfExt, SLitTxtExt]);
+    BF(bftIco, SIcoFiles, [SLitIcoExt]);
+    BF(bftImages, SImageFiles, [SLitPngExt, SLitBmpExt]);
+    BF(bftVclStyle, SVclStylesFiles, [SLitVsfExt]);
+    BF(bftIsl, SIslFiles, [SLitIslExt]);
+    BF(bftKey, SIsPublicKeyFiles, [SLitIsPublicKeyExt]);
+    BF(bftTxt, STxtFiles, [SLitTxtExt]);
   end;
 
 begin
-  BF(bftDocs, SDocFiles, [SLitRtfExt, SLitTxtExt]);
-  BF(bftIco, SIcoFiles, [SLitIcoExt]);
-  BF(bftImages, SImageFiles, [SLitPngExt, SLitBmpExt]);
-  BF(bftVclStyle, SVclStylesFiles, [SLitVsfExt]);
-  BF(bftIsl, SIslFiles, [SLitIslExt]);
-  BF(bftKey, SIsPublicKeyFiles, [SLitIsPublicKeyExt]);
-  BF(bftTxt, STxtFiles, [SLitTxtExt]);
+  InitializeScriptBrowseFileTypeFilters;
 end;
-
-{ TInspector }
 
 constructor TInspector.Create(const AJvInspector: TJvInspector;
   const ANoteText: TNewStaticText;
   const AFactory: TLiveScriptObjectFactory;
-  const AShowAllKnownDirectives: Boolean;
+  const AShowAllKnownDirectives, AFollowCaret: Boolean;
   const AOnGetBaseDir: TInspectorGetBaseDirEvent);
 { Takes ownership of AJvInspector but not of ANoteText }
 begin
@@ -189,6 +213,7 @@ begin
   FFactory := AFactory;
   FOnGetBaseDir := AOnGetBaseDir;
   FShowAllKnownDirectives := AShowAllKnownDirectives;
+  FFollowCaret := AFollowCaret;
   {$IFDEF DEBUG}
   FDebugStatusRowString := 'Not updated yet';
   {$ENDIF}
@@ -387,28 +412,56 @@ begin
 end;
 
 procedure TInspector.MessagesWndProc(var Message: TMessage);
+
+  function AnyInputDown: Boolean;
+  { Also handles mouse input }
+  begin
+    for var Key := 0 to 255 do
+      if GetAsyncKeyState(Key) < 0 then
+        Exit(True);
+    Result := False;
+  end;
+
 begin
   if Message.Msg = WM_RemoveSelectedRow then
     RemoveSelectedRow
-  else
+  else if (Message.Msg = WM_TIMER) and (Message.WParam = ApplyCaretAtTimerID) then begin
+    if AnyInputDown then
+      Exit; { Keeps timer alive }
+    ApplyCaretAtTimerUpdate(True); { Kills timer }
+    ApplyCaretAt;
+  end else
     Message.Result := DefWindowProc(FMessagesWnd, Message.Msg, Message.WParam, Message.LParam);
 end;
 
-function TInspector.TryGetSelectedRowFirstLine: Integer;
-{ Returns -1 when the selected row has no line }
+function TInspector.TryGetSelectedRowPosition: Boolean;
 begin
-  Result := -1;
+  var Line, CharIndex: Integer;
+  Result := TryGetSelectedRowPosition(Line, CharIndex);
+end;
+
+function TInspector.TryGetSelectedRowPosition(out ALine,
+  ACharIndex: Integer): Boolean;
+begin
+  ALine := -1;
+  ACharIndex := 0; { Stays 0 for keys }
   const Item = FJvInspector.Selected;
   var Row: TInspectorRow;
   if (Item = nil) or not TryGetRow(Item, Row) then
-    Exit;
+    Exit(False);
   case Row.Kind of
     irkParameter, irkParameterFlag:
       begin
         var Entry: TScriptModelParameterSectionEntry;
         var Index: Integer;
-        if TryGetRowParameterSectionEntry(Row, Entry, Index) then
-          Result := FLiveParameterSectionEntry.FirstLine;
+        if TryGetRowParameterSectionEntry(Row, Entry, Index) then begin
+          ALine := FLiveParameterSectionEntry.FirstLine;
+          var LineIndex, CharIndex: Integer;
+          if Entry.TryGetParameterPosition(Index, LineIndex, CharIndex) then begin
+            Inc(ALine, LineIndex);
+            ACharIndex := CharIndex;
+          end;
+        end;
       end;
     irkKey, irkKeyFlag:
       begin
@@ -418,16 +471,11 @@ begin
           var Line := FLiveKeyValueSection.FirstLine;
           for var I := 0 to Index-1 do
             Inc(Line, Section.GetLineCount(I));
-          Result := Line;
+          ALine := Line;
         end;
       end;
   end;
-end;
-
-function TInspector.TryGetSelectedRowFirstLine(out AFirstLine: Integer): Boolean;
-begin
-  AFirstLine := TryGetSelectedRowFirstLine;
-  Result := AFirstLine >= 0;
+  Result := ALine >= 0;
 end;
 
 procedure TInspector.JvInspectorLeafNameDblClick(Item: TJvCustomInspectorItem);
@@ -579,7 +627,7 @@ begin
     var Filter: String;
     var DefaultExt: String;
     if TryGetScriptBrowseFileType(SectionName, Definition.Name, FileType) then begin
-      const FileTypeFilter = ScriptBrowseFileTypeFilters[FileType];
+      const FileTypeFilter = FScriptBrowseFileTypeFilters[FileType];
       Filter := FormatFileFilter(FileTypeFilter.FilesName, FileTypeFilter.Extensions);
       DefaultExt := FileTypeFilter.Extensions[0];
     end else begin
@@ -633,15 +681,14 @@ begin
   end;
 end;
 
-procedure TInspector.GoToSelectedRow(const AFirstLine: Integer);
-{ Set AFirstLine to -1 if it's not yet known }
+procedure TInspector.GoToSelectedRow;
 begin
-  var FirstLine := AFirstLine;
-  if FirstLine < 0 then
-    FirstLine := TryGetSelectedRowFirstLine;
-  if FirstLine >= 0 then begin
-    FFactory.Memo.CaretLine := FirstLine;
-    FFactory.Memo.SetFocus;
+  var Line, CharIndex: Integer;
+  if TryGetSelectedRowPosition(Line, CharIndex) then begin
+    const Memo = FFactory.Memo;
+    Memo.CaretPosition := Memo.GetPositionRelativeCodeUnits(
+      Memo.GetPositionFromLine(Line), CharIndex);
+    Memo.SetFocus;
   end;
 end;
 
@@ -745,6 +792,8 @@ begin
   FShowAllKnownDirectives := AShowAllKnownDirectives;
   FShowAllKnownDirectivesSuppressedNote := AShowAllKnownDirectivesSuppressedNote;
   FRowSetSignature := ''; { Force rebuild even if row set stayed same }
+  FCaretAt.Valid := False;
+  ApplyCaretAtTimerUpdate(True); { Cancel any queued }
   UpdateFromCaret;
 end;
 
@@ -770,12 +819,21 @@ procedure TInspector.UpdateFromCaret;
     Result := FFactory.ChangeCount > FChangeCountAtCreation;
   end;
 
-  function ItemKey(const AItem: TJvCustomInspectorItem): String;
+  function ItemKey(const AItem: TJvCustomInspectorItem;
+    const AIncludeIndex: Boolean): String;
+  { AIncludeIndex: Include the row index so the key is unique even for duplicated member names }
   begin
     if AItem is TJvInspectorCustomCategoryItem then
       Result := 'C|' + AItem.DisplayName
-    else
+    else begin
       Result := 'R|' + AItem.DisplayName;
+      if AIncludeIndex then begin
+        var Row: TInspectorRow;
+        if not TryGetRow(AItem, Row) then
+          raise Exception.Create('Internal error: ItemKey: Row not found');
+        Result := Result + '|' + IntToStr(Row.Index);
+      end;
+    end;
   end;
 
   procedure SaveExpandedStates(const AStates: TDictionary<String, Boolean>;
@@ -784,7 +842,7 @@ procedure TInspector.UpdateFromCaret;
     for var I := 0 to AParent.Count-1 do begin
       const Item = AParent.Items[I];
       if Item.Count > 0 then begin
-        AStates.AddOrSetValue(ItemKey(Item), Item.Expanded);
+        AStates.AddOrSetValue(ItemKey(Item, False), Item.Expanded);
         SaveExpandedStates(AStates, Item);
       end;
     end;
@@ -797,7 +855,7 @@ procedure TInspector.UpdateFromCaret;
       const Item = AParent.Items[I];
       if Item.Count > 0 then begin
         var Expanded: Boolean;
-        if AStates.TryGetValue(ItemKey(Item), Expanded) then
+        if AStates.TryGetValue(ItemKey(Item, False), Expanded) then
           Item.Expanded := Expanded;
         RestoreExpandedStates(AStates, Item);
       end;
@@ -942,6 +1000,16 @@ procedure TInspector.UpdateFromCaret;
       AddParameterRow(AParent, ADefinition, -1);
   end;
 
+  function CleanKeyName(const AKeyName: String): String;
+  begin
+    var Definition: TMemberDefinition;
+    if FLiveKeyValueSection.Section.TryGetDefinition(AKeyName, Definition) and
+       SameText(AKeyName, Definition.Name) then { Check for stripped language name prefix }
+      Result := Definition.Name
+    else
+      Result := AKeyName;
+  end;
+
   function MakeKeyRow(const AName: String;
     const AIndex: Integer): TInspectorRow;
   begin
@@ -1068,7 +1136,7 @@ procedure TInspector.UpdateFromCaret;
           for var I := 0 to Section.Count-1 do begin
             if (Section.Lines[I].Kind = lkKeyValue) and
                SameText(Section.Lines[I].Name, Definition.Name) then begin
-              KeyRowsToShow.Add(MakeKeyRow(Section.Lines[I].Name, I));
+              KeyRowsToShow.Add(MakeKeyRow(Definition.Name, I));
               LineWillBeShown[I] := True;
               Found := True;
             end;
@@ -1084,8 +1152,12 @@ procedure TInspector.UpdateFromCaret;
 
       { The remaining keys, in script order }
       for var I := 0 to Section.Count-1 do begin
-        if (Section.Lines[I].Kind = lkKeyValue) and not LineWillBeShown[I] then
-          KeyRowsToShow.Add(MakeKeyRow(Section.Lines[I].Name, I));
+        if (Section.Lines[I].Kind = lkKeyValue) and not LineWillBeShown[I] then begin
+          var Name := Section.Lines[I].Name;
+          if not FShowAllKnownDirectives then
+            Name := CleanKeyName(Name); { Could be known key, make clean if needed }
+          KeyRowsToShow.Add(MakeKeyRow(Name, I));
+        end;
       end;
 
       { Determination done. Add by category the same way as entry rows are. }
@@ -1119,15 +1191,15 @@ procedure TInspector.UpdateFromCaret;
     end;
   end;
 
-  function FindItemByKey(const AKey: String;
+  function FindItemByKey(const AKey: String; const AKeyIncludesIndex: Boolean;
     const AParent: TJvCustomInspectorItem): TJvCustomInspectorItem;
   begin
     Result := nil;
     for var I := 0 to AParent.Count-1 do begin
       const Item = AParent.Items[I];
-      if ItemKey(Item) = AKey then
+      if ItemKey(Item, AKeyIncludesIndex) = AKey then
         Exit(Item);
-      Result := FindItemByKey(AKey, Item);
+      Result := FindItemByKey(AKey, AKeyIncludesIndex, Item);
       if Result <> nil then
         Exit;
     end;
@@ -1154,9 +1226,12 @@ procedure TInspector.UpdateFromCaret;
     item and break the edit. Safe here because Clear ends the edit before the
     items change. }
   begin
-    var SelectedKey := '';
-    if FJvInspector.Selected <> nil then
-      SelectedKey := ItemKey(FJvInspector.Selected);
+    var SelectedKeyWithIndex := '';
+    var SelectedKeyWithoutIndex := '';
+    if FJvInspector.Selected <> nil then begin
+      SelectedKeyWithIndex := ItemKey(FJvInspector.Selected, True);
+      SelectedKeyWithoutIndex := ItemKey(FJvInspector.Selected, False);
+    end;
 
     FJvInspector.BeginUpdate;
     try
@@ -1171,6 +1246,7 @@ procedure TInspector.UpdateFromCaret;
         AddDebugRow(DebugCategory, 'Status', irkDebugStatus);
         AddDebugRow(DebugCategory, 'Sections', irkDebugSections);
         AddDebugRow(DebugCategory, 'Early exits', irkDebugEarlyExits);
+        AddDebugRow(DebugCategory, 'Caret at', irkDebugCaretAt);
         {$ENDIF}
 
         if FLiveParameterSectionEntry <> nil then
@@ -1188,8 +1264,89 @@ procedure TInspector.UpdateFromCaret;
       FJvInspector.EndUpdate;
     end;
 
-    if SelectedKey <> '' then
-      FJvInspector.Selected := FindItemByKey(SelectedKey, FJvInspector.Root);
+    if SelectedKeyWithIndex <> '' then begin
+      { Restore selection: prefer the key with the row index so it always reselects
+        the correct one if there are duplicated member names, but fall back to the
+        one without: an edit may have shifted the index }
+      var Item := FindItemByKey(SelectedKeyWithIndex, True, FJvInspector.Root);
+      if Item = nil then
+        Item := FindItemByKey(SelectedKeyWithoutIndex, False, FJvInspector.Root);
+      FJvInspector.Selected := Item;
+      { Also restore marker if it's at selection }
+      const SelectedItem = FJvInspector.Selected;
+      var Row: TInspectorRow;
+      if (SelectedItem <> nil) and TryGetRow(SelectedItem, Row) and RowMatchesCaretAt(Row) then
+        FJvInspector.MarkedItem := SelectedItem
+      else if FCaretAt.Valid and (SelectedItem = nil) then { See UpdateCaretAt for same check and solution }
+        ApplyCaretAtTimerUpdate(False);
+    end;
+  end;
+
+  function GetCaretAt: TCaretAt;
+  begin
+    Result.Valid := False;
+    const CaretLine = FFactory.Memo.CaretLine;
+    if (FLiveParameterSectionEntry <> nil) and FLiveParameterSectionEntry.Valid then begin
+      const Memo = FFactory.Memo;
+      const CaretCharIndex = Memo.GetCodeUnitCount(
+        Memo.GetPositionFromLine(CaretLine), Memo.CaretPosition);
+      const Entry = FLiveParameterSectionEntry.Entry;
+      var Index: Integer;
+      if Entry.TryGetParameterIndexAt(
+           CaretLine - FLiveParameterSectionEntry.FirstLine,
+           CaretCharIndex, Index) then begin
+        const Parameter = Entry.Parameters[Index];
+        if Parameter.Kind = pkParameter then begin
+          Result.Valid := True;
+          Result.Kind := cakParameterSectionEntry;
+          Result.Name := Parameter.Name;
+          Result.Index := Index;
+        end;
+      end;
+    end else if (FLiveKeyValueSection <> nil) and FLiveKeyValueSection.Valid then begin
+      const Section = FLiveKeyValueSection.Section;
+      var Line := FLiveKeyValueSection.FirstLine;
+      if CaretLine >= Line then begin
+        for var I := 0 to Section.Count-1 do begin
+          Inc(Line, Section.GetLineCount(I));
+          if CaretLine < Line then begin
+            { This is where the caret is at }
+            if Section.Lines[I].Kind = lkKeyValue then begin
+              Result.Valid := True;
+              Result.Kind := cakKeyValueSection;
+              Result.Name := Section.Lines[I].Name;
+              Result.Index := I;
+            end;
+            Exit;
+          end;
+        end;
+      end;
+    end;
+  end;
+
+  procedure UpdateCaretAt;
+  begin
+    if not FFollowCaret then
+      Exit;
+    const CaretAt = GetCaretAt;
+    if (CaretAt.Valid <> FCaretAt.Valid) or
+       (CaretAt.Valid and
+        ((CaretAt.Kind <> FCaretAt.Kind) or
+         (CaretAt.Name <> FCaretAt.Name) or
+         (CaretAt.Index <> FCaretAt.Index))) then begin
+      { The caret moved to a different member (or no member). Update CaretAt and
+        queue its application, or cancel any queued. }
+      FCaretAt := CaretAt;
+      ApplyCaretAtTimerUpdate(not CaretAt.Valid); { Also always clears marker }
+    end else if CaretAt.Valid and (FJvInspector.Selected = nil) then begin
+      { The caret is still at the member, but there's no selection anymore,
+        which also means there's no marker anymore. Reapply it. Because
+        there's no selection this doesn't interfere with the user. Useful
+        when for example a filter was entered which hid the selected and
+        marked item, but then the filter was edited again in a way that
+        made the member's item reappear, unselected and unmarked. }
+      ApplyCaretAtTimerUpdate(False);
+    end;
   end;
 
 begin
@@ -1208,6 +1365,7 @@ begin
      (FRowSetSignature <> '') and not LiveObjectTextChanged and
      (CaretLine >= FLiveParameterSectionEntry.FirstLine) and
      (CaretLine <= FLiveParameterSectionEntry.LastLine) then begin
+    UpdateCaretAt;
     {$IFDEF DEBUG}
     Inc(FUpdateFromCaretEarlyExitCount);
     InvalidateChangedRows; { Repaint the early exit count }
@@ -1221,6 +1379,7 @@ begin
     var SectionIndex: Integer;
     if FFactory.TryGetSectionAtLine(CaretLine, SectionIndex) and
        (SectionIndex = FLiveKeyValueSectionIndex) then begin
+      UpdateCaretAt;
       {$IFDEF DEBUG}
       Inc(FUpdateFromCaretEarlyExitCount);
       InvalidateChangedRows; { See above }
@@ -1308,6 +1467,8 @@ begin
     end;
   end;
 
+  UpdateCaretAt;
+
   { Re-sync any open in-place editor. Done before any rebuild: RebuildRows'
     Clear deselects, and a deselect applies a stale editor's text back over
     the memo edit unless the editor was re-synced first }
@@ -1324,6 +1485,88 @@ begin
   end;
 
   UpdateNote;
+end;
+
+function TInspector.RowMatchesCaretAt(const ARow: TInspectorRow): Boolean;
+const
+  RowKindForCaretAtKind: array [TCaretAtKind] of TInspectorRowKind =
+    (irkParameter, irkKey);
+begin
+  Result := FCaretAt.Valid and
+    (ARow.Kind = RowKindForCaretAtKind[FCaretAt.Kind]) and
+    (ARow.Index = FCaretAt.Index) and
+    SameText(ARow.Name, FCaretAt.Name); { TInspectorRow uses clean names for known members, TCaretAt always uses names as in the script }
+end;
+
+procedure TInspector.ApplyCaretAtTimerUpdate(const ACancel: Boolean);
+{ Always clears the marker first }
+const
+  ApplyCaretAtTimerInterval = 100;
+begin
+  FJvInspector.MarkedItem := nil;
+  if ACancel then
+    KillTimer(FMessagesWnd, ApplyCaretAtTimerID)
+  else
+    SetTimer(FMessagesWnd, ApplyCaretAtTimerID, ApplyCaretAtTimerInterval, nil);
+end;
+
+procedure TInspector.ApplyCaretAt;
+
+  function FindCaretAtItem(const AParent: TJvCustomInspectorItem): TJvCustomInspectorItem;
+  begin
+    Result := nil;
+    for var I := 0 to AParent.Count-1 do begin
+      const Item = AParent.Items[I];
+      var Row: TInspectorRow;
+      if TryGetRow(Item, Row) then begin
+        if RowMatchesCaretAt(Row) then
+          Exit(Item);
+      end else begin
+        { A category: find inside }
+        Result := FindCaretAtItem(Item);
+        if Result <> nil then
+          Exit;
+      end;
+    end;
+  end;
+
+  function SelectedIsItemOrDescendant(const AItem: TJvCustomInspectorItem): Boolean;
+  begin
+    Result := False;
+    { Move up from the selection towards the root, looking for AItem }
+    var SelectedOrAncestor := FJvInspector.Selected;
+    while SelectedOrAncestor <> nil do begin
+      if SelectedOrAncestor = AItem then
+        Exit(True);
+      SelectedOrAncestor := SelectedOrAncestor.Parent;
+    end;
+  end;
+
+begin
+  if not FFollowCaret or not FCaretAt.Valid or FJvInspector.Focused or FInEdit then
+    Exit;
+
+  const Item = FindCaretAtItem(FJvInspector.Root);
+
+  if Item <> nil then begin
+    if SelectedIsItemOrDescendant(Item) then begin
+      { The selection already belongs to the caret's member, so leave it in
+        place and only add the marker if the member's own row is selected }
+      if FJvInspector.Selected = Item then
+        FJvInspector.MarkedItem := Item;
+    end else begin
+      { Ensure visibility first }
+      var Parent := Item.Parent;
+      while (Parent <> nil) and (Parent <> FJvInspector.Root) do begin
+        Parent.Expanded := True;
+        Parent := Parent.Parent;
+      end;
+      { Scroll, select and mark }
+      Item.ScrollInView(True);
+      FJvInspector.Selected := Item;
+      FJvInspector.MarkedItem := Item;
+    end;
+  end;
 end;
 
 procedure TInspector.UpdateReadOnly;
@@ -1430,6 +1673,11 @@ begin
       end;
     irkDebugEarlyExits:
       Result := IntToStr(FUpdateFromCaretEarlyExitCount);
+    irkDebugCaretAt:
+      if FCaretAt.Valid then
+        Result := FCaretAt.Name + '@' + IntToStr(FCaretAt.Index)
+      else
+        Result := 'None';
     {$ENDIF}
   end;
 end;
@@ -1657,6 +1905,18 @@ begin
   end;
 end;
 
+procedure TInspector.SetFollowCaret(const Value: Boolean);
+begin
+  if Value <> FFollowCaret then begin
+    FFollowCaret := Value;
+    FCaretAt.Valid := False;
+    if Value then
+      UpdateFromCaret
+    else
+      ApplyCaretAtTimerUpdate(True); { Cancel any queued }
+  end;
+end;
+
 procedure TInspector.SetShowAllKnownDirectives(const Value: Boolean);
 begin
   if Value <> FShowAllKnownDirectives then begin
@@ -1703,6 +1963,4 @@ begin
   end;
 end;
 
-initialization
-  InitializeScriptBrowseFileTypeFilters;
 end.
