@@ -351,6 +351,8 @@ type
     N26: TMenuItem;
     PInspectorShowAllKnownDirectives: TMenuItem;
     PInspectorFollowCaret: TMenuItem;
+    PInspectorQuoteNewDirectiveValues: TMenuItem;
+    PInspectorQuoteNewParameterValues: TMenuItem;
     N27: TMenuItem;
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure FExitClick(Sender: TObject);
@@ -505,6 +507,8 @@ type
     procedure PInspectorRemoveClick(Sender: TObject);
     procedure PInspectorShowAllKnownDirectivesClick(Sender: TObject);
     procedure PInspectorFollowCaretClick(Sender: TObject);
+    procedure PInspectorQuoteNewDirectiveValuesClick(Sender: TObject);
+    procedure PInspectorQuoteNewParameterValuesClick(Sender: TObject);
   private
     FCompilerVersion: PCompilerVersionInfo;
     FOptionsLoaded: Boolean;
@@ -774,6 +778,16 @@ const
   FirstIncludedFilesMemoIndex = 1; { This is an index into FFileMemos }
 
   LineStateGrowAmount = 4000;
+
+procedure SaveBooleanOption(const OptionName: String; const Value: Boolean);
+begin
+  const Ini = TConfigIniFile.Create;
+  try
+    Ini.WriteBool('Options', OptionName, Value);
+  finally
+    Ini.Free;
+  end;
+end;
 
 { TUpdatePanelMessage }
 
@@ -1530,7 +1544,7 @@ begin
   end else if (Key = VK_F6) and not (ssAlt in Shift) then begin
     { Move focus between the active memo, the inspector, the inspector filter,
       the inspector popup menu button, the active bottom pane, and the active
-      banner }
+      banner, backward if Shift is held }
     Key := 0;
 
     { First get the list of controls to toggle between }
@@ -1560,15 +1574,13 @@ begin
       AddControlToArray(UpdatePanelCloseBitBtn, Controls, NControls);
     end;
 
-    { Now move focus to next }
+    { Now move focus to next or previous }
     if NControls > 1 then begin
+      const Delta = IfThen(ssShift in Shift, -1, 1);
       for var I := 0 to NControls-1 do begin
         { Using ContainsControl because the inspector has in-place editors }
         if Controls[I].ContainsControl(ActiveControl) then begin
-          if I = NControls-1 then
-            ActiveControl := Controls[0]
-          else
-            ActiveControl := Controls[I+1];
+          ActiveControl := Controls[(I+Delta+NControls) mod NControls];
           Exit;
         end;
       end;
@@ -3344,12 +3356,7 @@ procedure TMainForm.VWordWrapClick(Sender: TObject);
 begin
   FOptions.WordWrap := not FOptions.WordWrap;
   SyncEditorOptions;
-  var Ini := TConfigIniFile.Create;
-  try
-    Ini.WriteBool('Options', 'WordWrap', FOptions.WordWrap);
-  finally
-    Ini.Free;
-  end;
+  SaveBooleanOption('WordWrap', FOptions.WordWrap);
 end;
 
 procedure TMainForm.SetStatusPanelVisible(const AVisible: Boolean);
@@ -3696,7 +3703,6 @@ procedure TMainForm.WMStartNormally(var Message: TMessage);
   procedure ShowStartupForm;
   var
     StartupForm: TStartupForm;
-    Ini: TConfigIniFile;
   begin
     ReadMRUMainFilesList;
     StartupForm := TStartupForm.Create(Application);
@@ -3706,12 +3712,7 @@ procedure TMainForm.WMStartNormally(var Message: TMessage);
       if StartupForm.ShowModal = mrOK then begin
         if FOptions.ShowStartupForm <> not StartupForm.StartupCheck.Checked then begin
           FOptions.ShowStartupForm := not StartupForm.StartupCheck.Checked;
-          Ini := TConfigIniFile.Create;
-          try
-            Ini.WriteBool('Options', 'ShowStartupForm', FOptions.ShowStartupForm);
-          finally
-            Ini.Free;
-          end;
+          SaveBooleanOption('ShowStartupForm', FOptions.ShowStartupForm);
         end;
         case StartupForm.Result of
           srEmpty:
@@ -3833,12 +3834,7 @@ begin
   else begin
     FOptions.FindRegEx := not FOptions.FindRegEx;
     UpdateFindRegExUI;
-    var Ini := TConfigIniFile.Create;
-    try
-      Ini.WriteBool('Options', 'FindRegEx', FOptions.FindRegEx);
-    finally
-      Ini.Free;
-    end;
+    SaveBooleanOption('FindRegEx', FOptions.FindRegEx);
   end;
 end;
 
@@ -3955,24 +3951,28 @@ begin
   FInspector.ForceFinishEdit;
   FOptions.InspectorShowAllKnownDirectives := not FOptions.InspectorShowAllKnownDirectives;
   SyncInspectorOptions; { Rebuilds }
-  const Ini = TConfigIniFile.Create;
-  try
-    Ini.WriteBool('Options', 'InspectorShowAllKnownDirectives', FOptions.InspectorShowAllKnownDirectives);
-  finally
-    Ini.Free;
-  end;
+  SaveBooleanOption('InspectorShowAllKnownDirectives', FOptions.InspectorShowAllKnownDirectives);
 end;
 
 procedure TMainForm.PInspectorFollowCaretClick(Sender: TObject);
 begin
   FOptions.InspectorFollowCaret := not FOptions.InspectorFollowCaret;
   SyncInspectorOptions;
-  const Ini = TConfigIniFile.Create;
-  try
-    Ini.WriteBool('Options', 'InspectorFollowCaret', FOptions.InspectorFollowCaret);
-  finally
-    Ini.Free;
-  end;
+  SaveBooleanOption('InspectorFollowCaret', FOptions.InspectorFollowCaret);
+end;
+
+procedure TMainForm.PInspectorQuoteNewDirectiveValuesClick(Sender: TObject);
+begin
+  FOptions.InspectorQuoteNewDirectiveValues := not FOptions.InspectorQuoteNewDirectiveValues;
+  SyncInspectorOptions;
+  SaveBooleanOption('InspectorQuoteNewDirectiveValues', FOptions.InspectorQuoteNewDirectiveValues);
+end;
+
+procedure TMainForm.PInspectorQuoteNewParameterValuesClick(Sender: TObject);
+begin
+  FOptions.InspectorQuoteNewParameterValues := not FOptions.InspectorQuoteNewParameterValues;
+  SyncInspectorOptions;
+  SaveBooleanOption('InspectorQuoteNewParameterValues', FOptions.InspectorQuoteNewParameterValues);
 end;
 
 procedure TMainForm.UpdateOccurrenceIndicators(const AMemo: TIDEScintEdit);
@@ -6715,11 +6715,8 @@ end;
 procedure TMainForm.EGotoLineClick(Sender: TObject);
 begin
   if FInspector.JvInspector.Focused then begin
-    FInspector.GoToSelectedRow;
-    { If the goto failed then nothing happened. Do simple switch to allow
-      back and forth switching with F6 and Ctrl+G. }
-    if not FActiveMemo.Focused then
-      FActiveMemo.SetFocus;
+    if not FInspector.GoToSelectedRow then
+      FActiveMemo.SetFocus; { Attempt simple switch to allow going back and forth using F6 and Ctrl+G. }
   end else begin
     var S := IntToStr(FActiveMemo.CaretLine + 1);
     if InputQueryEdit(LFmtMessage(SGotoLineTitle), LFmtMessage(SGotoLinePrompt), S) then begin

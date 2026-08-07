@@ -130,14 +130,16 @@ type
     procedure ForceFinishEdit(const AForceCancel: Boolean = False);
     function GetSelectedHelpKeyword: String;
     function TryGetSelectedRowPosition: Boolean; overload;
-    function TryGetSelectedRowPosition(out ALine, ACharIndex: Integer): Boolean; overload;
-    procedure GoToSelectedRow;
+    function TryGetSelectedRowPosition(out ALine, ACharIndex, AEndLine,
+      AEndCharIndex: Integer): Boolean; overload;
+    function GoToSelectedRow: Boolean;
     function TryResolveSelectedRow(out AEntry: TScriptModelParameterSectionEntry;
       out ASection: TScriptModelKeyValueSection; out AIndex: Integer): Boolean; overload;
     function TryResolveSelectedRow: Boolean; overload;
     function CanRemoveSelectedRow: Boolean;
     procedure RemoveSelectedRow;
     function ShowingDirectiveSection: Boolean;
+    function ShowingParameterSectionEntry: Boolean;
     procedure SetActiveFactory(const AFactory: TLiveScriptObjectFactory;
       const AShowAllKnownDirectives, AShowAllKnownDirectivesSuppressedNote: Boolean);
     procedure UpdateFromCaret;
@@ -163,7 +165,7 @@ implementation
 
 uses
   SysUtils, StrUtils, UITypes, Themes, Forms, Generics.Defaults,
-  BrowseFunc, NewUxTheme, PathFunc,
+  BrowseFunc, NewUxTheme, PathFunc, ScintEdit,
   Shared.CommonFunc, Shared.CommonFunc.Vcl,
   IDE.HelperFunc, IDE.Messages, IDE.LocalizeFunc;
 
@@ -436,15 +438,17 @@ end;
 
 function TInspector.TryGetSelectedRowPosition: Boolean;
 begin
-  var Line, CharIndex: Integer;
-  Result := TryGetSelectedRowPosition(Line, CharIndex);
+  var Line, CharIndex, EndLine, EndCharIndex: Integer;
+  Result := TryGetSelectedRowPosition(Line, CharIndex, EndLine, EndCharIndex);
 end;
 
-function TInspector.TryGetSelectedRowPosition(out ALine,
-  ACharIndex: Integer): Boolean;
+function TInspector.TryGetSelectedRowPosition(out ALine, ACharIndex, AEndLine,
+  AEndCharIndex: Integer): Boolean;
 begin
   ALine := -1;
-  ACharIndex := 0; { Stays 0 for keys }
+  ACharIndex := 0;
+  AEndLine := -1;
+  AEndCharIndex := 0;
   const Item = FJvInspector.Selected;
   var Row: TInspectorRow;
   if (Item = nil) or not TryGetRow(Item, Row) then
@@ -456,10 +460,14 @@ begin
         var Index: Integer;
         if TryGetRowParameterSectionEntry(Row, Entry, Index) then begin
           ALine := FLiveParameterSectionEntry.FirstLine;
-          var LineIndex, CharIndex: Integer;
-          if Entry.TryGetParameterPosition(Index, LineIndex, CharIndex) then begin
+          AEndLine := ALine;
+          var LineIndex, CharIndex, EndLineIndex, EndCharIndex: Integer;
+          if Entry.TryGetValuePosition(Index, LineIndex, CharIndex,
+               EndLineIndex, EndCharIndex) then begin
             Inc(ALine, LineIndex);
             ACharIndex := CharIndex;
+            Inc(AEndLine, EndLineIndex);
+            AEndCharIndex := EndCharIndex;
           end;
         end;
       end;
@@ -472,6 +480,15 @@ begin
           for var I := 0 to Index-1 do
             Inc(Line, Section.GetLineCount(I));
           ALine := Line;
+          AEndLine := Line;
+          var LineIndex, CharIndex, EndLineIndex, EndCharIndex: Integer;
+          if Section.TryGetValuePosition(Index, LineIndex, CharIndex,
+               EndLineIndex, EndCharIndex) then begin
+            Inc(ALine, LineIndex);
+            ACharIndex := CharIndex;
+            Inc(AEndLine, EndLineIndex);
+            AEndCharIndex := EndCharIndex;
+          end;
         end;
       end;
   end;
@@ -681,14 +698,25 @@ begin
   end;
 end;
 
-procedure TInspector.GoToSelectedRow;
+function TInspector.GoToSelectedRow: Boolean;
 begin
-  var Line, CharIndex: Integer;
-  if TryGetSelectedRowPosition(Line, CharIndex) then begin
-    const Memo = FFactory.Memo;
-    Memo.CaretPosition := Memo.GetPositionRelativeCodeUnits(
-      Memo.GetPositionFromLine(Line), CharIndex);
-    Memo.SetFocus;
+  Result := TryGetSelectedRowPosition;
+  if not Result then
+    Exit;
+
+  const Memo = FFactory.Memo;
+  Memo.SetFocus;
+  if not Memo.Focused then
+    Exit; { Validation rejected the focus change }
+
+  { Losing focus may have committed an edit, so need to update }
+  UpdateFromCaret;
+
+  var Line, CharIndex, EndLine, EndCharIndex: Integer;
+  if TryGetSelectedRowPosition(Line, CharIndex, EndLine, EndCharIndex) then begin
+    Memo.Selection := TScintRange.Create(
+      Memo.GetPositionRelativeCodeUnits(Memo.GetPositionFromLine(Line), CharIndex),
+      Memo.GetPositionRelativeCodeUnits(Memo.GetPositionFromLine(EndLine), EndCharIndex));
   end;
 end;
 
@@ -744,6 +772,11 @@ end;
 function TInspector.ShowingDirectiveSection: Boolean;
 begin
   Result := (FLiveKeyValueSection <> nil) and FLiveKeyValueSectionIsDirectiveSection;
+end;
+
+function TInspector.ShowingParameterSectionEntry: Boolean;
+begin
+  Result := FLiveParameterSectionEntry <> nil;
 end;
 
 procedure TInspector.ForceFinishEdit(const AForceCancel: Boolean);
@@ -819,9 +852,9 @@ procedure TInspector.UpdateFromCaret;
     Result := FFactory.ChangeCount > FChangeCountAtCreation;
   end;
 
-  function ItemKey(const AItem: TJvCustomInspectorItem;
+  function ItemID(const AItem: TJvCustomInspectorItem;
     const AIncludeIndex: Boolean): String;
-  { AIncludeIndex: Include the row index so the key is unique even for duplicated member names }
+  { AIncludeIndex: Include the row index so the id is unique even for duplicated member names }
   begin
     if AItem is TJvInspectorCustomCategoryItem then
       Result := 'C|' + AItem.DisplayName
@@ -830,7 +863,7 @@ procedure TInspector.UpdateFromCaret;
       if AIncludeIndex then begin
         var Row: TInspectorRow;
         if not TryGetRow(AItem, Row) then
-          raise Exception.Create('Internal error: ItemKey: Row not found');
+          raise Exception.Create('Internal error: ItemID: Row not found');
         Result := Result + '|' + IntToStr(Row.Index);
       end;
     end;
@@ -842,7 +875,7 @@ procedure TInspector.UpdateFromCaret;
     for var I := 0 to AParent.Count-1 do begin
       const Item = AParent.Items[I];
       if Item.Count > 0 then begin
-        AStates.AddOrSetValue(ItemKey(Item, False), Item.Expanded);
+        AStates.AddOrSetValue(ItemID(Item, False), Item.Expanded);
         SaveExpandedStates(AStates, Item);
       end;
     end;
@@ -855,7 +888,7 @@ procedure TInspector.UpdateFromCaret;
       const Item = AParent.Items[I];
       if Item.Count > 0 then begin
         var Expanded: Boolean;
-        if AStates.TryGetValue(ItemKey(Item, False), Expanded) then
+        if AStates.TryGetValue(ItemID(Item, False), Expanded) then
           Item.Expanded := Expanded;
         RestoreExpandedStates(AStates, Item);
       end;
@@ -1191,15 +1224,15 @@ procedure TInspector.UpdateFromCaret;
     end;
   end;
 
-  function FindItemByKey(const AKey: String; const AKeyIncludesIndex: Boolean;
+  function FindItemByID(const AID: String; const AIDIncludesIndex: Boolean;
     const AParent: TJvCustomInspectorItem): TJvCustomInspectorItem;
   begin
     Result := nil;
     for var I := 0 to AParent.Count-1 do begin
       const Item = AParent.Items[I];
-      if ItemKey(Item, AKeyIncludesIndex) = AKey then
+      if ItemID(Item, AIDIncludesIndex) = AID then
         Exit(Item);
-      Result := FindItemByKey(AKey, AKeyIncludesIndex, Item);
+      Result := FindItemByID(AID, AIDIncludesIndex, Item);
       if Result <> nil then
         Exit;
     end;
@@ -1226,11 +1259,11 @@ procedure TInspector.UpdateFromCaret;
     item and break the edit. Safe here because Clear ends the edit before the
     items change. }
   begin
-    var SelectedKeyWithIndex := '';
-    var SelectedKeyWithoutIndex := '';
+    var SelectedIDWithIndex := '';
+    var SelectedIDWithoutIndex := '';
     if FJvInspector.Selected <> nil then begin
-      SelectedKeyWithIndex := ItemKey(FJvInspector.Selected, True);
-      SelectedKeyWithoutIndex := ItemKey(FJvInspector.Selected, False);
+      SelectedIDWithIndex := ItemID(FJvInspector.Selected, True);
+      SelectedIDWithoutIndex := ItemID(FJvInspector.Selected, False);
     end;
 
     FJvInspector.BeginUpdate;
@@ -1264,13 +1297,13 @@ procedure TInspector.UpdateFromCaret;
       FJvInspector.EndUpdate;
     end;
 
-    if SelectedKeyWithIndex <> '' then begin
-      { Restore selection: prefer the key with the row index so it always reselects
+    if SelectedIDWithIndex <> '' then begin
+      { Restore selection: prefer the id with the row index so it always reselects
         the correct one if there are duplicated member names, but fall back to the
         one without: an edit may have shifted the index }
-      var Item := FindItemByKey(SelectedKeyWithIndex, True, FJvInspector.Root);
+      var Item := FindItemByID(SelectedIDWithIndex, True, FJvInspector.Root);
       if Item = nil then
-        Item := FindItemByKey(SelectedKeyWithoutIndex, False, FJvInspector.Root);
+        Item := FindItemByID(SelectedIDWithoutIndex, False, FJvInspector.Root);
       FJvInspector.Selected := Item;
       { Also restore marker if it's at selection }
       const SelectedItem = FJvInspector.Selected;
@@ -1292,7 +1325,7 @@ procedure TInspector.UpdateFromCaret;
         Memo.GetPositionFromLine(CaretLine), Memo.CaretPosition);
       const Entry = FLiveParameterSectionEntry.Entry;
       var Index: Integer;
-      if Entry.TryGetParameterIndexAt(
+      if Entry.TryGetParameterIndex(
            CaretLine - FLiveParameterSectionEntry.FirstLine,
            CaretCharIndex, Index) then begin
         const Parameter = Entry.Parameters[Index];
@@ -1892,7 +1925,7 @@ end;
 procedure TInspector.SetQuoteNewParameterValues(const Value: Boolean);
 begin
   FQuoteNewParameterValues := Value;
-  if FLiveParameterSectionEntry <> nil then
+  if ShowingParameterSectionEntry then
     FLiveParameterSectionEntry.Entry.QuoteNewValues := Value;
 end;
 
