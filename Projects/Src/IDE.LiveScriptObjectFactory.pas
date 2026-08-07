@@ -25,11 +25,12 @@ uses
 type
   TLiveScriptObjectFactory = class;
 
-  { Why TryCreateParameterSectionEntry or TryCreateKeyValueSection refused to
+  { Why TryCreateParameterSectionEntries or TryCreateKeyValueSection refused to
     create an object }
   TRefusalReason = (rrLineOutOfRange, rrNotInsideSection,
     rrInCodeSection, rrUnrecognizedSection, rrNotParameterSection, rrComment,
-    rrISPPDirective, rrSectionIndexOutOfRange, rrNotKeyValueSection);
+    rrISPPDirective, rrMixedSelection, rrSectionIndexOutOfRange,
+    rrNotKeyValueSection);
 
   TLiveScriptSectionHeader = record
     Line: Integer;
@@ -68,6 +69,50 @@ type
     property Section: TInnoSetupSection read FSection;
   end;
 
+  TLiveScriptFlagCheckState = (fcsNone, fcsAll, fcsSome);
+
+  { One or more entries of one parameter section }
+  TLiveScriptParameterSectionEntries = class
+  private
+    FItems: TObjectList<TLiveScriptParameterSectionEntry>;
+    procedure Add(const AEntry: TLiveScriptParameterSectionEntry);
+    procedure BeginUndoAction;
+    procedure EndUndoAction;
+    function GetCount: Integer;
+    function GetEntry(Index: Integer): TLiveScriptParameterSectionEntry;
+    function GetPrimaryEntry: TScriptModelParameterSectionEntry;
+    function GetPrimaryFirstLine: Integer;
+    function GetPrimaryLastLine: Integer;
+    function GetSection: TInnoSetupSection;
+    function GetValid: Boolean;
+    procedure SetQuoteNewValues(const Value: Boolean);
+  public
+    constructor Create(const APrimaryEntry: TLiveScriptParameterSectionEntry);
+    destructor Destroy; override;
+    { Reads and writes addressing a parameter by name plus an index hint,
+      applied per entry. Reads aggregate over all entries, writes change
+      every entry in one undo action. }
+    function GetValue(const AName: String; const AIndexHint: Integer): String;
+    function GetFlagCheckState(const AParameterName: String;
+      const AIndexHint: Integer; const AFlagName: String): TLiveScriptFlagCheckState;
+    function MemberPresent(const AName: String; const AIndexHint: Integer): Boolean;
+    procedure SetValue(const AName: String; const AIndexHint: Integer;
+      const AValue: String);
+    procedure SetFlag(const AParameterName: String; const AIndexHint: Integer;
+      const AFlagName: String; const AInclude: Boolean);
+    procedure Remove(const AName: String; const AIndexHint: Integer);
+    property Count: Integer read GetCount;
+    property Entries[Index: Integer]: TLiveScriptParameterSectionEntry read GetEntry;
+    { The first entry's model. Metadata is common to all entries, so definition
+      lookups for any entry can use it. }
+    property PrimaryEntry: TScriptModelParameterSectionEntry read GetPrimaryEntry;
+    property PrimaryFirstLine: Integer read GetPrimaryFirstLine;
+    property PrimaryLastLine: Integer read GetPrimaryLastLine;
+    property QuoteNewValues: Boolean write SetQuoteNewValues;
+    property Section: TInnoSetupSection read GetSection;
+    property Valid: Boolean read GetValid;
+  end;
+
   { A single occurrence of a key/value section }
   TLiveScriptKeyValueSection = class(TLiveScriptObject)
   private
@@ -76,8 +121,22 @@ type
       ALastLine: Integer; const AMetadata: TScriptModelSectionMetadata;
       const ALines: TArray<String>);
     procedure OnChange(Sender: TObject);
+    procedure SetQuoteNewValues(const Value: Boolean);
   public
     destructor Destroy; override;
+    { Reads and writes addressing a key by name plus an index hint. Same set
+      as TLiveScriptParameterSectionEntries has, but working on the single
+      section, so GetFlagCheckState never returns fcsSome. }
+    function GetValue(const AName: String; const AIndexHint: Integer): String;
+    function GetFlagCheckState(const AKeyName: String;
+      const AIndexHint: Integer; const AFlagName: String): TLiveScriptFlagCheckState;
+    function MemberPresent(const AName: String; const AIndexHint: Integer): Boolean;
+    procedure SetValue(const AName: String; const AIndexHint: Integer;
+      const AValue: String);
+    procedure SetFlag(const AKeyName: String; const AIndexHint: Integer;
+      const AFlagName: String; const AInclude: Boolean);
+    procedure Remove(const AName: String; const AIndexHint: Integer);
+    property QuoteNewValues: Boolean write SetQuoteNewValues;
     property Section: TScriptModelKeyValueSection read FSection;
   end;
 
@@ -94,6 +153,8 @@ type
     procedure EnsureIndex;
     procedure EnsureStyled;
     function GetLinesText(const AFirstLine, ALastLine: Integer): TArray<String>;
+    function GetLogicalLineFirstLine(const ALine: Integer): Integer;
+    function GetLogicalLineLastLine(const ALine: Integer): Integer;
     function GetSectionHeader(Index: Integer): TLiveScriptSectionHeader;
     procedure GetSectionLines(const ASectionIndex: Integer;
       out AFirstLine, ALastLine: Integer);
@@ -113,8 +174,10 @@ type
     function TryGetSetupDirectiveValue(const ADirectiveName: String;
       out AValue: String): Boolean;
     { ARefusalReason is only set when the result is False }
-    function TryCreateParameterSectionEntry(const ALine: Integer;
-      out AEntry: TLiveScriptParameterSectionEntry;
+    function TryCreateParameterSectionEntries(
+      const ALineRanges, AIndividualLineRanges: TArray<TScintLineRange>;
+      const ACaretLine: Integer;
+      out AEntries: TLiveScriptParameterSectionEntries;
       out ARefusalReason: TRefusalReason): Boolean;
     function TryCreateKeyValueSection(const ASectionIndex: Integer;
       out ASection: TLiveScriptKeyValueSection;
@@ -181,6 +244,203 @@ begin
   end;
 end;
 
+{ TLiveScriptParameterSectionEntries }
+
+constructor TLiveScriptParameterSectionEntries.Create(
+  const APrimaryEntry: TLiveScriptParameterSectionEntry);
+begin
+  inherited Create;
+  FItems := TObjectList<TLiveScriptParameterSectionEntry>.Create;
+  FItems.Add(APrimaryEntry);
+end;
+
+destructor TLiveScriptParameterSectionEntries.Destroy;
+begin
+  FItems.Free;
+  inherited;
+end;
+
+procedure TLiveScriptParameterSectionEntries.Add(
+  const AEntry: TLiveScriptParameterSectionEntry);
+begin
+  FItems.Add(AEntry);
+end;
+
+procedure TLiveScriptParameterSectionEntries.BeginUndoAction;
+begin
+  const Factory = FItems[0].FFactory;
+  if Factory <> nil then
+    Factory.Memo.BeginUndoAction;
+end;
+
+procedure TLiveScriptParameterSectionEntries.EndUndoAction;
+begin
+  const Factory = FItems[0].FFactory;
+  if Factory <> nil then
+    Factory.Memo.EndUndoAction;
+end;
+
+function TLiveScriptParameterSectionEntries.GetValue(const AName: String;
+  const AIndexHint: Integer): String;
+{ Returns the value only when every entry has the parameter with the exact
+  same value; otherwise returns '' }
+begin
+  Result := '';
+  if not Valid then
+    Exit;
+  var First := True;
+  for var LiveEntry in FItems do begin
+    var Index := AIndexHint;
+    if not LiveEntry.Entry.TryResolve(AName, Index) then
+      Exit('');
+    const Value = LiveEntry.Entry.Parameters[Index].Value;
+    if First then begin
+      Result := Value;
+      First := False;
+    end else if Value <> Result then
+      Exit('');
+  end;
+end;
+
+function TLiveScriptParameterSectionEntries.GetFlagCheckState(
+  const AParameterName: String; const AIndexHint: Integer;
+  const AFlagName: String): TLiveScriptFlagCheckState;
+{ An entry missing the parameter counts as the flag being excluded }
+begin
+  Result := fcsNone;
+  if not Valid then
+    Exit;
+  var IncludedCount := 0;
+  for var LiveEntry in FItems do begin
+    var Index := AIndexHint;
+    if LiveEntry.Entry.TryResolve(AParameterName, Index) and
+       LiveEntry.Entry.FlagIncluded(Index, AFlagName) then
+      Inc(IncludedCount);
+  end;
+  if IncludedCount = Count then
+    Result := fcsAll
+  else if IncludedCount > 0 then
+    Result := fcsSome;
+end;
+
+function TLiveScriptParameterSectionEntries.MemberPresent(const AName: String;
+  const AIndexHint: Integer): Boolean;
+{ True when the parameter is present in at least one entry }
+begin
+  Result := False;
+  if not Valid then
+    Exit;
+  for var LiveEntry in FItems do begin
+    var Index := AIndexHint;
+    if LiveEntry.Entry.TryResolve(AName, Index) then
+      Exit(True);
+  end;
+end;
+
+procedure TLiveScriptParameterSectionEntries.SetValue(const AName: String;
+  const AIndexHint: Integer; const AValue: String);
+{ Sets the parameter's value in every entry }
+begin
+  if not Valid then
+    Exit;
+  BeginUndoAction;
+  try
+    for var LiveEntry in FItems do begin
+      var Index := AIndexHint;
+      if LiveEntry.Entry.TryResolve(AName, Index) then
+        LiveEntry.Entry.SetValue(Index, AValue)
+      else if (AIndexHint < 0) and (AValue <> '') then
+        LiveEntry.Entry.Add(AName, AValue);
+    end;
+  finally
+    EndUndoAction;
+  end;
+end;
+
+procedure TLiveScriptParameterSectionEntries.SetFlag(const AParameterName: String;
+  const AIndexHint: Integer; const AFlagName: String; const AInclude: Boolean);
+{ Sets the flag in every entry, which may adjust related flags as well. If the
+  parameter is not present it is first added if AInclude is True. }
+begin
+  if not Valid then
+    Exit;
+  BeginUndoAction;
+  try
+    for var LiveEntry in FItems do begin
+      var Index := AIndexHint;
+      if LiveEntry.Entry.TryResolve(AParameterName, Index) then
+        LiveEntry.Entry.SetFlag(Index, AFlagName, AInclude)
+      else if (AIndexHint < 0) and AInclude then
+        LiveEntry.Entry.SetFlag(LiveEntry.Entry.Add(AParameterName, ''), AFlagName, True);
+    end;
+  finally
+    EndUndoAction;
+  end;
+end;
+
+procedure TLiveScriptParameterSectionEntries.Remove(const AName: String;
+  const AIndexHint: Integer);
+{ Removes the parameter from every entry where it is present }
+begin
+  if not Valid then
+    Exit;
+  BeginUndoAction;
+  try
+    for var LiveEntry in FItems do begin
+      var Index := AIndexHint;
+      if LiveEntry.Entry.TryResolve(AName, Index) then
+        LiveEntry.Entry.Remove(Index);
+    end;
+  finally
+    EndUndoAction;
+  end;
+end;
+
+function TLiveScriptParameterSectionEntries.GetCount: Integer;
+begin
+  Result := Integer(FItems.Count);
+end;
+
+function TLiveScriptParameterSectionEntries.GetEntry(
+  Index: Integer): TLiveScriptParameterSectionEntry;
+begin
+  Result := FItems[Index];
+end;
+
+function TLiveScriptParameterSectionEntries.GetPrimaryEntry: TScriptModelParameterSectionEntry;
+begin
+  Result := FItems[0].Entry;
+end;
+
+function TLiveScriptParameterSectionEntries.GetPrimaryFirstLine: Integer;
+begin
+  Result := FItems[0].FirstLine;
+end;
+
+function TLiveScriptParameterSectionEntries.GetPrimaryLastLine: Integer;
+begin
+  Result := FItems[0].LastLine;
+end;
+
+function TLiveScriptParameterSectionEntries.GetSection: TInnoSetupSection;
+begin
+  Result := FItems[0].Section;
+end;
+
+function TLiveScriptParameterSectionEntries.GetValid: Boolean;
+begin
+  for var LiveEntry in FItems do
+    if not LiveEntry.Valid then
+      Exit(False);
+  Result := True;
+end;
+
+procedure TLiveScriptParameterSectionEntries.SetQuoteNewValues(const Value: Boolean);
+begin
+  for var LiveEntry in FItems do
+    LiveEntry.Entry.QuoteNewValues := Value;
+end;
+
 { TLiveScriptKeyValueSection }
 
 constructor TLiveScriptKeyValueSection.Create(const AFactory: TLiveScriptObjectFactory;
@@ -203,6 +463,97 @@ procedure TLiveScriptKeyValueSection.OnChange(Sender: TObject);
 begin
   if (FFactory <> nil) and FValid then
     FFactory.WriteBackChange(Self, FSection.GetLines);
+end;
+
+function TLiveScriptKeyValueSection.GetValue(const AName: String;
+  const AIndexHint: Integer): String;
+{ Returns the key's value, or '' when the key is not present }
+begin
+  Result := '';
+  if not Valid then
+    Exit;
+  var Index := AIndexHint;
+  if FSection.TryResolve(AName, Index) then
+    Result := FSection.Lines[Index].Value;
+end;
+
+function TLiveScriptKeyValueSection.GetFlagCheckState(const AKeyName: String;
+  const AIndexHint: Integer; const AFlagName: String): TLiveScriptFlagCheckState;
+{ A missing key counts as the flag being excluded }
+begin
+  Result := fcsNone;
+  if not Valid then
+    Exit;
+  var Index := AIndexHint;
+  if FSection.TryResolve(AKeyName, Index) and
+     FSection.FlagIncluded(Index, AFlagName) then
+    Result := fcsAll;
+end;
+
+function TLiveScriptKeyValueSection.MemberPresent(const AName: String;
+  const AIndexHint: Integer): Boolean;
+{ True when the key is present }
+begin
+  var Index := AIndexHint;
+  Result := Valid and FSection.TryResolve(AName, Index);
+end;
+
+procedure TLiveScriptKeyValueSection.SetValue(const AName: String;
+  const AIndexHint: Integer; const AValue: String);
+{ Sets the key's value, adding the key when not present, unless the new value
+  is empty or (case-sensitively) same as the compiler default }
+begin
+  if not Valid then
+    Exit;
+  var Index := AIndexHint;
+  if FSection.TryResolve(AName, Index) then
+    FSection.SetValue(Index, AValue)
+  else if (AIndexHint < 0) and (AValue <> '') and
+          (AValue <> FSection.DefaultValue(AName)) then
+    FSection.Add(AName, AValue);
+end;
+
+procedure TLiveScriptKeyValueSection.SetFlag(const AKeyName: String;
+  const AIndexHint: Integer; const AFlagName: String; const AInclude: Boolean);
+{ Sets the flag, which may adjust related flags as well. If the key is not
+  present it is first added if AInclude is True, using the compiler default.
+  Excluding a flag of a key not present is ignored: no valid script text can
+  be written for that (currently applies only to WizardStyle defaulting to
+  'classic'). }
+begin
+  if not Valid then
+    Exit;
+  var Index := AIndexHint;
+  if FSection.TryResolve(AKeyName, Index) then
+    FSection.SetFlag(Index, AFlagName, AInclude)
+  else if (AIndexHint < 0) and AInclude then begin
+    { Group Add's and SetFlag's writes into a single undo action }
+    if FFactory <> nil then
+      FFactory.Memo.BeginUndoAction;
+    try
+      FSection.SetFlag(FSection.Add(AKeyName, FSection.DefaultValue(AKeyName)),
+        AFlagName, True);
+    finally
+      if FFactory <> nil then
+        FFactory.Memo.EndUndoAction;
+    end;
+  end;
+end;
+
+procedure TLiveScriptKeyValueSection.Remove(const AName: String;
+  const AIndexHint: Integer);
+{ Removes the key if present }
+begin
+  if not Valid then
+    Exit;
+  var Index := AIndexHint;
+  if FSection.TryResolve(AName, Index) then
+    FSection.Remove(Index);
+end;
+
+procedure TLiveScriptKeyValueSection.SetQuoteNewValues(const Value: Boolean);
+begin
+  FSection.QuoteNewValues := Value;
 end;
 
 { TLiveScriptObjectFactory }
@@ -305,15 +656,10 @@ procedure TLiveScriptObjectFactory.EnsureIndex;
 
     { Extend to whole logical (spanned) lines, plus one following logical line:
       an edit can detach that line from a span without its own text being edited }
-    while (FirstLine > 0) and LineSpans(FirstLine-1) do
-      Dec(FirstLine);
-    while (LastLine < LineCount-1) and LineSpans(LastLine) do
-      Inc(LastLine);
-    if LastLine < LineCount-1 then begin
-      Inc(LastLine);
-      while (LastLine < LineCount-1) and LineSpans(LastLine) do
-        Inc(LastLine);
-    end;
+    FirstLine := GetLogicalLineFirstLine(FirstLine);
+    LastLine := GetLogicalLineLastLine(LastLine);
+    if LastLine < LineCount-1 then
+      LastLine := GetLogicalLineLastLine(LastLine+1);
 
     { Restyle the affected lines to refresh their per-line section state }
     FMemo.RestyleLine(FirstLine);
@@ -523,9 +869,7 @@ procedure TLiveScriptObjectFactory.GetSectionLines(const ASectionIndex: Integer;
 begin
   const Header = FSectionHeaders[ASectionIndex];
   const LineCount = FMemo.Lines.Count;
-  var HeaderLastLine := Header.Line;
-  while (HeaderLastLine < LineCount-1) and LineSpans(HeaderLastLine) do
-    Inc(HeaderLastLine);
+  const HeaderLastLine = GetLogicalLineLastLine(Header.Line);
   AFirstLine := HeaderLastLine+1;
   var L := AFirstLine;
   while (L < LineCount) and
@@ -542,6 +886,23 @@ begin
   SetLength(Result, ALastLine-AFirstLine+1);
   for var I := AFirstLine to ALastLine do
     Result[I-AFirstLine] := FMemo.Lines[I];
+end;
+
+function TLiveScriptObjectFactory.GetLogicalLineFirstLine(const ALine: Integer): Integer;
+begin
+  { Find first line in series of spanned lines }
+  Result := ALine;
+  while (Result > 0) and LineSpans(Result-1) do
+    Dec(Result);
+end;
+
+function TLiveScriptObjectFactory.GetLogicalLineLastLine(const ALine: Integer): Integer;
+begin
+  { Find final line in series of spanned lines }
+  Result := ALine;
+  const LineCount = FMemo.Lines.Count;
+  while (Result < LineCount-1) and LineSpans(Result) do
+    Inc(Result);
 end;
 
 function TLiveScriptObjectFactory.TryGetSetupDirectiveValue(const ADirectiveName: String;
@@ -588,22 +949,132 @@ begin
     Result := False;
 end;
 
-function TLiveScriptObjectFactory.TryCreateParameterSectionEntry(const ALine: Integer;
-  out AEntry: TLiveScriptParameterSectionEntry;
+type
+  TExtendedLineRange = record
+    LineRange: TScintLineRange;
+    CreatedFromBlankLine: Boolean;
+  end;
+
+function TLiveScriptObjectFactory.TryCreateParameterSectionEntries(
+  const ALineRanges, AIndividualLineRanges: TArray<TScintLineRange>;
+  const ACaretLine: Integer;
+  out AEntries: TLiveScriptParameterSectionEntries;
   out ARefusalReason: TRefusalReason): Boolean;
+{ ALineRanges must be sorted and merged and AIndividualLineRanges must contain
+  the individual line ranges before merging, both as returned by
+  TScintEdit.GetSelectionLineRanges. When ALineRanges covers one line or none,
+  or contains no entries, ACaretLine is inspected instead. That line can lie
+  outside the ranges: Scintilla's Select Line commands like triple click
+  select one line but leave the caret below it, and inspection follows the
+  caret. }
+
+  function AnySelectionWithinLines(const AFirstLine, ALastLine: Integer): Boolean;
+  { Returns True when there was an individual selection within the given lines.
+    Note that in Scintilla a regular caret is an empty selection. }
+  begin
+    Result := False;
+    for var LineRange in AIndividualLineRanges do
+      if (LineRange.StartLine >= AFirstLine) and (LineRange.EndLine <= ALastLine) then
+        Exit(True);
+  end;
+
 begin
-  AEntry := nil;
+  AEntries := nil;
   Result := False;
   EnsureIndex;
   EnsureStyled;
 
   const LineCount = FMemo.Lines.Count;
-  if (ALine < 0) or (ALine >= LineCount) then begin
+  var CoveredLineCount := 0;
+  for var LineRange in ALineRanges do begin
+    if (LineRange.StartLine < 0) or (LineRange.EndLine >= LineCount) or
+       (LineRange.EndLine < LineRange.StartLine) then begin
+      ARefusalReason := rrLineOutOfRange;
+      Exit;
+    end;
+    Inc(CoveredLineCount, LineRange.EndLine-LineRange.StartLine+1);
+  end;
+
+  if CoveredLineCount > 1 then begin
+    const EntryLineRanges = TList<TExtendedLineRange>.Create;
+    try
+      { Collect the entry line ranges, creating no objects yet }
+      var EntriesSection := scNone;
+      var HasOtherActualContent := False;
+      var LastHandledLogicalFirstLine := -1;
+      for var LineRange in ALineRanges do begin
+        var Line := LineRange.StartLine;
+        while Line <= LineRange.EndLine do begin
+          const FirstLine = GetLogicalLineFirstLine(Line);
+          const LastLine = GetLogicalLineLastLine(Line);
+          Line := LastLine+1;
+          if FirstLine = LastHandledLogicalFirstLine then
+            Continue; { Two ranges can extend to the same logical line, and with sorted ranges a duplicate is always the previous one }
+          LastHandledLogicalFirstLine := FirstLine;
+          { Skip section header lines, else they cause rrMixedSelection }
+          var HeaderSection: TInnoSetupSection;
+          if TInnoSetupStyler.LineSectionHeader(FMemo.Lines.State[FirstLine], HeaderSection) then
+            Continue;
+          { Skip blank lines, comments, and ISPP directive lines, except a
+            blank line in a parameter section with a selection of its own:
+            this is so a new entry can be created on a blank line, same as
+            in single-entry path below }
+          const Section = TInnoSetupStyler.GetSectionFromLineState(FMemo.Lines.State[FirstLine]);
+          const EntryLines = GetLinesText(FirstLine, LastLine);
+          const LineKind = ClassifyScriptLine(JoinSpannedScriptLines(EntryLines));
+          if (LineKind <> slkActual) and
+             ((LineKind <> slkBlank) or not (Section in ParameterSections) or not AnySelectionWithinLines(FirstLine, LastLine)) then
+            Continue;
+          if Section in ParameterSections then begin
+            if EntriesSection = scNone then
+              EntriesSection := Section
+            else if Section <> EntriesSection then begin
+              ARefusalReason := rrMixedSelection;
+              Exit;
+            end;
+            var EntryLineRange: TExtendedLineRange;
+            EntryLineRange.LineRange.StartLine := FirstLine;
+            EntryLineRange.LineRange.EndLine := LastLine;
+            EntryLineRange.CreatedFromBlankLine := LineKind = slkBlank;
+            EntryLineRanges.Add(EntryLineRange);
+          end else
+            HasOtherActualContent := True;
+        end;
+      end;
+
+      if EntryLineRanges.Count > 0 then begin
+        if HasOtherActualContent then begin
+          ARefusalReason := rrMixedSelection;
+          Exit;
+        end;
+        var Metadata: TScriptModelSectionMetadata := nil;
+        TryGetScriptModelSectionMetadata(SectionToSectionName(EntriesSection), Metadata);
+        for var EntryLineRange in EntryLineRanges do begin
+          const LineRange = EntryLineRange.LineRange;
+          const Entry = TLiveScriptParameterSectionEntry.Create(Self,
+            LineRange.StartLine, LineRange.EndLine, EntriesSection, Metadata,
+            GetLinesText(LineRange.StartLine, LineRange.EndLine),
+            EntryLineRange.CreatedFromBlankLine);
+          if AEntries = nil then
+            AEntries := TLiveScriptParameterSectionEntries.Create(Entry)
+          else
+            AEntries.Add(Entry);
+        end;
+        Exit(True);
+      end;
+      { The selection contains no entries: fall through to inspecting
+        ACaretLine }
+    finally
+      EntryLineRanges.Free;
+    end;
+  end;
+
+  if (ACaretLine < 0) or (ACaretLine >= LineCount) then begin
     ARefusalReason := rrLineOutOfRange;
     Exit;
   end;
 
-  const Section = TInnoSetupStyler.GetSectionFromLineState(FMemo.Lines.State[ALine]);
+  const Section = TInnoSetupStyler.GetSectionFromLineState(FMemo.Lines.State[ACaretLine]);
   if TryGetCommonSectionRefusalReason(Section, ARefusalReason) then
     Exit;
   if not (Section in ParameterSections) then begin
@@ -611,17 +1082,14 @@ begin
     Exit;
   end;
 
-  var FirstLine := ALine;
-  while (FirstLine > 0) and LineSpans(FirstLine-1) do
-    Dec(FirstLine);
-  var LastLine := ALine;
-  while (LastLine < LineCount-1) and LineSpans(LastLine) do
-    Inc(LastLine);
+  const FirstLine = GetLogicalLineFirstLine(ACaretLine);
+  const LastLine = GetLogicalLineLastLine(ACaretLine);
 
   const EntryLines = GetLinesText(FirstLine, LastLine);
   const LineKind = ClassifyScriptLine(JoinSpannedScriptLines(EntryLines));
   case LineKind of
-  { slkBlank is not refused. This is so a new entry can be created on a blank line. }
+  { slkBlank is not refused. This is so a new entry can be created on a blank line,
+    same as in multi-entry path above. }
     slkComment:
       begin
         ARefusalReason := rrComment;
@@ -636,8 +1104,9 @@ begin
 
   var Metadata: TScriptModelSectionMetadata := nil;
   TryGetScriptModelSectionMetadata(SectionToSectionName(Section), Metadata);
-  AEntry := TLiveScriptParameterSectionEntry.Create(Self, FirstLine, LastLine,
-    Section, Metadata, EntryLines, LineKind = slkBlank);
+  const PrimaryEntry = TLiveScriptParameterSectionEntry.Create(Self, FirstLine,
+    LastLine, Section, Metadata, EntryLines, LineKind = slkBlank);
+  AEntries := TLiveScriptParameterSectionEntries.Create(PrimaryEntry);
   Result := True;
 end;
 
@@ -668,7 +1137,7 @@ begin
   if LastLine >= FirstLine then
     SectionLines := GetLinesText(FirstLine, LastLine)
   else
-    SectionLines := nil;
+    SectionLines := [];
   var Metadata: TScriptModelSectionMetadata := nil;
   TryGetScriptModelSectionMetadata(FSectionHeaders[ASectionIndex].Name, Metadata);
   ASection := TLiveScriptKeyValueSection.Create(Self, FirstLine, LastLine,
