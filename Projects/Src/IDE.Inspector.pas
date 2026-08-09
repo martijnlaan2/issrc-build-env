@@ -58,6 +58,7 @@ type
       FNoteText: TNewStaticText;
       FFactory: TLiveScriptObjectFactory;
       FOnGetBaseDir: TInspectorGetBaseDirEvent;
+      FCategoryNamesInDisplayOrder: TArray<String>;
       FLiveParameterSectionEntries: TLiveScriptParameterSectionEntries;
       FLiveKeyValueSection: TLiveScriptKeyValueSection;
       FLiveKeyValueSectionName: String;
@@ -219,6 +220,17 @@ begin
   {$ENDIF}
   FMessagesWnd := AllocateHWnd(MessagesWndProc);
   FRows := TList<TInspectorRow>.Create;
+
+  { The metadata has the [Setup] categories in English alphabetical order,
+    which localization breaks: resort just those }
+  FCategoryNamesInDisplayOrder := ScriptCategoryNamesOrdered;
+  var FirstSetupCategoryIndex, SetupCategoryCount: NativeInt;
+  GetScriptSetupCategoryNamesRange(FirstSetupCategoryIndex, SetupCategoryCount);
+  TArray.Sort<String>(FCategoryNamesInDisplayOrder, TComparer<String>.Construct(
+    function(const Left, Right: String): Integer
+    begin
+      Result := LCompareText(LFmtMessage(Left), LFmtMessage(Right));
+    end), FirstSetupCategoryIndex, SetupCategoryCount);
 
   FJvInspector := AJvInspector;
   FJvInspector.OnCustomizeItemCanvas := JvInspectorCustomizeItemCanvas;
@@ -385,8 +397,15 @@ procedure TInspector.MessagesWndProc(var Message: TMessage);
   function AnyInputDown: Boolean;
   { Also handles mouse input }
   begin
-    for var Key := 0 to 255 do
+    { The mouse buttons don't map to a scan code (see below) so check them separately }
+    for var Key := VK_LBUTTON to VK_XBUTTON2 do
       if GetAsyncKeyState(Key) < 0 then
+        Exit(True);
+    { For the other codes only trust GetAsyncKeyState if the code maps to a
+      scan code. This is because it was seen to report non-existing code 0
+      as being down consistently in one debug session, but never in any other. }
+    for var Key := VK_BACK to $FE do { This includes reserved and unassigned key codes }
+      if (GetAsyncKeyState(Key) < 0) and (MapVirtualKey(Key, MAPVK_VK_TO_VSC) <> 0) then
         Exit(True);
     Result := False;
   end;
@@ -1156,7 +1175,7 @@ procedure TInspector.UpdateFromCaret;
     { Every row belongs to a category: the known parameters are added in
       metadata order, each under its own category, and the parameters which are
       present but unknown in script order, all under the unknown category }
-    for var CategoryName in ScriptCategoryNamesOrdered do begin
+    for var CategoryName in FCategoryNamesInDisplayOrder do begin
       var CategoryItem: TJvCustomInspectorItem := nil;
       if PrimaryEntry.Metadata <> nil then begin
         for var Definition in PrimaryEntry.Metadata.Members do begin
@@ -1222,7 +1241,7 @@ procedure TInspector.UpdateFromCaret;
 
       { Determination done. Add by category the same way as entry rows are,
         with every row belonging to a category, in the order determined above. }
-      for var CategoryName in ScriptCategoryNamesOrdered do begin
+      for var CategoryName in FCategoryNamesInDisplayOrder do begin
         var CategoryItem: TJvCustomInspectorItem := nil;
         for var Row in KeyRowsToShow do begin
           if not KeyRowMatchesFilter(Row) then

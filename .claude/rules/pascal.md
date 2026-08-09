@@ -13,7 +13,7 @@ paths: ["**/*.pas", "**/*.dpr", "**/*.inc"]
 - Prefer factoring shared code into a routine, or binding the expression to an inline const.
 - A routine whose callers all sit inside one routine belongs nested in it, not as a method or a unit-level routine. Keep such helpers siblings at a single level: never nest a helper inside another helper. No exceptions, except a routine assigned to an event stays a method.
 - Do not use `with` statements.
-- Use `[]` instead of `nil` when assigning an empty value to a dynamic array.
+- Use `[]` and `Length` instead of `nil` for dynamic arrays.
 - `if` and `begin` should be on the same line.
 - `else` and `begin` should be on the same line.
 - A `Result` assignment followed by an `Exit` statement should be combined into a single statement. For example: `Exit(ResultValue);`
@@ -22,7 +22,7 @@ paths: ["**/*.pas", "**/*.dpr", "**/*.inc"]
   `for var X in Y do`
   `  if Z(X) then`
   `    Exit(True);`
-  But a statement that is multi-line at its own level (a wrapped condition or call, or a `begin..end` block of its own) makes each level above it multi-line too.
+  A statement wrapped over continuation lines still counts as one line. But a statement that is genuinely multi-line at its own level (a `begin..end` block, or a control statement with a body, of its own) makes each level above it multi-line too.
 - Do not use `Longint` or `LongWord`, use `Integer` or `Cardinal` instead.
 - Mark read-only parameters as `const`.
 - Use Windows units first, then RTL/VCL units, then Components units, then Shared units, then project specific units.
