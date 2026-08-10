@@ -34,7 +34,7 @@ const
   ISPPIdentFirstChars = AlphaUnderscoreChars;
   ISPPIdentChars = AlphaDigitUnderscoreChars;
 
-  InnoSetupSectionPrefixLength = 2;
+  InnoSetupSectionPrefix = 'sc';
 
 type
   TInnoSetupSection = (
@@ -460,6 +460,11 @@ var
 
 function SectionToSectionName(const ASection: TInnoSetupSection): String;
 
+function SectionNameToSection(const ASectionName: String): TInnoSetupSection;
+
+function GetScriptSectionDefiningParameterValues(
+  const AParameterName: String): TInnoSetupSection;
+
 type
   TScriptBrowseFileType = (bftDocs, bftIco, bftImages, bftVclStyle, bftIsl,
     bftKey, bftTxt);
@@ -504,7 +509,28 @@ end;
 function SectionToSectionName(const ASection: TInnoSetupSection): String;
 begin
   Result := Copy(GetEnumName(TypeInfo(TInnoSetupSection), Ord(ASection)),
-    InnoSetupSectionPrefixLength+1, MaxInt);
+    Length(InnoSetupSectionPrefix) + 1, MaxInt);
+end;
+
+function SectionNameToSection(const ASectionName: String): TInnoSetupSection;
+begin
+  const I = GetEnumValue(TypeInfo(TInnoSetupSection), InnoSetupSectionPrefix + ASectionName);
+  if I <> -1 then
+    Result := TInnoSetupSection(I)
+  else
+    Result := scNone;
+end;
+
+function GetScriptSectionDefiningParameterValues(
+  const AParameterName: String): TInnoSetupSection;
+begin
+  if SameText(AParameterName, 'ISSigAllowedKeys') then
+    Result := scISSigKeys
+  else if SameText(AParameterName, 'Components') or SameText(AParameterName, 'Languages') or
+          SameText(AParameterName, 'Tasks') or SameText(AParameterName, 'Types') then
+    Result := SectionNameToSection(AParameterName)
+  else
+    Result := scNone;
 end;
 
 resourcestring
@@ -536,8 +562,8 @@ resourcestring
   SInspectorCategoryCompression = 'Compression';
   SInspectorCategoryDiskSpanning = 'Disk Spanning';
   SInspectorCategoryInstallationPages = 'Installation Pages';
-  SInspectorCategoryProgramGroup = 'Program Group';
   SInspectorCategorySecurity = 'Security';
+  SInspectorCategoryStartMenuFolder = 'Start Menu Folder';
   SInspectorCategorySystemRequirements = 'System Requirements';
   SInspectorCategoryUninstallation = 'Uninstallation';
   SInspectorCategoryUserInformation = 'User Information';
@@ -730,17 +756,17 @@ begin
     'UsePreviousLanguage', 'UsePreviousSetupType', 'UsePreviousTasks'],
     SetupSection);
 
-  CD(SInspectorCategoryProgramGroup, ['AllowNoIcons', 'AlwaysUsePersonalGroup',
-    'AppendDefaultGroupName', 'DefaultGroupName', 'DisableProgramGroupPage',
-    'UsePreviousGroup'],
-    SetupSection);
-
   CD(SInspectorCategorySecurity, ['ASLRCompatible', 'DEPCompatible',
     'DisablePrecompiledFileVerifications', 'Encryption',
     'EncryptionKeyDerivation', 'Password', 'RedirectionGuard',
     'SignedUninstaller', 'SignedUninstallerDir', 'SignTool',
     'SignToolMinimumTimeBetween', 'SignToolRetryCount', 'SignToolRetryDelay',
     'SignToolRunMinimized'],
+    SetupSection);
+
+  CD(SInspectorCategoryStartMenuFolder, ['AllowNoIcons',
+    'AlwaysUsePersonalGroup', 'AppendDefaultGroupName', 'DefaultGroupName',
+    'DisableProgramGroupPage', 'UsePreviousGroup'],
     SetupSection);
 
   CD(SInspectorCategorySystemRequirements, ['ArchitecturesAllowed',

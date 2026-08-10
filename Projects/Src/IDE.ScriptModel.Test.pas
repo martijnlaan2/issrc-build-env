@@ -881,6 +881,28 @@ begin
   end;
 end;
 
+{ SectionToSectionName and SectionNameToSection: a round trip over every
+  section plus lookups of unknown, empty, and differently cased names.
+  GetScriptSectionDefiningParameterValues: every parameter name with a
+  defining section, and names without one }
+procedure TestSectionNames;
+begin
+  for var Section := Low(TInnoSetupSection) to High(TInnoSetupSection) do
+    Assert(SectionNameToSection(SectionToSectionName(Section)) = Section);
+  Assert(SectionNameToSection('setup') = scSetup);
+  Assert(SectionNameToSection('Bogus') = scNone);
+  Assert(SectionNameToSection('') = scNone);
+
+  Assert(GetScriptSectionDefiningParameterValues('Components') = scComponents);
+  Assert(GetScriptSectionDefiningParameterValues('Languages') = scLanguages);
+  Assert(GetScriptSectionDefiningParameterValues('Tasks') = scTasks);
+  Assert(GetScriptSectionDefiningParameterValues('TYPES') = scTypes);
+  Assert(GetScriptSectionDefiningParameterValues('ISSigAllowedKeys') = scISSigKeys);
+  Assert(GetScriptSectionDefiningParameterValues('issigallowedkeys') = scISSigKeys);
+  Assert(GetScriptSectionDefiningParameterValues('Name') = scNone);
+  Assert(GetScriptSectionDefiningParameterValues('') = scNone);
+end;
+
 procedure TestScriptCategories;
 const
   UnknownAndObsoleteCategoryCount = 2; { Other and Obsolete }
@@ -917,8 +939,8 @@ begin
   Assert(Names[FirstSpecificCategoryIndex+5] = 'Compression');
   Assert(Names[FirstSpecificCategoryIndex+6] = 'Disk Spanning');
   Assert(Names[FirstSpecificCategoryIndex+7] = 'Installation Pages');
-  Assert(Names[FirstSpecificCategoryIndex+8] = 'Program Group');
-  Assert(Names[FirstSpecificCategoryIndex+9] = 'Security');
+  Assert(Names[FirstSpecificCategoryIndex+8] = 'Security');
+  Assert(Names[FirstSpecificCategoryIndex+9] = 'Start Menu Folder');
   Assert(Names[FirstSpecificCategoryIndex+10] = 'System Requirements');
   Assert(Names[FirstSpecificCategoryIndex+11] = 'Uninstallation');
   Assert(Names[FirstSpecificCategoryIndex+12] = 'User Information');
@@ -2114,6 +2136,7 @@ begin
   TestKeyValueSectionMetadata;
   TestSectionMetadataTables;
   TestMetadataConsistency;
+  TestSectionNames;
   TestScriptCategories;
   TestScriptBrowseFileTypes;
   TestEntryRules;
