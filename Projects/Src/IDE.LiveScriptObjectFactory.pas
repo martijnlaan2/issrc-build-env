@@ -195,6 +195,10 @@ type
     property Styler: TInnoSetupStyler read FStyler;
   end;
 
+function CollectParameterValuesFromFactories(
+  const AFactories: array of TLiveScriptObjectFactory;
+  const AParameterName: String): TArray<String>;
+
 implementation
 
 uses
@@ -993,6 +997,60 @@ begin
         Entry.Free;
       end;
     end;
+  end;
+end;
+
+function CollectParameterValuesFromFactories(
+  const AFactories: array of TLiveScriptObjectFactory;
+  const AParameterName: String): TArray<String>;
+{ Collects the distinct values which are valid for the AParameterName parameter
+  from the given factories' script. nil and duplicate factories are skipped. }
+
+  function FactoryAlreadyProcessed(const AIndex: NativeInt): Boolean;
+  begin
+    Result := False;
+    for var I := 0 to AIndex-1 do
+      if AFactories[I] = AFactories[AIndex] then
+        Exit(True);
+  end;
+
+begin
+  const NamesSection = GetScriptSectionDefiningParameterValues(AParameterName);
+  var Values: TStringList := nil;
+  var DefinedNames: TStringList := nil;
+  try
+    Values := TStringList.Create;
+    Values.CaseSensitive := False;
+    Values.Duplicates := dupIgnore;
+    Values.Sorted := True;
+    DefinedNames := TStringList.Create;
+    DefinedNames.CaseSensitive := False;
+    DefinedNames.Duplicates := dupIgnore;
+    DefinedNames.Sorted := True;
+    for var I := 0 to High(AFactories) do begin
+      const Factory = AFactories[I];
+      if (Factory = nil) or FactoryAlreadyProcessed(I) then
+        Continue;
+      if NamesSection <> scNone then begin
+        { Lookup defined names }
+        Factory.CollectParameterValues(NamesSection, 'Name', DefinedNames);
+        if NamesSection = scISSigKeys then
+          Factory.CollectParameterValues(scISSigKeys, 'Group', DefinedNames, True); { Group names are valid values too }
+      end;
+      { Lookup uses: finds extra expression forms }
+      Factory.CollectParameterValues(scNone, AParameterName, Values);
+    end;
+    if (DefinedNames.Count = 0) and (NamesSection = scTypes) then begin
+      { Add automatically created default types: see Compiler.SetupCompiler's DefaultTypeEntryNames.
+        The automatically created 'default' language is not added: it's always the sole language,
+        so specifying it does nothing. }
+      DefinedNames.AddStrings(['full', 'compact', 'custom']);
+    end;
+    Values.AddStrings(DefinedNames);
+    Result := Values.ToStringArray;
+  finally
+    DefinedNames.Free;
+    Values.Free;
   end;
 end;
 

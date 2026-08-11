@@ -45,6 +45,10 @@ type
 
   TInspectorGetBaseDirEvent = function: String of object;
 
+  TInspectorGetSignToolsEvent = function: TStringList of object;
+
+  TInspectorGetMainFactoryEvent = function: TLiveScriptObjectFactory of object;
+
   TInspector = class
   private
     class var
@@ -58,6 +62,8 @@ type
       FNoteText: TNewStaticText;
       FFactory: TLiveScriptObjectFactory;
       FOnGetBaseDir: TInspectorGetBaseDirEvent;
+      FOnGetSignTools: TInspectorGetSignToolsEvent;
+      FOnGetMainFactory: TInspectorGetMainFactoryEvent;
       FCategoryNamesInDisplayOrder: TArray<String>;
       FLiveParameterSectionEntries: TLiveScriptParameterSectionEntries;
       FLiveKeyValueSection: TLiveScriptKeyValueSection;
@@ -85,6 +91,7 @@ type
       FQuoteNewParameterValues: Boolean;
       FQuoteNewDirectiveValues: Boolean;
     class constructor Create;
+    class procedure SortValueList(var AValues: TArray<String>); static;
     procedure InvalidateChangedRows;
     function TryGetRow(const AItem: TJvCustomInspectorItem;
       out ARow: TInspectorRow): Boolean;
@@ -101,6 +108,8 @@ type
     procedure RowSetAsString(Sender: TJvCustomInspectorItem; var Value: String);
     procedure RowRemove(const ARow: TInspectorRow);
     procedure ChoiceRowGetValueList(Item: TJvCustomInspectorItem; Values: TStrings);
+    procedure SignToolRowGetValueList(Item: TJvCustomInspectorItem; Values: TStrings);
+    procedure ScriptValuesRowGetValueList(Item: TJvCustomInspectorItem; Values: TStrings);
     function ItemShouldBeBold(const AItem: TJvCustomInspectorItem): Boolean;
     procedure JvInspectorCustomizeItemCanvas(Item: TJvCustomInspectorItem;
       Canvas: TCanvas);
@@ -129,7 +138,9 @@ type
       const ANoteText: TNewStaticText;
       const AFactory: TLiveScriptObjectFactory;
       const AShowAllKnownDirectives, AFollowCaret: Boolean;
-      const AOnGetBaseDir: TInspectorGetBaseDirEvent);
+      const AOnGetBaseDir: TInspectorGetBaseDirEvent;
+      const AOnGetSignTools: TInspectorGetSignToolsEvent;
+      const AOnGetMainFactory: TInspectorGetMainFactoryEvent);
     destructor Destroy; override;
     procedure ForceFinishEdit(const AForceCancel: Boolean = False);
     function GetSelectedHelpKeyword: String;
@@ -205,7 +216,9 @@ constructor TInspector.Create(const AJvInspector: TJvInspector;
   const ANoteText: TNewStaticText;
   const AFactory: TLiveScriptObjectFactory;
   const AShowAllKnownDirectives, AFollowCaret: Boolean;
-  const AOnGetBaseDir: TInspectorGetBaseDirEvent);
+  const AOnGetBaseDir: TInspectorGetBaseDirEvent;
+  const AOnGetSignTools: TInspectorGetSignToolsEvent;
+  const AOnGetMainFactory: TInspectorGetMainFactoryEvent);
 { Takes ownership of AJvInspector but not of ANoteText }
 begin
   inherited Create;
@@ -213,6 +226,8 @@ begin
   FNoteText := ANoteText;
   FFactory := AFactory;
   FOnGetBaseDir := AOnGetBaseDir;
+  FOnGetSignTools := AOnGetSignTools;
+  FOnGetMainFactory := AOnGetMainFactory;
   FShowAllKnownDirectives := AShowAllKnownDirectives;
   FFollowCaret := AFollowCaret;
   {$IFDEF DEBUG}
@@ -1031,7 +1046,11 @@ procedure TInspector.UpdateFromCaret;
       Item.Flags := Item.Flags + [iifValueList]
     else if ADefinition.ValueKind in [mvkCompilerSourceFile, mvkCompilerSourceFiles,
        mvkCompilerPath, mvkCompilerDestFile] then
-      Item.Flags := Item.Flags + [iifEditButton];
+      Item.Flags := Item.Flags + [iifEditButton]
+    else if GetScriptSectionDefiningParameterValues(ADefinition.Name) <> scNone then begin
+      Item.Flags := Item.Flags + [iifValueList];
+      Item.OnGetValueList := ScriptValuesRowGetValueList;
+    end;
   end;
 
   procedure AddParameterOccurrenceRows(const AParent: TJvCustomInspectorItem;
@@ -1114,7 +1133,12 @@ procedure TInspector.UpdateFromCaret;
           Item.Flags := Item.Flags + [iifValueList]
         else if Definition.ValueKind in [mvkCompilerSourceFile, mvkCompilerSourceFiles,
            mvkCompilerPath, mvkCompilerDestFile] then
-          Item.Flags := Item.Flags + [iifEditButton];
+          Item.Flags := Item.Flags + [iifEditButton]
+        else if SameText(Definition.Name, 'SignTool') and
+           SameText(FLiveKeyValueSection.Section.Metadata.SectionName, 'Setup') then begin
+          Item.Flags := Item.Flags + [iifValueList];
+          Item.OnGetValueList := SignToolRowGetValueList;
+        end;
       end;
     end;
   end;
@@ -1907,6 +1931,17 @@ begin
   UpdateFromCaret;
 end;
 
+class procedure TInspector.SortValueList(var AValues: TArray<String>);
+{ Sort using same sort as autocompletion and Scintilla, so using CompareText.
+  Also see TInnoSetupStyler.BuildWordList. }
+begin
+  TArray.Sort<String>(AValues, TComparer<String>.Construct(
+    function(const A, B: String): Integer
+    begin
+      Result := CompareText(A, B);
+    end));
+end;
+
 procedure TInspector.ChoiceRowGetValueList(Item: TJvCustomInspectorItem;
   Values: TStrings);
 begin
@@ -1922,16 +1957,41 @@ begin
       raise Exception.Create('Internal error: ChoiceRowGetValueList: unknown key');
   end else
     Exit;
-  { Sort using same sort as autocompletion and Scintilla, so using CompareText.
-    Also see TInnoSetupStyler.BuildWordList. }
   var KnownValues := Copy(Definition.KnownValues);
-  TArray.Sort<String>(KnownValues, TComparer<String>.Construct(
-    function(const A, B: String): Integer
-    begin
-      Result := CompareText(A, B);
-    end));
+  SortValueList(KnownValues);
   for var KnownValue in KnownValues do
     Values.Add(KnownValue);
+end;
+
+procedure TInspector.SignToolRowGetValueList(Item: TJvCustomInspectorItem;
+  Values: TStrings);
+begin
+  if not Assigned(FOnGetSignTools) then
+    Exit;
+  const SignTools = FOnGetSignTools;
+  var SignToolNames: TArray<String> := [];
+  for var I := 0 to SignTools.Count-1 do
+    SignToolNames := SignToolNames + [SignTools.Names[I]];
+  SortValueList(SignToolNames);
+  for var SignToolName in SignToolNames do
+    Values.Add(SignToolName);
+end;
+
+procedure TInspector.ScriptValuesRowGetValueList(Item: TJvCustomInspectorItem;
+  Values: TStrings);
+begin
+  var Row: TInspectorRow;
+  if not TryGetRow(Item, Row) or
+     (GetScriptSectionDefiningParameterValues(Row.Name) = scNone) then
+    Exit;
+  var MainFactory: TLiveScriptObjectFactory := nil;
+  if Assigned(FOnGetMainFactory) then
+    MainFactory := FOnGetMainFactory;
+  var ScriptValues := CollectParameterValuesFromFactories([FFactory, MainFactory],
+    Row.Name);
+  SortValueList(ScriptValues);
+  for var ScriptValue in ScriptValues do
+    Values.Add(ScriptValue);
 end;
 
 function TInspector.GetDividerWidth: Integer;

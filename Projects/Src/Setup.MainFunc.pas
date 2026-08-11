@@ -1237,6 +1237,7 @@ begin
       InternalError('Cannot expand "' + OriginalCnst + '" constant on this version of Windows');
   end
   else if (Cnst <> '') and (Cnst[1] = '%') then Result := ExpandEnvConst(Cnst)
+  { Same list of prefixes as in ConstantsWithParam }
   else if StrLComp(PChar(Cnst), 'reg:', 4) = 0 then Result := ExpandRegConst(Cnst)
   else if StrLComp(PChar(Cnst), 'ini:', 4) = 0 then Result := ExpandIniConst(Cnst)
   else if StrLComp(PChar(Cnst), 'param:', 6) = 0 then Result := ExpandParamConst(Cnst)
@@ -1343,8 +1344,8 @@ function ExpandExternalSourceFilename(const FileEntry: PSetupFileEntry): String;
 begin
   Result := ExpandConst(FileEntry^.SourceFilename);
   if Result = '' then { when allowed ApplyPathRedirRules would throw its exception }
-    InternalErrorFmt('The "Source" parameter of the "[Files]" entry for "%s" ' +
-      'expanded to an empty string', [FileEntry^.DestName]);
+    InternalErrorFmt('The "Source" parameter value "%s" expanded to an empty string',
+      [FileEntry^.SourceFilename]);
 end;
 
 procedure InitMainNonGetShellFolderPathConstsAndPathRedir;

@@ -964,9 +964,23 @@ end;
   given section or of every parameter section, skipping comment and blank
   lines, reading spanned entries whole, unquoting, skipping empty values,
   leaving ordering and duplicate handling to the passed list, and
-  splitting values into words when asked }
+  splitting values into words when asked. CollectParameterValuesFromFactories:
+  the defined names combined with the already-used values, for ISSigAllowedKeys
+  the key names plus the group words, without a defining section the
+  already-used values alone, the compiler's default type names only when the
+  script defines none, deduplicated ignoring case, with nil and duplicate
+  factories skipped }
 procedure TestCollectParameterValues(const AMemo: TScintEdit;
   const AStyler: TInnoSetupStyler);
+
+  procedure AssertValues(const AValues: TArray<String>;
+    const AExpectedValues: array of String);
+  begin
+    Assert(Length(AValues) = Length(AExpectedValues));
+    for var I := 0 to High(AExpectedValues) do
+      Assert(AValues[I] = AExpectedValues[I]);
+  end;
+
 begin
   const Context = TFactoryTestContext.Create(AMemo, AStyler, [
     '[Tasks]',                                                       { 0 }
@@ -989,7 +1003,9 @@ begin
     'Name: portable; Description: "Portable mode"',                  { 17 }
     '[ISSigKeys]',                                                   { 18 }
     'Name: mykey1; Group: "all extra"',                              { 19 }
-    'Name: mykey2; Group: ALL']);                                    { 20, duplicate word ignoring case }
+    'Name: mykey2; Group: ALL',                                      { 20, duplicate word ignoring case }
+    '[Languages]',                                                   { 21 }
+    'Name: nl; MessagesFile: "compiler:Languages\Dutch.isl"']);      { 22 }
   try
     const Factory = Context.Factory;
     const Values = TStringList.Create;
@@ -1027,6 +1043,29 @@ begin
     finally
       Values.Free;
     end;
+
+    { CollectParameterValuesFromFactories: the defined names combined with
+      the already-used values; the same factory passed twice plus a nil
+      yields the same result as passing it once }
+    AssertValues(CollectParameterValuesFromFactories([Factory], 'Tasks'),
+      ['desktopicon', 'desktopicon\common', 'not portable', 'portable']);
+    AssertValues(CollectParameterValuesFromFactories([Factory, Factory, nil], 'Tasks'),
+      ['desktopicon', 'desktopicon\common', 'not portable', 'portable']);
+
+    { For ISSigAllowedKeys the key names plus the group words }
+    AssertValues(CollectParameterValuesFromFactories([Factory], 'ISSigAllowedKeys'),
+      ['all', 'extra', 'mykey1', 'mykey2']);
+
+    { A parameter without a defining section yields the already-used values }
+    AssertValues(CollectParameterValuesFromFactories([Factory], 'Source'),
+      ['a.txt', 'b.txt', 'c.txt', 'd.txt']);
+
+    { Without [Types] entries the compiler's default type names are valid; the
+      compiler's 'default' language is never added }
+    AssertValues(CollectParameterValuesFromFactories([Factory], 'Types'),
+      ['compact', 'custom', 'full']);
+    AssertValues(CollectParameterValuesFromFactories([Factory], 'Languages'),
+      ['nl']);
   finally
     Context.Free;
   end;
