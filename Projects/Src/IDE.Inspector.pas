@@ -108,6 +108,7 @@ type
     procedure RowSetAsString(Sender: TJvCustomInspectorItem; var Value: String);
     procedure RowRemove(const ARow: TInspectorRow);
     procedure ChoiceRowGetValueList(Item: TJvCustomInspectorItem; Values: TStrings);
+    procedure PermissionsRowGetValueList(Item: TJvCustomInspectorItem; Values: TStrings);
     procedure SignToolRowGetValueList(Item: TJvCustomInspectorItem; Values: TStrings);
     procedure ScriptValuesRowGetValueList(Item: TJvCustomInspectorItem; Values: TStrings);
     function ItemShouldBeBold(const AItem: TJvCustomInspectorItem): Boolean;
@@ -174,7 +175,7 @@ type
 implementation
 
 uses
-  SysUtils, StrUtils, UITypes, Themes, Forms, Generics.Defaults,
+  SysUtils, UITypes, Themes, Forms, Generics.Defaults,
   BrowseFunc, NewUxTheme, PathFunc,
   Shared.CommonFunc, Shared.CommonFunc.Vcl,
   IDE.HelperFunc, IDE.Messages, IDE.LocalizeFunc;
@@ -918,7 +919,8 @@ procedure TInspector.UpdateFromCaret;
 
   function NameMatchesFilter(const AName: String): Boolean;
   begin
-    Result := (FFilterText = '') or ContainsText(AName, FFilterText);
+    Result := (FFilterText = '') or (PathStrFind(PChar(AName), Length(AName),
+      PChar(FFilterText), Length(FFilterText)) >= 0);
   end;
 
   function AnyFlagMatchesFilter(const AFlagNames: TArray<String>): Boolean;
@@ -1047,7 +1049,10 @@ procedure TInspector.UpdateFromCaret;
     else if ADefinition.ValueKind in [mvkCompilerSourceFile, mvkCompilerSourceFiles,
        mvkCompilerPath, mvkCompilerDestFile] then
       Item.Flags := Item.Flags + [iifEditButton]
-    else if GetScriptSectionDefiningParameterValues(ADefinition.Name) <> scNone then begin
+    else if ADefinition.ValueKind = mvkPermissions then begin
+      Item.Flags := Item.Flags + [iifValueList];
+      Item.OnGetValueList := PermissionsRowGetValueList;
+    end else if GetScriptSectionDefiningParameterValues(ADefinition.Name) <> scNone then begin
       Item.Flags := Item.Flags + [iifValueList];
       Item.OnGetValueList := ScriptValuesRowGetValueList;
     end;
@@ -1932,7 +1937,7 @@ begin
 end;
 
 class procedure TInspector.SortValueList(var AValues: TArray<String>);
-{ Sort using same sort as autocompletion and Scintilla, so using CompareText.
+{ Sorts using same sort as autocompletion and Scintilla, so using CompareText.
   Also see TInnoSetupStyler.BuildWordList. }
 begin
   TArray.Sort<String>(AValues, TComparer<String>.Construct(
@@ -1959,8 +1964,72 @@ begin
     Exit;
   var KnownValues := Copy(Definition.KnownValues);
   SortValueList(KnownValues);
-  for var KnownValue in KnownValues do
-    Values.Add(KnownValue);
+  Values.AddStrings(KnownValues);
+end;
+
+procedure TInspector.PermissionsRowGetValueList(Item: TJvCustomInspectorItem;
+  Values: TStrings);
+
+  function SwapAccessTypesIfNeeded(const AValue: String;
+    const AKnownValues: TArray<String>): String;
+  { Switches '-read' to '-readexec', or vice versa, as needed }
+  const
+    ReadAccessType = '-read';
+    ReadExecAccessType = '-readexec';
+  begin
+    { Figure out which type to use }
+    var UseReadExec := False;
+    for var KnownValue in AKnownValues do begin
+      if PathEndsWith(KnownValue, ReadExecAccessType) then begin
+        UseReadExec := True;
+        Break;
+      end;
+    end;
+    { Replace as needed }
+    Result := '';
+    var S := AValue;
+    while True do begin
+      var P := ExtractStr(S, ' ');
+      if P = '' then
+        Break;
+      if UseReadExec and PathEndsWith(P, ReadAccessType) then
+        P := Copy(P, 1, Length(P)-Length(ReadAccessType)) + ReadExecAccessType
+      else if not UseReadExec and PathEndsWith(P, ReadExecAccessType) then
+        P := Copy(P, 1, Length(P)-Length(ReadExecAccessType)) + ReadAccessType;
+      if Result = '' then
+        Result := P
+      else
+        Result := Result + ' ' + P;
+    end;
+  end;
+
+begin
+  var Row: TInspectorRow;
+  if not TryGetRow(Item, Row) then
+    Exit;
+  var Definition: TMemberDefinition;
+  if (FLiveParameterSectionEntries <> nil) and FLiveParameterSectionEntries.Valid then begin
+    if not FLiveParameterSectionEntries.PrimaryEntry.TryGetDefinition(Row.Name, Definition) then
+      raise Exception.Create('Internal error: PermissionsRowGetValueList: unknown parameter');
+  end else
+    Exit;
+  var MainFactory: TLiveScriptObjectFactory := nil;
+  if Assigned(FOnGetMainFactory) then
+    MainFactory := FOnGetMainFactory;
+  const SL = TStringList.Create;
+  try
+    SL.CaseSensitive := False;
+    SL.UseLocale := False; { Make sure it uses CompareText and not AnsiCompareText }
+    SL.Duplicates := dupIgnore; { Also removes the duplicates a swapped access type can cause }
+    SL.Sorted := True;
+    SL.AddStrings(Definition.KnownValues);
+    for var Value in CollectParameterValuesFromFactories([FFactory, MainFactory],
+       Row.Name) do
+      SL.Add(SwapAccessTypesIfNeeded(Value, Definition.KnownValues));
+    Values.AddStrings(SL);
+  finally
+    SL.Free;
+  end;
 end;
 
 procedure TInspector.SignToolRowGetValueList(Item: TJvCustomInspectorItem;
@@ -1969,12 +2038,12 @@ begin
   if not Assigned(FOnGetSignTools) then
     Exit;
   const SignTools = FOnGetSignTools;
-  var SignToolNames: TArray<String> := [];
+  var SignToolNames: TArray<String>;
+  SetLength(SignToolNames, SignTools.Count);
   for var I := 0 to SignTools.Count-1 do
-    SignToolNames := SignToolNames + [SignTools.Names[I]];
+    SignToolNames[I] := SignTools.Names[I];
   SortValueList(SignToolNames);
-  for var SignToolName in SignToolNames do
-    Values.Add(SignToolName);
+  Values.AddStrings(SignToolNames);
 end;
 
 procedure TInspector.ScriptValuesRowGetValueList(Item: TJvCustomInspectorItem;
@@ -1987,11 +2056,9 @@ begin
   var MainFactory: TLiveScriptObjectFactory := nil;
   if Assigned(FOnGetMainFactory) then
     MainFactory := FOnGetMainFactory;
-  var ScriptValues := CollectParameterValuesFromFactories([FFactory, MainFactory],
+  const SortedValues = CollectParameterValuesFromFactories([FFactory, MainFactory],
     Row.Name);
-  SortValueList(ScriptValues);
-  for var ScriptValue in ScriptValues do
-    Values.Add(ScriptValue);
+  Values.AddStrings(SortedValues);
 end;
 
 function TInspector.GetDividerWidth: Integer;

@@ -154,7 +154,9 @@ type
     procedure EnsureStyled;
     function GetLinesText(const AFirstLine, ALastLine: Integer): TArray<String>;
     function GetLinesTextAndClassify(const AFirstLine, ALastLine: Integer;
-      out ALineKind: TScriptLineKind): TArray<String>;
+      out ALineKind: TScriptLineKind; out AJoinedText: String): TArray<String>; overload;
+    function GetLinesTextAndClassify(const AFirstLine, ALastLine: Integer;
+      out ALineKind: TScriptLineKind): TArray<String>; overload;
     function GetLogicalLineFirstLine(const ALine: Integer): Integer;
     function GetLogicalLineLastLine(const ALine: Integer): Integer;
     function GetSectionHeader(Index: Integer): TLiveScriptSectionHeader;
@@ -203,6 +205,7 @@ implementation
 
 uses
   SysUtils,
+  PathFunc,
   Shared.CommonFunc;
 
 { TLiveScriptObject }
@@ -899,10 +902,19 @@ begin
 end;
 
 function TLiveScriptObjectFactory.GetLinesTextAndClassify(const AFirstLine,
-  ALastLine: Integer; out ALineKind: TScriptLineKind): TArray<String>;
+  ALastLine: Integer; out ALineKind: TScriptLineKind;
+  out AJoinedText: String): TArray<String>;
 begin
   Result := GetLinesText(AFirstLine, ALastLine);
-  ALineKind := ClassifyScriptLine(JoinSpannedScriptLines(Result));
+  AJoinedText := JoinSpannedScriptLines(Result);
+  ALineKind := ClassifyScriptLine(AJoinedText);
+end;
+
+function TLiveScriptObjectFactory.GetLinesTextAndClassify(const AFirstLine,
+  ALastLine: Integer; out ALineKind: TScriptLineKind): TArray<String>;
+begin
+  var JoinedText: String;
+  Result := GetLinesTextAndClassify(AFirstLine, ALastLine, ALineKind, JoinedText);
 end;
 
 function TLiveScriptObjectFactory.GetLogicalLineFirstLine(const ALine: Integer): Integer;
@@ -957,29 +969,46 @@ procedure TLiveScriptObjectFactory.CollectParameterValues(
   const AValues: TStringList; const ASplitValueWords: Boolean);
 { Collects the non-empty values of the AParameterName parameter of every
   parameter section entry into AValues, restricted to AOnlySection when
-  not scNone. When ASplitValueWords is True the values' space-separated
+  not scNone and skipping sections which do not have the parameter according
+  to their metadata. When ASplitValueWords is True the values' space-separated
   words are collected instead. }
 begin
+  var Sections: TInnoSetupSections := ParameterSections;
+  if AOnlySection <> scNone then
+    Sections := Sections * [AOnlySection];
+  for var Section in ParameterSections do begin
+    var Metadata: TScriptModelSectionMetadata;
+    var Definition: TMemberDefinition;
+    if (Section in Sections) and
+       TryGetScriptModelSectionMetadata(SectionToSectionName(Section), Metadata) and
+       not Metadata.TryGetMember(AParameterName, Definition) then
+      Exclude(Sections, Section);
+  end;
+  if Sections = [] then
+    Exit;
+
   EnsureIndex;
   EnsureStyled; { For GetSectionLines }
-  for var I := 0 to Integer(FSectionHeaders.Count)-1 do begin
-    const Section = FSectionHeaders[I].Section;
-    if not (Section in ParameterSections) or
-       ((AOnlySection <> scNone) and (Section <> AOnlySection)) then
-      Continue;
-    var FirstLine, LastLine: Integer;
-    GetSectionLines(I, FirstLine, LastLine);
-    var Line := FirstLine;
-    while Line <= LastLine do begin
-      const EntryFirstLine = Line;
-      const EntryLastLine = GetLogicalLineLastLine(Line);
-      Line := EntryLastLine+1;
-      var LineKind: TScriptLineKind;
-      const EntryLines = GetLinesTextAndClassify(EntryFirstLine, EntryLastLine, LineKind);
-      if LineKind <> slkActual then
+  const Entry = TScriptModelParameterSectionEntry.Create(nil); { Just reading, metadata not needed }
+  try
+    for var I := 0 to Integer(FSectionHeaders.Count)-1 do begin
+      if not (FSectionHeaders[I].Section in Sections) then
         Continue;
-      const Entry = TScriptModelParameterSectionEntry.Create(nil); { Just reading, metadata not needed }
-      try
+      var FirstLine, LastLine: Integer;
+      GetSectionLines(I, FirstLine, LastLine);
+      var Line := FirstLine;
+      while Line <= LastLine do begin
+        const EntryFirstLine = Line;
+        const EntryLastLine = GetLogicalLineLastLine(Line);
+        Line := EntryLastLine+1;
+        var LineKind: TScriptLineKind;
+        var JoinedText: String;
+        const EntryLines = GetLinesTextAndClassify(EntryFirstLine, EntryLastLine,
+          LineKind, JoinedText);
+        if (LineKind <> slkActual) or
+           (PathStrFind(PChar(JoinedText), Length(JoinedText),
+            PChar(AParameterName), Length(AParameterName)) < 0) then
+          Continue; { Parameter name not present at all, skip Parse }
         Entry.Parse(EntryLines);
         var Value: String;
         if Entry.TryGetValue(AParameterName, Value) then begin
@@ -993,10 +1022,10 @@ begin
           end else if Value <> '' then
             AValues.Add(Value);
         end;
-      finally
-        Entry.Free;
       end;
     end;
+  finally
+    Entry.Free;
   end;
 end;
 
@@ -1004,7 +1033,9 @@ function CollectParameterValuesFromFactories(
   const AFactories: array of TLiveScriptObjectFactory;
   const AParameterName: String): TArray<String>;
 { Collects the distinct values which are valid for the AParameterName parameter
-  from the given factories' script. nil and duplicate factories are skipped. }
+  from the given factories' script. nil and duplicate factories are skipped.
+  Sorts using same sort as autocompletion and Scintilla, so using CompareText.
+  Also see TInnoSetupStyler.BuildWordList. }
 
   function FactoryAlreadyProcessed(const AIndex: NativeInt): Boolean;
   begin
@@ -1021,10 +1052,12 @@ begin
   try
     Values := TStringList.Create;
     Values.CaseSensitive := False;
+    Values.UseLocale := False; { Make sure it uses CompareText and not AnsiCompareText }
     Values.Duplicates := dupIgnore;
     Values.Sorted := True;
     DefinedNames := TStringList.Create;
     DefinedNames.CaseSensitive := False;
+    DefinedNames.UseLocale := False; { See above }
     DefinedNames.Duplicates := dupIgnore;
     DefinedNames.Sorted := True;
     for var I := 0 to High(AFactories) do begin

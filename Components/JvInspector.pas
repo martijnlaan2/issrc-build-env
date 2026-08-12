@@ -108,7 +108,6 @@ type
     // objects, or hook event handlers, which were
     // otherwise invisible. This could be used to ill effect, so beware.
     FBeforeEdit: TInspectorBeforeEditEvent;
-    FMouseWheelRecursion: Boolean;
     FMouseWheelAccum: Integer;
     FAccessibleName: string;
     function ApplicationHook(var Msg: TMessage): Boolean;
@@ -222,6 +221,7 @@ type
     FInspector: TJvInspector;
     FItems: TObjectList<TJvCustomInspectorItem>;
     FListBox: TJvInspectorListBox;
+    FListBoxFilled: Boolean;
     FOnGetValueList: TInspectorItemGetValueListEvent;
     FParent: TJvCustomInspectorItem;
     FLastPaintGen: Integer;
@@ -356,6 +356,8 @@ type
     FItem: TJvCustomInspectorItem;
     FSearchText: string;
     FSearchTickCount: UInt64;
+    FMouseWheelAccum: Integer;
+    procedure UpdateSelectedItem(const ClientPos: TPoint);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
     procedure CreateWnd; override;
@@ -363,6 +365,7 @@ type
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
     procedure MouseMove(Shift: TShiftState; X, Y: Integer); override;
     procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure WMMouseWheel(var Msg: TWMMouseWheel); message WM_MOUSEWHEEL;
   public
     property OnValueSelect: TNotifyEvent read FOnValueSelect write FOnValueSelect;
     property OnDeactivate: TNotifyEvent read FOnDeactivate write FOnDeactivate;
@@ -373,7 +376,8 @@ implementation
 
 uses
   System.UITypes,
-  Character, StrUtils, Types, Forms, Themes,
+  Character, Types, Forms, Themes,
+  PathFunc,
   JvInspector.MSAA, OleAccFunc;
 
 const
@@ -477,6 +481,32 @@ begin
 
   if not Result then
     Result := DrawFrameControl(DC, Rect, uType, uState);
+end;
+
+function WheelScrollTopIndex(var Accumulator: Integer; const WheelDelta,
+  CurrentTopIndex: Integer; PageScrollLines: Integer): Integer;
+{ Returns the top index a wheel scroll should move to, keeping any leftover
+  delta in Accumulator as required by
+  https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-mousewheel }
+begin
+  { Sanity check }
+  if PageScrollLines < 1 then
+    PageScrollLines := 1;
+  { Mouse.WheelScrollLines stays 0 if no wheel was present at VCL startup, so
+    prefer SPI_GETWHEELSCROLLLINES }
+  var Lines: Integer;  // 0 = don't scroll, -1 = WHEEL_PAGESCROLL
+  if not SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, Lines, 0) then
+    Lines := Mouse.WheelScrollLines;
+  { Lines > PageScrollLines: see SPI_SETWHEELSCROLLLINES in
+    https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfow }
+  if (Lines < 0) or (Lines > PageScrollLines) then
+    Lines := PageScrollLines;
+  Inc(Accumulator, WheelDelta * Lines);
+  const Count = Accumulator div WHEEL_DELTA;
+  Dec(Accumulator, Count * WHEEL_DELTA);
+  Result := CurrentTopIndex - Count;
+  if Result < 0 then
+    Result := 0;
 end;
 
 //=== { TJvInspector } =================================================
@@ -1256,37 +1286,18 @@ begin
 end;
 
 function TJvInspector.DoMouseWheel(Shift: TShiftState; WheelDelta: Integer; MousePos: TPoint): Boolean;
-var
-  Index: Integer;
-  LbPos: TPoint;
-  MinPos, MaxPos: Integer;
 begin
   if (Selected <> nil) and Selected.DroppedDown then begin
-    // If Selected.ListBox gets the WM_MOUSEWHEEL we would run into an infinite recursion
-    if not FMouseWheelRecursion then begin
-      FMouseWheelRecursion := True;
-      try
-        LbPos := Selected.ListBox.ScreenToClient(ClientToScreen(MousePos));
-        Selected.ListBox.Perform(WM_MOUSEWHEEL, WPARAM(WheelDelta shl 16), MakeLong(Word(LbPos.X), Word(LbPos.Y)));
-      finally
-        FMouseWheelRecursion := False;
-      end;
-    end;
+    { Let the dropped down list box scroll instead of us. MousePos is already in
+      screen coordinates, just like WM_MOUSEWHEEL's lParam }
+    Selected.ListBox.Perform(WM_MOUSEWHEEL, WPARAM(WheelDelta shl 16),
+      MakeLong(Word(MousePos.X), Word(MousePos.Y)));
   end else begin
+    var MinPos, MaxPos: Integer;
     GetScrollRange(Handle, SB_VERT, MinPos, MaxPos);
-    if MinPos <> MaxPos then begin // no scroll bar enabled
-      var Lines := Mouse.WheelScrollLines; // 0 = don't scroll, -1 = WHEEL_PAGESCROLL
-      if Lines < 0 then
-        Lines := ClientHeight div GetItemHeight;
-      // accumulate as required by https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-mousewheel
-      Inc(FMouseWheelAccum, WheelDelta * Lines);
-      const Count = FMouseWheelAccum div WHEEL_DELTA;
-      Dec(FMouseWheelAccum, Count * WHEEL_DELTA);
-      Index := TopIndex - Count;
-      if Index < 0 then
-        Index := 0;
-      TopIndex := Index;
-    end;
+    if MinPos <> MaxPos then // no scroll bar enabled
+      TopIndex := WheelScrollTopIndex(FMouseWheelAccum, WheelDelta, TopIndex,
+        ClientHeight div GetItemHeight);
   end;
   Result := True;
 end;
@@ -1622,6 +1633,9 @@ begin
           Dec(FUpdateEditCtrl);
         end;
         InvalidateItem;
+        // Applying a new value may change the underlying data a dynamic value
+        // list is built from, so refill the list box next time
+        FListBoxFilled := False;
         if EditCtrl <> nil then begin
           TmpOnChange := EditCtrl.OnChange;
           EditCtrl.OnChange := nil;
@@ -1735,8 +1749,12 @@ begin
   if (not DroppedDown) and (ListBox <> nil) then begin
     ListBox.Width := Abs(Rects[iprValueArea].Width);
     ListBox.Font := EditCtrl.Font;
-    ListBox.Items.Clear;
-    GetValueList(ListBox.Items);
+    // Fill the value list unless an earlier fill is still valid
+    if not FListBoxFilled then begin
+      ListBox.Items.Clear;
+      GetValueList(ListBox.Items);
+      FListBoxFilled := True;
+    end;
     if ListBox.Items.Count < DropDownCount then
       ListCount := ListBox.Items.Count
     else
@@ -1852,7 +1870,7 @@ var
   function FindItemPrefix(const Prefix: string): Integer;
   begin
     for Result := 0 to ListBox.Items.Count - 1 do
-      if AnsiStartsText(Prefix, ListBox.Items[Result]) then
+      if PathStartsWith(ListBox.Items[Result], Prefix) then
         Exit;
     Result := -1;
   end;
@@ -1900,9 +1918,11 @@ begin
         Key := #0;
       end;
   else
-    // Refill the value list before matching against it
-    ListBox.Items.Clear;
-    GetValueList(ListBox.Items);
+    if not FListBoxFilled then begin
+      ListBox.Items.Clear;
+      GetValueList(ListBox.Items);
+      FListBoxFilled := True;
+    end;
 
     if HasSelectedText(StartPos, EndPos) then
       SaveText := Copy(Filter, 1, StartPos) + Key
@@ -2023,12 +2043,6 @@ begin
   if (Msg.Msg = WM_CHAR) and (Msg.WParam = VK_RETURN) then begin
     ExecInherited := False;
     EditCtrl.SelectAll;
-  end;
-  if Msg.Msg = WM_MOUSEWHEEL then begin
-    if not DroppedDown then
-      PostMessage(Inspector.Handle, Msg.Msg, Msg.WParam, Msg.LParam);
-    Msg.Result := 1;
-    ExecInherited := False;
   end;
   if DroppedDown then
     // be like standard combobox (this doesn't break click+drag)
@@ -2464,9 +2478,14 @@ end;
 procedure TJvInspectorListBox.MouseMove(Shift: TShiftState; X, Y: Integer);
 begin
   inherited;
+  UpdateSelectedItem(Point(X, Y));
+end;
+
+procedure TJvInspectorListBox.UpdateSelectedItem(const ClientPos: TPoint);
+begin
   { Auto-update selection, like a standard combobox. Doesn't actually commit
     selection item. }
-  const Index = ItemAtPos(Point(X, Y), True);
+  const Index = ItemAtPos(ClientPos, True);
   if Index >= 0 then
     ItemIndex := Index;
 end;
@@ -2498,6 +2517,18 @@ begin
   FNCClick := False;
 end;
 
+procedure TJvInspectorListBox.WMMouseWheel(var Msg: TWMMouseWheel);
+begin
+  { Scroll ourselves, exactly like TJvInspector.DoMouseWheel does }
+  const NewTopIndex = WheelScrollTopIndex(FMouseWheelAccum, Msg.WheelDelta,
+    TopIndex, ClientHeight div ItemHeight);
+  if NewTopIndex <> TopIndex then begin
+    TopIndex := NewTopIndex;
+    { Scrolling puts another item under the mouse but sends no WM_MOUSEMOVE }
+    UpdateSelectedItem(ScreenToClient(SmallPointToPoint(Msg.Pos)));
+  end;
+end;
+
 procedure TJvCustomInspectorItem.InitEdit;
 var
   Edit: TEdit;
@@ -2526,6 +2557,7 @@ begin
     EditCtrl.AutoSelect := not (csLButtonDown in Inspector.ControlState);
     if iifValueList in Flags then begin
       FListBox := TJvInspectorListBox.Create(Inspector);
+      FListBoxFilled := False;
       ListBox.Visible := False;
       ListBox.Parent := EditCtrl;
       ListBox.IntegralHeight := True;

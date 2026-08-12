@@ -961,10 +961,12 @@ begin
 end;
 
 { CollectParameterValues: values collected across every occurrence of the
-  given section or of every parameter section, skipping comment and blank
-  lines, reading spanned entries whole, unquoting, skipping empty values,
-  leaving ordering and duplicate handling to the passed list, and
-  splitting values into words when asked. CollectParameterValuesFromFactories:
+  given section or of every parameter section, skipping sections which do not
+  have the parameter according to their metadata, skipping comment and blank
+  lines, reading spanned entries whole, matching parameter names ignoring
+  case, unquoting, skipping empty values, leaving ordering and duplicate
+  handling to the passed list, and splitting values into words when asked.
+  CollectParameterValuesFromFactories:
   the defined names combined with the already-used values, for ISSigAllowedKeys
   the key names plus the group words, without a defining section the
   already-used values alone, the compiler's default type names only when the
@@ -995,7 +997,7 @@ begin
     'Source: "a.txt"; Tasks: "not portable"',                        { 9 }
     'Source: "b.txt"; Tasks: NOT PORTABLE',                          { 10, duplicate value ignoring case }
     'Source: "c.txt"; \',                                            { 11, spanned entry }
-    '  Tasks: desktopicon\common',                                   { 12, continuation of line 11 }
+    '  tasks: desktopicon\common',                                   { 12, continuation of line 11, lowercase parameter name }
     'Source: "d.txt"',                                               { 13, no Tasks parameter }
     '[Icons]',                                                       { 14 }
     'Name: "{group}\My"; Filename: "x"; Tasks: portable',            { 15 }
@@ -1005,7 +1007,7 @@ begin
     'Name: mykey1; Group: "all extra"',                              { 19 }
     'Name: mykey2; Group: ALL',                                      { 20, duplicate word ignoring case }
     '[Languages]',                                                   { 21 }
-    'Name: nl; MessagesFile: "compiler:Languages\Dutch.isl"']);      { 22 }
+    'Name: nl; MessagesFile: "x.isl"; Tasks: bogus']);               { 22, [Languages] cannot have a Tasks parameter }
   try
     const Factory = Context.Factory;
     const Values = TStringList.Create;
@@ -1022,7 +1024,8 @@ begin
       Assert(Values[1] = 'desktopicon\common');
       Assert(Values[2] = 'portable');
 
-      { The Tasks values of every parameter section }
+      { The Tasks values of every parameter section which can have the
+        parameter: the bogus [Languages] value must not appear }
       Values.Clear;
       Factory.CollectParameterValues(scNone, 'Tasks', Values);
       Assert(Values.Count = 3);
