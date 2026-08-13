@@ -377,7 +377,7 @@ type
     procedure SetSingleSelection(const CaretPos, AnchorPos: Integer);
     procedure SettingChange(const Message: TMessage);
     procedure SetWordChars(const S: AnsiString);
-    procedure ShowAutoComplete(const CharsEntered: Integer; const WordList: TScintRawString);
+    procedure ShowAutoComplete(const CharsEntered: Integer; const WordList: AnsiString);
     procedure ShowCallTip(const Pos: Integer; const Definition: AnsiString);
     procedure StyleNeeded(const EndPos: Integer);
     procedure SysColorChange(const Message: TMessage);
@@ -2249,7 +2249,7 @@ begin
 end;
 
 procedure TScintEdit.ShowAutoComplete(const CharsEntered: Integer;
-  const WordList: TScintRawString);
+  const WordList: AnsiString);
 begin
   Call(SCI_AUTOCSHOW, CharsEntered, WordList);
 end;
@@ -2572,10 +2572,11 @@ var
     const Attr: TScintStyleAttributes; const Force: Boolean);
   begin
     if Force or (Attr.FontName <> DefaultAttr.FontName) then
-      Call(SCI_STYLESETFONT, StyleNumber, AnsiString(Attr.FontName));
-    if Force or (Attr.FontSize <> DefaultAttr.FontSize) then
+      Call(SCI_STYLESETFONT, StyleNumber, UTF8String(Attr.FontName));
+    if Force or (Attr.FontSize <> DefaultAttr.FontSize) then begin
       { Note: Scintilla doesn't support negative point sizes like the VCL }
       Call(SCI_STYLESETSIZE, StyleNumber, Abs(Attr.FontSize));
+    end;
     if Force or (Attr.FontCharset <> DefaultAttr.FontCharset) then
       Call(SCI_STYLESETCHARACTERSET, StyleNumber, Attr.FontCharset);
     if Force or (Attr.FontStyle <> DefaultAttr.FontStyle) then begin
