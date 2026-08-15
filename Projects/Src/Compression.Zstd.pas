@@ -280,7 +280,7 @@ begin
       RaiseDataError(-1);
     if FIn.pos = FIn.size then begin
       FIn.src := @FInBuffer;
-      FIn.size := ReadProc(FInBuffer, SizeOf(FInBuffer));
+      FIn.size := ReadInput(FInBuffer, SizeOf(FInBuffer));
       FIn.pos := 0;
     end;
     const OldInPos = FIn.pos;
@@ -305,6 +305,7 @@ end;
 procedure TZstdDecompressor.DoReset;
 begin
   FIn := Default(TZSTD_inBuffer);
+  { Per zstd 1.5.7 zstd_decompress.c, ZSTD_initDStream can't fail }
   Check(ZSTD_initDStream(FStrm));
   FReachedEndOfFrame := False;
 end;

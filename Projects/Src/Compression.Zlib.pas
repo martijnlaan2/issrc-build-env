@@ -278,7 +278,7 @@ begin
       raise ECompressDataError.Create(SZlibDataError);
     if FStrm.avail_in = 0 then begin
       FStrm.next_in := @FBuffer;
-      FStrm.avail_in := ReadProc(FBuffer, SizeOf(FBuffer));
+      FStrm.avail_in := ReadInput(FBuffer, SizeOf(FBuffer));
       { Note: If avail_in is zero while zlib still needs input, inflate() will
         return Z_BUF_ERROR. We interpret that as a data error (see below). }
     end;
@@ -293,6 +293,7 @@ procedure TZDecompressor.DoReset;
 begin
   FStrm.next_in := @FBuffer;
   FStrm.avail_in := 0;
+  { inflateReset can only fail if passed an invalid z_stream }
   Check(inflateReset(FStrm), [Z_OK]);
   FReachedEnd := False;
 end;
