@@ -149,6 +149,7 @@ function TScriptModelSectionMetadata.TryGetMember(const AName: String;
 begin
   var Name := AName;
   if SameText(FSectionName, 'LangOptions') then begin
+    { Also see SkipLanguagePrefixBeforeWord in IDE.MainForm.AutoCompleteAndCallTipsHelper }
     const P = Pos('.', Name);
     if P > 1 then
       Name := Copy(Name, P+1, MaxInt);
@@ -516,8 +517,7 @@ begin
     MD('Check', mvkString),
     MD('Components', mvkString),
     MD('CopyMode', mvkString, nil, True),
-    { Order must match IDE.Wizard.WizardFileForm! }
-    MD('DestDir', mvkChoice, ['{app}', '{autopf}', '{autocf}', '{win}', '{sys}', '{src}', '{sd}']),
+    MD('DestDir', mvkString),
     MD('DestName', mvkString),
     MD('DownloadISSigSource', mvkString),
     MD('DownloadPassword', mvkString),
