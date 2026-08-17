@@ -770,7 +770,9 @@ uses
   IDE.Messages, IDE.HtmlHelpFunc, IDE.ImagesModule, IDE.IDEForm,
   IDE.OptionsForm, IDE.StartupForm, IDE.Wizard.WizardForm, IDE.GotoFileForm,
   IDE.InputQueryForm, IDE.LicenseKeyForm, IDE.MainForm.FinalHelper, IDE.RichEditForm,
-  {$IFDEF DEBUG} IDE.LiveScriptObjectFactory.Test, {$ENDIF} IDE.ScriptModel.Metadata.Extra;
+  {$IFDEF DEBUG} IDE.LiveScriptObjectFactory.Test, {$ENDIF} IDE.ScriptModel.Metadata.Extra,
+  IDE.ScriptModel.Metadata.Extra.FunctionDefinitions,
+  IDE.ScriptModel.Metadata.Extra.WordLists;
 
 {$R *.DFM}
 
@@ -864,7 +866,7 @@ begin
   Memo.OnUpdateUI := MemoUpdateUI;
   Memo.OnZoom := MemoZoom;
   Memo.Parent := BodyPanel;
-  Memo.SetAutoCompleteSeparators(InnoSetupStylerWordListSeparator, InnoSetupStylerWordListTypeSeparator);
+  Memo.SetAutoCompleteSeparators(AutoCompleteWordListSeparator, AutoCompleteWordListTypeSeparator);
   Memo.SetWordChars(Memo.GetDefaultWordChars+'#{}[]');
   Memo.Theme := FTheme;
   Memo.StyleName := 'Windows';
@@ -1205,7 +1207,10 @@ begin
   PopupMenu := TMainFormPopupMenu.Create(Self, EMenu);
 
   FMemosStyler := TInnoSetupStyler.Create(Self);
-  FMemosStyler.ISPPInstalled := ISPPInstalled;
+  const ISPPIsInstalled = ISPPInstalled;
+  FMemosStyler.ISPPInstalled := ISPPIsInstalled;
+  InitializeFunctionDefinitions;
+  InitializeWordLists(ISPPIsInstalled);
 
   FTheme := TTheme.Create;
   InitFormThemeInit(FTheme);
@@ -4027,7 +4032,8 @@ procedure TMainForm.UpdateOccurrenceIndicators(const AMemo: TIDEScintEdit);
   function HighlightAtCursorAllowed(const Word: TScintRawString): Boolean;
   begin
     const Section = TInnoSetupStyler.GetSectionFromLineState(AMemo.Lines.State[AMemo.CaretLine]);
-    Result := FMemosStyler.HighlightAtCursorAllowed(Section, AMemo.ConvertRawStringToString(Word));
+    Result := NoHighlightAtCursorWords[Section].IndexOf(
+      AMemo.ConvertRawStringToString(Word)) = -1;
   end;
 
 begin
@@ -4210,10 +4216,10 @@ begin
         AutoCompleteBkBrush.Color := FTheme.Colors[tcIntelliBack];
 
         var NamedTypes := [
-          NNT(awtSection, 'ac\structure-filled'),
-          NNT(awtParameter, 'ac\xml-filled'),
-          NNT(awtDirective, 'ac\xml-filled'),
-          NNT(awtFlagOrSetupDirectiveValue, 'ac\values'),
+          NNT(awtSectionName, 'ac\structure-filled'),
+          NNT(awtParameterName, 'ac\xml-filled'),
+          NNT(awtKeyName, 'ac\xml-filled'),
+          NNT(awtMemberValue, 'ac\values'),
           NNT(awtPreprocessorDirective, 'ac\symbol-hashtag'),
           NNT(awtPreprocessorSubDirective, 'ac\symbol-hashtag-arrow-right-2'),
           NNT(awtConstant, 'ac\constant-filled_2'),
@@ -5419,7 +5425,7 @@ begin
       if IsInISPPLineContext(FActiveMemo, LinePos, VarOrFuncRange.StartPos, IsPragmaContext) and not IsPragmaContext then begin
         const Name = FActiveMemo.GetTextRange(VarOrFuncRange.StartPos, VarOrFuncRange.EndPos);
         var Count: Integer;
-        const FunctionDefinition = FMemosStyler.GetISPPFunctionDefinition(Name, 0, Count);
+        const FunctionDefinition = GetISPPFunctionDefinition(Name, 0, Count);
         if Count > 0 then begin
           if Count <> 1 then
             raise Exception.CreateFmt('MemoHintShow: unexpected Count (%d)', [Count]);
@@ -5455,14 +5461,14 @@ begin
         const Name = FActiveMemo.GetTextRange(VarOrFuncRange.StartPos, VarOrFuncRange.EndPos);
         var Index := 0;
         var Count: Integer;
-        var FunctionDefinition := FMemosStyler.GetScriptFunctionDefinition(ClassMember, Name, Index, Count);
+        var FunctionDefinition := GetScriptFunctionDefinition(ClassMember, Name, Index, Count);
         if Count = 0 then begin
           ClassMember := not ClassMember;
-          FunctionDefinition := FMemosStyler.GetScriptFunctionDefinition(ClassMember, Name, Index, Count);
+          FunctionDefinition := GetScriptFunctionDefinition(ClassMember, Name, Index, Count);
         end;
         while Index < Count do begin
           if Index <> 0 then
-            FunctionDefinition := FMemosStyler.GetScriptFunctionDefinition(ClassMember, Name, Index);
+            FunctionDefinition := GetScriptFunctionDefinition(ClassMember, Name, Index);
           if HintStr <> '' then
             HintStr := HintStr + #13;
           HintStr := HintStr + ScriptFuncHeaderKindToStr(FunctionDefinition.HeaderKind) +
@@ -6684,18 +6690,29 @@ procedure TMainForm.EGotoFileClick(Sender: TObject);
 begin
   const GotoFileForm = TGotoFileForm.Create(Application);
   try
-    const Files = TStringList.Create;
+    var Files: TStringList := nil;
+    var ImageNames: TStringList := nil;
     try
+      Files := TStringList.Create;
+      ImageNames := TStringList.Create;
+
       { Build file list }
       Files.Add(FMainMemo.Filename);
-      for var IncludedFile in FIncludedFiles do
-        if IncludedFile.Memo <> nil then
+      ImageNames.Add('document');
+      for var IncludedFile in FIncludedFiles do begin
+        if IncludedFile.Memo <> nil then begin
           Files.Add(IncludedFile.Filename);
-      if FPreprocessorOutputMemo.Used then
+          ImageNames.Add('document-script');
+        end;
+      end;
+      if FPreprocessorOutputMemo.Used then begin
         Files.Add(MemosTabSet.Tabs[MemoToTabIndex(FPreprocessorOutputMemo)]);
+        ImageNames.Add('document-script-filled');
+      end;
 
       { Show form }
       GotoFileForm.Files := Files;
+      GotoFileForm.ImageNames := ImageNames;
       if GotoFileForm.ShowModal = mrOK then begin
         { Go to file }
         const FileIndex = GotoFileForm.FileIndex;
@@ -6721,6 +6738,7 @@ begin
           MemosTabSet.TabIndex := MemoToTabIndex(GotoMemo);
       end;
     finally
+      ImageNames.Free;
       Files.Free;
     end;
   finally
@@ -7032,18 +7050,14 @@ procedure TMainForm.CompilerOutputListDrawItem(Control: TWinControl;
   Index: Integer; Rect: TRect; State: TOwnerDrawState);
 const
   ThemeColors: array [TStatusMessageKind] of TThemeColor = (tcGreen, tcFore, tcOrange, tcRed);
-var
-  Canvas: TCanvas;
-  S: String;
-  StatusMessageKind: TStatusMessageKind;
 begin
-  Canvas := CompilerOutputList.Canvas;
-  S := CompilerOutputList.Items[Index];
+  const Canvas = CompilerOutputList.Canvas;
+  const S = CompilerOutputList.Items[Index];
 
   Canvas.FillRect(Rect);
-  Inc(Rect.Left, 2);
+  Inc(Rect.Left, ToCurrentPPI(2));
   if FOptions.ColorizeCompilerOutput and not (odSelected in State) then begin
-    StatusMessageKind := TStatusMessageKind(CompilerOutputList.Items.Objects[Index]);
+    const StatusMessageKind = TStatusMessageKind(CompilerOutputList.Items.Objects[Index]);
     Canvas.Font.Color := FTheme.Colors[ThemeColors[StatusMessageKind]];
   end;
   Canvas.TextOut(Rect.Left, Rect.Top, S);
@@ -7051,15 +7065,12 @@ end;
 
 procedure TMainForm.DebugOutputListDrawItem(Control: TWinControl;
   Index: Integer; Rect: TRect; State: TOwnerDrawState);
-var
-  Canvas: TCanvas;
-  S: String;
 begin
-  Canvas := DebugOutputList.Canvas;
-  S := DebugOutputList.Items[Index];
+  const Canvas = DebugOutputList.Canvas;
+  const S = DebugOutputList.Items[Index];
 
   Canvas.FillRect(Rect);
-  Inc(Rect.Left, 2);
+  Inc(Rect.Left, ToCurrentPPI(2));
   if (S <> '') and (S[1] = #9) then
     Canvas.TextOut(Rect.Left + FDebugLogListTimestampsWidth, Rect.Top, Copy(S, 2, Maxint))
   else begin
@@ -7075,15 +7086,12 @@ end;
 
 procedure TMainForm.DebugCallStackListDrawItem(Control: TWinControl; Index: Integer; Rect: TRect;
   State: TOwnerDrawState);
-var
-  Canvas: TCanvas;
-  S: String;
 begin
-  Canvas := DebugCallStackList.Canvas;
-  S := DebugCallStackList.Items[Index];
+  const Canvas = DebugCallStackList.Canvas;
+  const S = DebugCallStackList.Items[Index];
 
   Canvas.FillRect(Rect);
-  Inc(Rect.Left, 2);
+  Inc(Rect.Left, ToCurrentPPI(2));
   Canvas.TextOut(Rect.Left, Rect.Top, S);
 end;
 
@@ -7112,40 +7120,36 @@ end;
 
 procedure TMainForm.FindResultsListDrawItem(Control: TWinControl; Index: Integer; Rect: TRect;
   State: TOwnerDrawState);
-var
-  Canvas: TCanvas;
-  S, S2: String;
-  FindResult: TFindResult;
-  SaveColor: TColor;
 begin
-  Canvas := FindResultsList.Canvas;
-  S := FindResultsList.Items[Index];
-  FindResult := FindResultsList.Items.Objects[Index] as TFindResult;
+  const Canvas = FindResultsList.Canvas;
+  const S = FindResultsList.Items[Index];
+  const FindResult = FindResultsList.Items.Objects[Index] as TFindResult;
 
   Canvas.FillRect(Rect);
-  Inc(Rect.Left, 2);
+  Inc(Rect.Left, ToCurrentPPI(2));
   if FindResult = nil then begin
     Canvas.Font.Style := [fsBold];
     Canvas.TextOut(Rect.Left, Rect.Top, S);
   end else if not (odSelected in State) then begin
     if FindResult.StartIndex > 1 then begin
-      Canvas.TextOut(Rect.Left, Rect.Top, Copy(S, 1, FindResult.StartIndex-1));
+      const Prefix = Copy(S, 1, FindResult.StartIndex-1);
+      Canvas.TextOut(Rect.Left, Rect.Top, Prefix);
       Rect.Left := Canvas.PenPos.X;
     end;
-    SaveColor := Canvas.Brush.Color;
+    const SaveColor = Canvas.Brush.Color;
     if FTheme.Dark then
       Canvas.Brush.Color := FTheme.Colors[tcRed]
     else
       Canvas.Brush.Color := FTheme.Colors[tcSelBack];
-    S2 := Copy(S, FindResult.StartIndex, FindResult.EndIndex-FindResult.StartIndex);
-    Rect.Right := Rect.Left + Canvas.TextWidth(S2);
-    Canvas.TextRect(Rect, Rect.Left, Rect.Top, S2); { TextRect instead of TextOut to avoid a margin around the text }
+    const Match = Copy(S, FindResult.StartIndex, FindResult.EndIndex-FindResult.StartIndex);
+    Rect.Right := Rect.Left + Canvas.TextWidth(Match);
+    Canvas.TextRect(Rect, Rect.Left, Rect.Top, Match); { TextRect instead of TextOut to avoid a margin around the text }
     if FindResult.EndIndex <= Length(S) then begin
       Canvas.Brush.Color := SaveColor;
-      S2 := Copy(S, FindResult.EndIndex, MaxInt);
+      const Postfix = Copy(S, FindResult.EndIndex, MaxInt);
       Rect.Left := Rect.Right;
-      Rect.Right := Rect.Left + Canvas.TextWidth(S2);
-      Canvas.TextRect(Rect, Rect.Left, Rect.Top, S2);
+      Rect.Right := Rect.Left + Canvas.TextWidth(Postfix);
+      Canvas.TextRect(Rect, Rect.Left, Rect.Top, Postfix);
     end;
   end else
     Canvas.TextOut(Rect.Left, Rect.Top, S)
