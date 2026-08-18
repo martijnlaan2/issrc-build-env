@@ -560,7 +560,6 @@ type
     FDonateImageMenuItem: TMenuItem;
     FAllowUpdateInspectorPanelWidth: Boolean;
     FLiveScriptObjectFactories: TObjectDictionary<TScintEdit, TLiveScriptObjectFactory>;
-    FSavedInspectorFilterEditWindowProc: TWndMethod;
     procedure AppOnActivate(Sender: TObject);
     class procedure AppOnGetActiveFormHandle(var AHandle: HWND);
     procedure AppOnIdle(Sender: TObject; var Done: Boolean);
@@ -592,7 +591,6 @@ type
     function InitializeMainMemo(const Memo: TIDEScintFileEdit; const PopupMenu: TPopupMenu): TIDEScintFileEdit;
     function InitializeMemoBase(const Memo: TIDEScintEdit; const PopupMenu: TPopupMenu): TIDEScintEdit;
     function InitializeNonFileMemo(const Memo: TIDEScintEdit; const PopupMenu: TPopupMenu): TIDEScintEdit;
-    procedure InspectorFilterEditWindowProc(var Message: TMessage);
     procedure InvalidateStatusPanel(const Index: Integer);
     procedure LoadBreakPointLinesAndUpdateLineMarkers(const AMemo: TIDEScintFileEdit);
     procedure LoadKnownIncludedAndHiddenFilesAndUpdateMemos(const AFilename: String);
@@ -1248,8 +1246,7 @@ begin
 
   CreateInspector;
   UpdateInspectorHeaderPanelLayout;
-  FSavedInspectorFilterEditWindowProc := InspectorFilterEdit.WindowProc;
-  InspectorFilterEdit.WindowProc := InspectorFilterEditWindowProc;
+  TWinControlMSAANameHook.Create(InspectorFilterEdit, InspectorFilterEdit.TextHint);
   InspectorPopupMenuBitBtn.Hint := InspectorPopupMenuBitBtn.Caption;
 
   FMemosStyler.Theme := FTheme;
@@ -3913,15 +3910,6 @@ begin
     InspectorNoteText.AdjustHeight;
 end;
 
-procedure TMainForm.InspectorFilterEditWindowProc(var Message: TMessage);
-begin
-  if Message.Msg = WM_DESTROY then
-    SetOrClearNameForMSAA(InspectorFilterEdit.Handle, '');
-  FSavedInspectorFilterEditWindowProc(Message);
-  if Message.Msg = WM_CREATE then
-    SetOrClearNameForMSAA(InspectorFilterEdit.Handle, InspectorFilterEdit.TextHint);
-end;
-
 procedure TMainForm.InspectorFilterEditChange(Sender: TObject);
 begin
   FInspector.FilterText := InspectorFilterEdit.Text;
@@ -4626,14 +4614,7 @@ begin
   else
     Pos := AMemo.CaretPosition; { Not actually moving caret - it's already were we want it}
 
-  { If the line is in a contracted section, expand it }
-  AMemo.EnsureLineVisible(AMemo.GetLineFromPosition(Pos));
-
-  { If the line isn't in view, scroll so that it's in the center }
-  if not AMemo.IsPositionInViewVertically(Pos) then
-    AMemo.TopLine := AMemo.GetVisibleLineFromDocLine(AMemo.GetLineFromPosition(Pos)) -
-      (AMemo.LinesInWindow div 2);
-
+  AMemo.EnsurePositionInViewVertically(Pos);
   AMemo.CaretPosition := Pos;
   if IsPosition then
     AMemo.CaretVirtualSpace := PositionVirtualSpace;
@@ -6755,8 +6736,11 @@ begin
     var S := IntToStr(FActiveMemo.CaretLine + 1);
     if InputQueryEdit(LFmtMessage(SGotoLineTitle), LFmtMessage(SGotoLinePrompt), S) then begin
       const L = StrToIntDef(S, Low(Integer));
-      if L <> Low(Integer) then
-        FActiveMemo.CaretLine := L - 1;
+      if L <> Low(Integer) then begin
+        const Line = Min(Max(L - 1, 0), FActiveMemo.Lines.Count-1);
+        FActiveMemo.EnsurePositionInViewVertically(FActiveMemo.GetPositionFromLine(Line));
+        FActiveMemo.CaretLine := Line;
+      end;
     end;
   end;
 end;
@@ -7108,7 +7092,7 @@ begin
       for Memo in FFileMemos do begin
         if Memo.Used and PathSame(Memo.Filename, FindResult.Filename) then begin
           MoveCaretAndActivateMemo(Memo, FindResult.Line, True);
-          Memo.SelectAndEnsureVisible(FindResult.Range);
+          Memo.SelectAndEnsureInView(FindResult.Range);
           ActiveControl := Memo;
           Exit;
         end;
