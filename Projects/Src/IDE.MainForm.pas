@@ -732,7 +732,7 @@ type
       const IsPosition: Boolean = False; const PositionVirtualSpace: Integer = 0);
     procedure ReopenTabClick(Sender: TObject);
     function LiveScriptObjectFactoryForMemo(const AMemo: TScintEdit): TLiveScriptObjectFactory;
-    procedure InvalidateIndexForMemo(const AMemo: TScintEdit);
+    procedure ResetLiveScriptObjectFactoryForMemo(const AMemo: TScintEdit);
     procedure SetStatusPanelVisible(const AVisible: Boolean);
     { Other }
     procedure CreateWnd; override;
@@ -911,11 +911,11 @@ begin
   Result := LiveScriptObjectFactoryForMemo(FMainMemo);
 end;
 
-procedure TMainForm.InvalidateIndexForMemo(const AMemo: TScintEdit);
+procedure TMainForm.ResetLiveScriptObjectFactoryForMemo(const AMemo: TScintEdit);
 begin
   const Factory = LiveScriptObjectFactoryForMemo(AMemo);
   if Factory <> nil then
-    Factory.InvalidateIndex;
+    Factory.Reset;
 end;
 
 constructor TMainForm.Create(AOwner: TComponent);
@@ -954,8 +954,8 @@ constructor TMainForm.Create(AOwner: TComponent);
       Ini.Free;
     end;
     FInspector := TInspector.Create(JvInspector, InspectorNoteText, LiveScriptObjectFactoryForMemo(FActiveMemo),
-      FOptions.InspectorShowAllKnownDirectives, FOptions.InspectorFollowCaret,
-      GetMainBaseDir, GetSignTools, LiveScriptObjectFactoryForMainMemo); { No main-memo check needed: FActiveMemo is FMainMemo at startup }
+      FOptions.InspectorShowAllKnownDirectives, { No main-memo check needed: FActiveMemo is FMainMemo at startup }
+      FOptions.InspectorFollowCaret, GetMainBaseDir, GetSignTools, LiveScriptObjectFactoryForMainMemo);
   end;
 
   procedure ReadAndApplyConfig;
@@ -1164,6 +1164,8 @@ begin
     UpdateLinkLabel.UseVisualStyle := True;
     { COLOR_WINDOW is documented as the associated background color of COLOR_HOTLIGHT }
     UpdatePanel.Color := clWindow;
+    { UpdateTheme does not set Font.Color in this case, so re-add seFont }
+    InspectorFilterEdit.StyleElements := InspectorFilterEdit.StyleElements + [seFont];
   end;
 
   { For some reason, if AutoScroll=False is set on the form Delphi ignores the
@@ -1848,7 +1850,7 @@ begin
   FModifiedAnySinceLastCompile := True;
   FPreprocessorOutput := '';
   FIncludedFiles.Clear;
-  InvalidateIndexForMemo(FMainMemo);
+  ResetLiveScriptObjectFactoryForMemo(FMainMemo);
   UpdatePreprocMemos(IsReload);
   if not IsReload then
     FMainMemo.ClearUndo;
@@ -2097,7 +2099,7 @@ begin
       if AMemo = FMainMemo then
         NewMainFile(IsReload)
       else begin
-        InvalidateIndexForMemo(AMemo);
+        ResetLiveScriptObjectFactoryForMemo(AMemo);
         AMemo.BreakPoints.Clear;
         if DestroyLineState(AMemo) then
           UpdateAllMemoLineMarkers(AMemo);
@@ -4796,7 +4798,7 @@ procedure TMainForm.UpdatePreprocMemos(const DontUpdateRelatedVisibilty: Boolean
       NewTabs.Add(LFmtMessage(SCompilerPreprocessorOutput));
       NewHints.Add('');
       NewCloseButtons.Add(False);
-      InvalidateIndexForMemo(FPreprocessorOutputMemo);
+      ResetLiveScriptObjectFactoryForMemo(FPreprocessorOutputMemo);
       FPreprocessorOutputMemo.ReadOnly := False;
       try
         FPreprocessorOutputMemo.Lines.Text := FPreprocessorOutput;
@@ -6233,6 +6235,7 @@ begin
     InspectorHeaderPanel.ParentColor := True;
     InspectorCaptionText.Font.Color := FTheme.Colors[tcFore];
     InspectorNoteText.Font.Color := FTheme.Colors[tcFore];
+    InspectorFilterEdit.Font.Color := FTheme.Colors[tcFore];
   end;
 
   FInspector.UpdateTheme(FTheme, FHighContrastActive);
