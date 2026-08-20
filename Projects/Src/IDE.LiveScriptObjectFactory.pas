@@ -169,7 +169,7 @@ type
     constructor Create(const AMemo: TScintEdit; const AStyler: TInnoSetupStyler);
     destructor Destroy; override;
     procedure Change(const Info: TScintEditChangeInfo);
-    procedure InvalidateIndex;
+    procedure Reset;
     function SectionCount: Integer;
     function TryGetSectionAtLine(const ALine: Integer;
       out ASectionIndex: Integer): Boolean;
@@ -189,8 +189,8 @@ type
     function TryCreateKeyValueSection(const ASectionIndex: Integer;
       out ASection: TLiveScriptKeyValueSection;
       out ARefusalReason: TRefusalReason): Boolean;
-    { Bumped on every Change call, so a consumer can tell whether the memo
-      changed since it last read something }
+    { Bumped on every Change and Reset call, so a consumer can tell whether
+      the memo changed since it last read something }
     property ChangeCount: Int64 read FChangeCount;
     property Memo: TScintEdit read FMemo;
     property SectionHeaders[Index: Integer]: TLiveScriptSectionHeader read GetSectionHeader;
@@ -717,8 +717,9 @@ begin
   FMemo.StyleNeeded(FMemo.RawTextLength);
 end;
 
-procedure TLiveScriptObjectFactory.InvalidateIndex;
+procedure TLiveScriptObjectFactory.Reset;
 begin
+  Inc(FChangeCount);
   FIndexValid := False; { Index will be rebuilt next time it is needed }
   FDirtyFirstLine := -1;
   FDirtyLastLine := -1;
@@ -878,7 +879,9 @@ end;
 
 procedure TLiveScriptObjectFactory.GetSectionLines(const ASectionIndex: Integer;
   out AFirstLine, ALastLine: Integer);
-{ Requires the lines to be styled already. The returned range can be empty (ALastLine < AFirstLine) }
+{ Requires the lines to be styled already. The returned range can be empty (ALastLine < AFirstLine).
+  Note: Section tags themselves are not associated with any section, so this doesn't
+  read into the next section if there's two adjacent sections of the same type. }
 begin
   const Header = FSectionHeaders[ASectionIndex];
   const LineCount = FMemo.Lines.Count;
