@@ -117,7 +117,7 @@ begin
   FComboBox2.WindowProc := FSavedComboBox2WindowProc;
   if FMessagesWnd <> 0 then
     DeallocateHWnd(FMessagesWnd);
-  FLiveCodeSection.Free;
+  TLiveScriptObjectFactory.ReleaseAndNil(FLiveCodeSection);
   inherited Destroy;
 end;
 
@@ -341,11 +341,10 @@ procedure TNavigator.GoToComboBoxItem(const AComboBox: TComboBox;
     if not TryFocusMemo then
       Exit;
 
-    const Section = FLiveCodeSection.Section;
-    if AIndex >= Section.RoutineCount then
+    if AIndex >= FLiveCodeSection.Section.RoutineCount then
       Exit;
 
-    GoToLine(FLiveCodeSection.FirstLine + Section.Routines[AIndex].FirstLine);
+    GoToLine(FLiveCodeSection.FirstLine + FLiveCodeSection.Section.Routines[AIndex].FirstLine);
   end;
 
 begin
@@ -455,10 +454,8 @@ begin
 
       if RebuildNow then begin
         RebuildRoutinesTimerUpdate(True); { Cancel any queued }
-        FreeAndNil(FLiveCodeSection);
-        var RefusalReason: TRefusalReason;
-        if FFactory.TryCreateCodeSection(NewSectionIndex, FLiveCodeSection,
-             RefusalReason) then
+        TLiveScriptObjectFactory.ReleaseAndNil(FLiveCodeSection);
+        if FFactory.TryAcquireCodeSection(NewSectionIndex, FLiveCodeSection) then
           FLiveCodeSectionIndex := NewSectionIndex;
       end else if Rebuild then
         RebuildRoutinesTimerUpdate(False);
@@ -468,9 +465,8 @@ begin
       if FLiveCodeSection <> nil then begin
         var CaretRoutine: TCodeSectionRoutine;
         if FLiveCodeSection.TryGetRoutine(CaretLine, CaretRoutine) then begin
-          const Section = FLiveCodeSection.Section;
-          for var I := 0 to Section.RoutineCount-1 do begin
-            if Section.Routines[I] = CaretRoutine then begin
+          for var I := 0 to FLiveCodeSection.Section.RoutineCount-1 do begin
+            if FLiveCodeSection.Section.Routines[I] = CaretRoutine then begin
               NewRoutineIndex := I;
               Break;
             end;
@@ -482,13 +478,13 @@ begin
         { Update to new routines }
         var Routines: TArray<String> := [];
         if FLiveCodeSection <> nil then begin
-          const Section = FLiveCodeSection.Section;
-          SetLength(Routines, Section.RoutineCount);
-          for var I := 0 to Section.RoutineCount-1 do begin
-            const Routine = Section.Routines[I];
-            Routines[I] := Routine.Name;
-            if Routine.BodilessType <> '' then
-              Routines[I] := Routines[I] + ' (' + Routine.BodilessType + ')';
+          SetLength(Routines, FLiveCodeSection.Section.RoutineCount);
+          for var I := 0 to FLiveCodeSection.Section.RoutineCount-1 do begin
+            const Routine = FLiveCodeSection.Section.Routines[I];
+            if Routine.BodilessType = btForward then
+              Routines[I] := Routine.Name + ' (forward)' { Do not localize }
+            else
+              Routines[I] := Routine.Name;
           end;
         end;
         SetComboBoxItems(FComboBox2, Routines, NewRoutineIndex);
@@ -499,7 +495,7 @@ begin
         FComboBox2.ItemIndex := NewRoutineIndex;
     end else begin
       RebuildRoutinesTimerUpdate(True); { Cancel any queued }
-      FreeAndNil(FLiveCodeSection);
+      TLiveScriptObjectFactory.ReleaseAndNil(FLiveCodeSection);
       SetComboBoxItems(FComboBox2, [], -1);
     end;
 

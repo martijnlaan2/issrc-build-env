@@ -16,12 +16,15 @@ interface
 uses
   Menus,
   ScintEdit,
-  IDE.MainForm, IDE.MainForm.ToolsHelper;
+  IDE.MainForm, IDE.MainForm.ToolsHelper,
+  IDE.ScriptModel.Metadata.Extra.FunctionDefinitions;
 
 type
   TMainFormAutoCompleteAndCallTipsHelper = class helper(TMainFormToolsHelper) for TMainForm
     procedure InitiateAutoComplete(const AMemo: TScintEdit; const Key: AnsiChar);
     procedure AutoCompleteAndCallTipsHandleCharAdded(const AMemo: TScintEdit; const Ch: AnsiChar);
+    function BuildUserDefinedFunctionDefinitions(const AMemo: TScintEdit;
+      const ALine: Integer): TFunctionDefinitionsWithName;
     procedure CallTipsHandleArrowClick(const AMemo: TScintEdit; const Up: Boolean);
     procedure CallTipsHandleCtrlSpace(const AMemo: TScintEdit);
     procedure CallTipsHandleUpdateUI(const AMemo: TScintEdit);
@@ -29,6 +32,8 @@ type
       const LinePos, ScanEndPos: Integer;
       out IsPragmaContext: Boolean): Boolean; static;
     { Private }
+    function _TryAcquireAndHoldCodeSectionAtLine(const AMemo: TScintEdit;
+      const ALine: Integer): Boolean;
     class function _InitiateAutoCompleteOrCallTipAllowedAtPos(const AMemo: TScintEdit;
       const WordStartLinePos, PositionBeforeWordStartPos: Integer;
       const ISPPExpressionContext: Boolean): Boolean; static;
@@ -41,15 +46,45 @@ type
 implementation
 
 uses
-  SysUtils, Math, TypInfo,
-  Shared.SetupSectionDirectives,
-  IDE.LiveScriptObjectFactory, IDE.ScintStylerInnoSetup, IDE.ScriptModel.Metadata,
-  IDE.ScriptModel.Metadata.Extra, IDE.ScriptModel.Metadata.Extra.FunctionDefinitions,
+  SysUtils, Classes, Math, TypInfo,
+  Shared.ScriptFunc, Shared.SetupSectionDirectives,
+  IDE.LiveScriptObjectFactory, IDE.ScintStylerInnoSetup, IDE.ScriptModel,
+  IDE.ScriptModel.Metadata, IDE.ScriptModel.Metadata.Extra,
   IDE.ScriptModel.Metadata.Extra.WordLists;
 
 const
   AutoCompleteWordChars = AlphaDigitUnderscoreChars;
   AutoCompleteStartOrContinueChars = AutoCompleteWordChars + ['#', '{', '[', '<'];
+
+function CreateSortedCaseInsensitiveStringList: TStringList;
+begin
+  Result := TStringList.Create;
+  Result.CaseSensitive := False;
+  Result.UseLocale := False; { Make sure it uses CompareText and not AnsiCompareText }
+  Result.Sorted := True;
+  Result.Duplicates := dupIgnore;
+end;
+
+function TMainFormAutoCompleteAndCallTipsHelper._TryAcquireAndHoldCodeSectionAtLine(
+  const AMemo: TScintEdit; const ALine: Integer): Boolean;
+begin
+  Result := False;
+  const Factory = LiveScriptObjectFactoryForMemo(AMemo);
+  var SectionIndex: Integer;
+  if not Factory.TryGetSectionAtLine(ALine, SectionIndex) then
+    Exit;
+  var CodeSection: TLiveScriptCodeSection;
+  if not Factory.TryAcquireCodeSection(SectionIndex, CodeSection) then
+    Exit;
+
+  { The acquired section is held between autocompletions, call tips, and hover
+    hints so it can still be reused later, like after Navigator's debounce or
+    by a second autocompletion or hover hint without an edit in between }
+  var PreviousCodeSection := FAutoCompleteAndCallTipsLiveCodeSection;
+  FAutoCompleteAndCallTipsLiveCodeSection := CodeSection;
+  TLiveScriptObjectFactory.ReleaseAndNil(PreviousCodeSection); { Frees or (if just reacquired above) decrements acquire count again }
+  Result := True;
+end;
 
 class function TMainFormAutoCompleteAndCallTipsHelper._InitiateAutoCompleteOrCallTipAllowedAtPos(const AMemo: TScintEdit;
   const WordStartLinePos, PositionBeforeWordStartPos: Integer;
@@ -398,6 +433,22 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
     Result := True;
   end;
 
+  function BuildCodeRoutinesWordList(const Line: Integer): AnsiString;
+  begin
+    Result := '';
+    if not _TryAcquireAndHoldCodeSectionAtLine(AMemo, Line) then
+      Exit;
+
+    const Names = CreateSortedCaseInsensitiveStringList;
+    try
+      for var I := 0 to FAutoCompleteAndCallTipsLiveCodeSection.Section.RoutineCount-1 do
+        Names.Add(FAutoCompleteAndCallTipsLiveCodeSection.Section.Routines[I].Name);
+      Result := BuildAutoCompleteWordList(Names, awtScriptFunction);
+    finally
+      Names.Free;
+    end;
+  end;
+
   function ChooseCodeWordList(const LinePos, WordStartPos: Integer;
     out WordList: AnsiString): Boolean;
   begin
@@ -428,10 +479,14 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
     end;
 
     { If no event function was found then autocomplete script functions,
-      types, etc if the current word has no dot before it }
+      types, etc if the current word has no dot before it, merging in the
+      current section's own routines }
     if WordList = '' then begin
       const ClassOrRecordMember = (PositionBeforeWordStartPos >= LinePos) and (AMemo.GetByteAtPosition(PositionBeforeWordStartPos) = '.');
       WordList := GetScriptAutoCompleteWordList(ClassOrRecordMember);
+      if not ClassOrRecordMember then
+        WordList := MergeAutoCompleteWordLists(WordList,
+          BuildCodeRoutinesWordList(AMemo.GetLineFromPosition(LinePos)));
     end;
 
     if WordList = '' then
@@ -626,6 +681,46 @@ begin
   AMemo.ShowAutoComplete(CharsBefore, WordList);
 end;
 
+function TMainFormAutoCompleteAndCallTipsHelper.BuildUserDefinedFunctionDefinitions(
+  const AMemo: TScintEdit; const ALine: Integer): TFunctionDefinitionsWithName;
+
+  function IsAsciiString(const S: String): Boolean;
+  begin
+    for var C in S do
+      if C > #127 then
+        Exit(False);
+    Result := True;
+  end;
+
+begin
+  Result := [];
+  if not _TryAcquireAndHoldCodeSectionAtLine(AMemo, ALine) then
+    Exit;
+
+  const Prototypes = CreateSortedCaseInsensitiveStringList;
+  try
+    for var I := 0 to FAutoCompleteAndCallTipsLiveCodeSection.Section.RoutineCount-1 do begin
+      const Routine = FAutoCompleteAndCallTipsLiveCodeSection.Section.Routines[I];
+      const Prototype = Routine.Prototype;
+      if not IsAsciiString(Prototype) or (Prototypes.IndexOf(Prototype) >= 0) then
+        Continue;
+      Prototypes.Add(Prototype);
+      var HeaderKind: TScriptFuncHeaderKind;
+      if Routine.Kind = rkFunction then
+        HeaderKind := hkFunction
+      else
+        HeaderKind := hkProcedure;
+      var UserDefinedFunctionDefinition: TFunctionDefinitionWithName;
+      UserDefinedFunctionDefinition.Name := Routine.Name;
+      UserDefinedFunctionDefinition.Definition :=
+        TFunctionDefinition.CreateUserDefined(Prototype, HeaderKind);
+      Result := Result + [UserDefinedFunctionDefinition];
+    end;
+  finally
+    Prototypes.Free;
+  end;
+end;
+
 procedure TMainFormAutoCompleteAndCallTipsHelper._UpdateCallTipFunctionDefinition(const AMemo: TScintEdit;
   const Pos: Integer { = -1 });
 begin
@@ -639,8 +734,13 @@ begin
   var FunctionDefinition: TFunctionDefinition;
   if FCallTipState.ISPPExpressionContext then
     FunctionDefinition := GetISPPFunctionDefinition(CurrentCallTipWord, FCallTipState.CurrentCallTip, FCallTipState.MaxCallTips)
-  else
-    FunctionDefinition := GetScriptFunctionDefinition(FCallTipState.ClassOrRecordMember, CurrentCallTipWord, FCallTipState.CurrentCallTip, FCallTipState.MaxCallTips);
+  else begin
+    var UserDefined: TFunctionDefinitionsWithName := [];
+    if not FCallTipState.ClassOrRecordMember then
+      UserDefined := BuildUserDefinedFunctionDefinitions(AMemo,
+        AMemo.GetLineFromPosition(FCallTipState.LastPosCallTip));
+    FunctionDefinition := GetScriptFunctionDefinition(FCallTipState.ClassOrRecordMember, CurrentCallTipWord, FCallTipState.CurrentCallTip, UserDefined, FCallTipState.MaxCallTips);
+  end;
   if ((FCallTipState.MaxCallTips = 1) and FunctionDefinition.HasParams) or //if there's a single definition then only show if it has a parameter
      (FCallTipState.MaxCallTips > 1) then begin                            //if there's multiple then show always just like MemoHintShow, so even the one without parameters if it exists
     FCallTipState.FunctionDefinition := FunctionDefinition.ScriptFuncWithoutHeader;

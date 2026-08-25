@@ -276,7 +276,7 @@ begin
   FLiveParameterSectionEntries.Free;
   FLiveKeyValueSection.Free;
   {$IFDEF DEBUG}
-  FLiveCodeSection.Free;
+  TLiveScriptObjectFactory.ReleaseAndNil(FLiveCodeSection);
   {$ENDIF}
   FRows.Free;
   if FMessagesWnd <> 0 then
@@ -981,10 +981,9 @@ procedure TInspector.UpdateFromCaret;
   procedure UpdateDebugSectionRoutinesRowString;
   begin
     FDebugSectionRoutinesRowString := 'None';
-    const Section = FLiveCodeSection.Section;
     var S := '';
-    for var I := 0 to Section.RoutineCount-1 do begin
-      const Routine = Section.Routines[I];
+    for var I := 0 to FLiveCodeSection.Section.RoutineCount-1 do begin
+      const Routine = FLiveCodeSection.Section.Routines[I];
       if S <> '' then
         S := S + ', ';
       S := S + Routine.Name + '@' +
@@ -1562,7 +1561,7 @@ begin
   FreeAndNil(FLiveParameterSectionEntries);
   FreeAndNil(FLiveKeyValueSection);
   {$IFDEF DEBUG}
-  FreeAndNil(FLiveCodeSection);
+  TLiveScriptObjectFactory.ReleaseAndNil(FLiveCodeSection);
   FUpdateFromCaretEarlyExitCount := 0;
   FDebugSectionRoutinesRowString := 'None';
   FDebugCaretRoutineRowString := 'None';
@@ -1649,8 +1648,7 @@ begin
     {$IFDEF DEBUG}
     else if (EntryRefusalReason <> rrMixedSelection) and
             FFactory.TryGetSectionAtLine(CaretLine, SectionIndex) and
-            FFactory.TryCreateCodeSection(SectionIndex, FLiveCodeSection,
-              SectionRefusalReason) then begin
+            FFactory.TryAcquireCodeSection(SectionIndex, FLiveCodeSection) then begin
       const Header = FFactory.SectionHeaders[SectionIndex];
       FLiveCodeSectionIndex := SectionIndex;
       FChangeCountAtCreation := FFactory.ChangeCount;

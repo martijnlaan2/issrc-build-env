@@ -19,7 +19,7 @@ implementation
 
 uses
   {$IFDEF DEBUG} Winapi.Windows, {$ENDIF} System.SysUtils,
-  {$IFDEF ISTESTTOOLPROJ} Shared.ScriptFunc, {$ENDIF}
+  {$IFDEF ISTESTTOOLPROJ} System.Classes, Shared.ScriptFunc, {$ENDIF}
   Shared.SetupSectionDirectives, Shared.LangOptionsSectionDirectives,
   IDE.ScriptModel, IDE.ScriptModel.Metadata, IDE.ScriptModel.Metadata.Extra
   {$IFDEF ISTESTTOOLPROJ}, IDE.ScriptModel.Metadata.Extra.FunctionDefinitions,
@@ -2199,6 +2199,32 @@ begin
   Assert(Definition.HeaderKind = hkISPPVoid);
   Assert(not Definition.HasParams);
 
+  { HasParams tests ')', so a header cut short inside its parameter list
+    counts as parameterless and the single-definition rule hides its call tip }
+  Definition := TFunctionDefinition.Create('procedure Foo(');
+  Assert(Definition.ScriptFuncWithoutHeader = 'Foo(');
+  Assert(not Definition.HasParams);
+
+  { CreateUserDefined takes the kind from the caller and accepts the whitespace
+    a prototype read from the script can carry }
+  Definition := TFunctionDefinition.CreateUserDefined('procedure'#9'Foo(const A: Integer);', hkProcedure);
+  Assert(Definition.HeaderKind = hkProcedure);
+  Assert(Definition.ScriptFuncWithoutHeader = 'Foo(const A: Integer);');
+  Assert(Definition.HasParams);
+  Definition := TFunctionDefinition.CreateUserDefined('function  Bar: Boolean;', hkFunction);
+  Assert(Definition.HeaderKind = hkFunction);
+  Assert(Definition.ScriptFuncWithoutHeader = 'Bar: Boolean;');
+  Assert(not Definition.HasParams);
+
+  { Only a procedure or a function can be user-defined }
+  var CaughtInvalidHeaderKind := False;
+  try
+    Definition := TFunctionDefinition.CreateUserDefined('constructor Create;', hkConstructor);
+  except
+    CaughtInvalidHeaderKind := True;
+  end;
+  Assert(CaughtInvalidHeaderKind);
+
   { GetISPPFunctionDefinition: a known function, case-insensitively, and an
     unknown name }
   var Count: Integer;
@@ -2209,28 +2235,70 @@ begin
   GetISPPFunctionDefinition('NoSuchFunction', 0, Count);
   Assert(Count = 0);
 
-  { GetScriptFunctionDefinition: a single-prototype function, with both
-    overloads, and an unknown name }
-  Definition := GetScriptFunctionDefinition(False, 'MsgBox', 0, Count);
+  { GetScriptFunctionDefinition: a single-prototype function with no
+    user-defined definitions, with both overloads, and an unknown name }
+  Definition := GetScriptFunctionDefinition(False, 'MsgBox', 0, [], Count);
   Assert(Count = 1);
   Assert(Definition.HeaderKind = hkFunction);
   Assert(Pos(AnsiString('MsgBox('), Definition.ScriptFuncWithoutHeader) = 1);
-  const DefinitionFromOverload = GetScriptFunctionDefinition(False, 'MsgBox', 0);
+  const DefinitionFromOverload = GetScriptFunctionDefinition(False, 'MsgBox', 0, []);
   Assert(DefinitionFromOverload.ScriptFuncWithoutHeader = Definition.ScriptFuncWithoutHeader);
-  GetScriptFunctionDefinition(False, 'NoSuchFunction', 0, Count);
+  GetScriptFunctionDefinition(False, 'NoSuchFunction', 0, [], Count);
   Assert(Count = 0);
 
   { A class-member lookup with multiple prototypes: an out-of-range index
     clamps to the last prototype }
-  const FirstDefinition = GetScriptFunctionDefinition(True, 'Add', 0, Count);
+  const FirstDefinition = GetScriptFunctionDefinition(True, 'Add', 0, [], Count);
   Assert(Count > 1);
-  const LastDefinition = GetScriptFunctionDefinition(True, 'Add', Count-1, Count);
+  const LastDefinition = GetScriptFunctionDefinition(True, 'Add', Count-1, [], Count);
   Assert(LastDefinition.ScriptFuncWithoutHeader <> FirstDefinition.ScriptFuncWithoutHeader);
-  const ClampedDefinition = GetScriptFunctionDefinition(True, 'Add', MaxInt, Count);
+  const ClampedDefinition = GetScriptFunctionDefinition(True, 'Add', MaxInt, [], Count);
   Assert(ClampedDefinition.ScriptFuncWithoutHeader = LastDefinition.ScriptFuncWithoutHeader);
-  Definition := GetScriptFunctionDefinition(True, 'Create', 0, Count);
+  Definition := GetScriptFunctionDefinition(True, 'Create', 0, [], Count);
   Assert(Count > 1);
   Assert(Definition.HeaderKind = hkConstructor);
+
+  { Non-empty user-defined definitions: those matching the name come before
+    the built-in definitions, and the count covers the matching user-defined
+    definitions plus the built-in count only }
+  var UserDefined: TFunctionDefinitionsWithName;
+  SetLength(UserDefined, 2);
+  UserDefined[0].Name := 'MyRoutine';
+  UserDefined[0].Definition := TFunctionDefinition.Create('function MyRoutine(const A: Integer): Boolean;');
+  UserDefined[1].Name := 'MsgBox';
+  UserDefined[1].Definition := TFunctionDefinition.Create('procedure MsgBox(const Text: String);');
+
+  { A user-defined-only name, matched case-insensitively }
+  Definition := GetScriptFunctionDefinition(False, 'myroutine', 0, UserDefined, Count);
+  Assert(Count = 1);
+  Assert(Definition.ScriptFuncWithoutHeader = 'MyRoutine(const A: Integer): Boolean;');
+
+  { A name both user-defined and built-in: the user-defined one first, then
+    the built-in, with an out-of-range index clamping to the last }
+  Definition := GetScriptFunctionDefinition(False, 'MsgBox', 0, UserDefined, Count);
+  Assert(Count = 2);
+  Assert(Definition.HeaderKind = hkProcedure);
+  Definition := GetScriptFunctionDefinition(False, 'MsgBox', 1, UserDefined, Count);
+  Assert(Definition.HeaderKind = hkFunction);
+  Assert(Pos(AnsiString('MsgBox('), Definition.ScriptFuncWithoutHeader) = 1);
+  Definition := GetScriptFunctionDefinition(False, 'MsgBox', MaxInt, UserDefined, Count);
+  Assert(Definition.HeaderKind = hkFunction);
+
+  { The overload without a count, with user-defined definitions }
+  const DefinitionFromUserDefinedOverload = GetScriptFunctionDefinition(False, 'MsgBox', 0, UserDefined);
+  Assert(DefinitionFromUserDefinedOverload.HeaderKind = hkProcedure);
+
+  { A name matching neither a user-defined definition nor a built-in }
+  GetScriptFunctionDefinition(False, 'NoSuchFunction', 0, UserDefined, Count);
+  Assert(Count = 0);
+
+  { User-defined definitions whose names don't match are left out, so a lookup
+    which does have built-in definitions keeps its own count }
+  var BuiltInCount: Integer;
+  GetScriptFunctionDefinition(False, 'ExpandConstant', 0, [], BuiltInCount);
+  Assert(BuiltInCount > 0);
+  GetScriptFunctionDefinition(False, 'ExpandConstant', 0, UserDefined, Count);
+  Assert(Count = BuiltInCount);
 end;
 
 procedure TestWordLists;
@@ -2273,6 +2341,49 @@ begin
   Assert(BuildAutoCompleteWordList(['abc', 'ab'], awtMemberValue, False) =
     'abc' + TypeSeparator + MemberValueType + ListSeparator +
     'ab' + TypeSeparator + MemberValueType);
+
+  { The TStrings overload takes the words from a string list }
+  const WordsList = TStringList.Create;
+  try
+    WordsList.Add('abc');
+    WordsList.Add('ab');
+    Assert(BuildAutoCompleteWordList(WordsList, awtMemberValue) =
+      'ab' + TypeSeparator + MemberValueType + ListSeparator +
+      'abc' + TypeSeparator + MemberValueType);
+  finally
+    WordsList.Free;
+  end;
+
+  { MergeAutoCompleteWordLists merges two sorted word lists into one sorted
+    list, case-insensitively deduped on the full entry: on a collision the
+    base list's entry survives and the extra is dropped }
+  const BaseList = BuildAutoCompleteWordList(['Beta', 'Echo'], awtMemberValue);
+  Assert(MergeAutoCompleteWordLists(BaseList,
+    BuildAutoCompleteWordList(['Alpha', 'Charlie', 'Zulu'], awtMemberValue)) =
+    'Alpha' + TypeSeparator + MemberValueType + ListSeparator +
+    'Beta' + TypeSeparator + MemberValueType + ListSeparator +
+    'Charlie' + TypeSeparator + MemberValueType + ListSeparator +
+    'Echo' + TypeSeparator + MemberValueType + ListSeparator +
+    'Zulu' + TypeSeparator + MemberValueType);
+  Assert(MergeAutoCompleteWordLists(BaseList,
+    BuildAutoCompleteWordList(['beta', 'beta'], awtMemberValue)) = BaseList);
+
+  { Duplicates among the extras collapse as well }
+  Assert(MergeAutoCompleteWordLists(BaseList,
+    BuildAutoCompleteWordList(['Alpha', 'Alpha'], awtMemberValue)) =
+    'Alpha' + TypeSeparator + MemberValueType + ListSeparator + BaseList);
+
+  { The same word under a different type digit is a different entry, and '1'
+    sorting before '3' puts the awtScriptFunction entry first }
+  const ScriptFunctionType = AnsiString(IntToStr(awtScriptFunction));
+  Assert(MergeAutoCompleteWordLists(BaseList,
+    BuildAutoCompleteWordList(['Beta'], awtScriptFunction)) =
+    'Beta' + TypeSeparator + ScriptFunctionType + ListSeparator + BaseList);
+
+  { An empty base or empty extras returns the other list unchanged }
+  Assert(MergeAutoCompleteWordLists('', BaseList) = BaseList);
+  Assert(MergeAutoCompleteWordLists(BaseList, '') = BaseList);
+  Assert(MergeAutoCompleteWordLists('', '') = '');
 
   { The sections word list, without the sections SectionMap excludes }
   Assert(ListHasEntry(SectionsAutoCompleteWordList, '[Files]', awtSectionName));
@@ -2434,7 +2545,7 @@ begin
     Assert(Section.Routines[0].BodyFirstLine = 4);
     Assert(Section.Routines[0].BodyLastLine = 6);
     Assert(Section.Routines[0].LastLine = 6);
-    Assert(not Section.Routines[0].Bodiless);
+    Assert(Section.Routines[0].BodilessType = btNo);
     Assert(Section.Routines[1].Name = 'DoSomething');
     Assert(Section.Routines[1].Kind = rkProcedure);
     Assert(Section.Routines[1].FirstLine = 8);
@@ -2474,7 +2585,7 @@ begin
     Assert(Section.Routines[0].Prototype = 'procedure Below;');
 
     { Procedural types are not routines: a routine keyword after '=', ':',
-      'of', '(' or ',' does not start a header }
+      or 'of' does not start a header }
     Section.Parse([
       'type',
       '  TProc = procedure(Sender: TObject);',
@@ -2617,6 +2728,60 @@ begin
       'procedure P(var A: Integer; const B: String);');
     Assert(Section.Routines[0].BodyFirstLine = 1);
 
+    { A header left unterminated inside its parameter list is cut by the next
+      routine's keyword, which is never legal there, so the routines below a
+      half-typed 'procedure X(' survive }
+    Section.Parse([
+      'procedure X(',                        { 0 }
+      '',                                    { 1 }
+      'function InitializeSetup: Boolean;',  { 2 }
+      'begin',                               { 3 }
+      '  Result := True;',                   { 4 }
+      'end;']);                              { 5 }
+    Assert(Section.RoutineCount = 2);
+    Assert(Section.Routines[0].Name = 'X');
+    Assert(Section.Routines[0].Prototype = 'procedure X(');
+    Assert(Section.Routines[0].BodyFirstLine = -1);
+    Assert(Section.Routines[0].LastLine = 1); { Line before the next declaration }
+    Assert(Section.Routines[1].Name = 'InitializeSetup');
+    Assert(Section.Routines[1].Prototype = 'function InitializeSetup: Boolean;');
+    Assert(Section.Routines[1].FirstLine = 2);
+    Assert(Section.Routines[1].BodyFirstLine = 3);
+    Assert(Section.Routines[1].BodyLastLine = 5);
+    Assert(Section.Routines[1].LastLine = 5);
+    Section.Parse([
+      'procedure X(A: Integer;',  { 0 }
+      'procedure After;',         { 1 }
+      'begin',                    { 2 }
+      'end;']);                   { 3 }
+    Assert(Section.RoutineCount = 2);
+    Assert(Section.Routines[0].Prototype = 'procedure X(A: Integer;');
+    Assert(Section.Routines[0].LastLine = 0);
+    Assert(Section.Routines[1].Name = 'After');
+    Assert(Section.Routines[1].BodyFirstLine = 2);
+    Section.Parse([
+      'procedure X(A,',                      { 0 }
+      'function InitializeSetup: Boolean;',  { 1 }
+      'begin',                               { 2 }
+      'end;']);                              { 3 }
+    Assert(Section.RoutineCount = 2);
+    Assert(Section.Routines[0].Prototype = 'procedure X(A,');
+    Assert(Section.Routines[0].LastLine = 0);
+    Assert(Section.Routines[1].Name = 'InitializeSetup');
+    Assert(Section.Routines[1].BodyFirstLine = 2);
+
+    { Its own 'begin' also cuts inside the parameter list, and the body is
+      still parsed }
+    Section.Parse([
+      'procedure X(',  { 0 }
+      'begin',         { 1 }
+      'end;']);        { 2 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Prototype = 'procedure X(');
+    Assert(Section.Routines[0].BodyFirstLine = 1);
+    Assert(Section.Routines[0].BodyLastLine = 2);
+    Assert(Section.Routines[0].LastLine = 2);
+
     { A declaration block after a bodyless header is taken for the routine's
       own local blocks, so a type block there is not listed and the routine's
       span covers it }
@@ -2755,7 +2920,7 @@ begin
     Assert(Section.Routines[0].BodyFirstLine = 1);
     Assert(Section.Routines[0].BodyLastLine = 10);
     Assert(Section.Routines[0].LastLine = 10);
-    Assert(not Section.Routines[0].Bodiless);
+    Assert(Section.Routines[0].BodilessType = btNo);
     Assert(Section.Routines[1].BodyFirstLine = 13);
     Assert(Section.Routines[1].BodyLastLine = 14);
     Assert(Section.Routines[1].LastLine = 14);
@@ -2774,22 +2939,19 @@ begin
       'end;']);
     Assert(Section.RoutineCount = 3);
     Assert(Section.Routines[0].Name = 'Later');
-    Assert(Section.Routines[0].Bodiless);
-    Assert(Section.Routines[0].BodilessType = 'forward');
+    Assert(Section.Routines[0].BodilessType = btForward);
     Assert(Section.Routines[0].BodyFirstLine = -1);
     Assert(Section.Routines[0].BodyLastLine = -1);
     Assert(Section.Routines[0].LastLine = 0);
     Assert(Section.Routines[0].Prototype = 'procedure Later(A: Integer);');
     Assert(Section.Routines[1].Name = 'GetSysDir');
-    Assert(Section.Routines[1].Bodiless);
-    Assert(Section.Routines[1].BodilessType = 'external');
+    Assert(Section.Routines[1].BodilessType = btExternal);
     Assert(Section.Routines[1].BodyFirstLine = -1);
     Assert(Section.Routines[1].FirstLine = 2);
     Assert(Section.Routines[1].LastLine = 3);
     Assert(Section.Routines[1].Prototype = 'function GetSysDir: String;');
     Assert(Section.Routines[2].Name = 'Later');
-    Assert(not Section.Routines[2].Bodiless);
-    Assert(Section.Routines[2].BodilessType = '');
+    Assert(Section.Routines[2].BodilessType = btNo);
     Assert(Section.Routines[2].BodyFirstLine = 6);
     Assert(Section.Routines[2].BodyLastLine = 7);
     Assert(Section.Routines[2].LastLine = 7);
@@ -2800,8 +2962,7 @@ begin
       'begin',
       'end;']);
     Assert(Section.RoutineCount = 1);
-    Assert(not Section.Routines[0].Bodiless);
-    Assert(Section.Routines[0].BodilessType = '');
+    Assert(Section.Routines[0].BodilessType = btNo);
     Assert(Section.Routines[0].BodyFirstLine = 1);
     Assert(Section.Routines[0].BodyLastLine = 2);
     Assert(Section.Routines[0].LastLine = 2);
@@ -2835,14 +2996,14 @@ begin
     Assert(Section.Routines[0].BodyFirstLine = -1);
     Assert(Section.Routines[0].BodyLastLine = -1);
     Assert(Section.Routines[0].LastLine = 1);
-    Assert(not Section.Routines[0].Bodiless);
+    Assert(Section.Routines[0].BodilessType = btNo);
     Assert(Section.Routines[1].Name = 'Existing');
     Section.Parse(['procedure NewProc;', '']);
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].BodyFirstLine = -1);
     Assert(Section.Routines[0].BodyLastLine = -1);
     Assert(Section.Routines[0].LastLine = 1);
-    Assert(not Section.Routines[0].Bodiless);
+    Assert(Section.Routines[0].BodilessType = btNo);
     Section.Parse(['procedure A; procedure B; begin end;']);
     Assert(Section.RoutineCount = 2);
     Assert(Section.Routines[0].Name = 'A');
@@ -2867,7 +3028,7 @@ begin
     Assert(Section.Routines[0].BodyFirstLine = -1);
     Assert(Section.Routines[0].BodyLastLine = -1);
     Assert(Section.Routines[0].LastLine = 3);
-    Assert(not Section.Routines[0].Bodiless);
+    Assert(Section.Routines[0].BodilessType = btNo);
     Assert(Section.Routines[1].Name = 'Next');
     Assert(Section.Routines[1].BodyFirstLine = 5);
     Assert(Section.Routines[1].BodyLastLine = 6);

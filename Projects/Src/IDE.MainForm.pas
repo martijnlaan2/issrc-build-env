@@ -713,6 +713,7 @@ type
     FErrorMemo, FStepMemo: TIDEScintFileEdit; { These change depending on user input }
     FMemosStyler: TInnoSetupStyler;           { Single styler for all memos }
     { Used by class helpers }
+    FAutoCompleteAndCallTipsLiveCodeSection: TLiveScriptCodeSection;
     FAutoCompleteExtraContinueChars: TSysCharSet;
     FCallTipState: TCallTipState;
     FCompiledExe: String;
@@ -1232,9 +1233,8 @@ begin
   { Use fake Ctrl+G shortcut for PInspectorGoTo because EGotoLine already has
     the real one }
   SetFakeShortCut(PInspectorGoTo, Ord('G'), [ssCtrl]);
-  { Ctrl+Shift+; and Ctrl+Shift+. are handled by FormKeyDown }
-  SetFakeShortCut(VNavigatorFocus, VK_OEM_1, [ssShift, ssCtrl]);
-  SetFakeShortCut(VNavigatorFocusAndSelect, VK_OEM_PERIOD, [ssShift, ssCtrl]);
+  { Fake shortcuts using OEM keys should be set just-in-time in UpdateMenuHelper,
+    so do not add those here }
 
   PopupMenu := TMainFormPopupMenu.Create(Self, EMenu);
 
@@ -1433,6 +1433,7 @@ begin
   FSignTools.Free;
   FMRUParametersList.Free;
   FMRUMainFilesList.Free;
+  TLiveScriptObjectFactory.ReleaseAndNil(FAutoCompleteAndCallTipsLiveCodeSection);
   FLiveScriptObjectFactories.Free;
   FFileMemos.Free;
   FHiddenFiles.Free;
@@ -2785,15 +2786,8 @@ begin
     Memo.UseTabCharacter := FOptions.UseTabCharacter;
 
     Memo.KeyMappingType := FOptions.MemoKeyMappingType;
-    if Memo = FMainMemo then begin
-      SetFakeShortCut(ESelectNextOccurrence,  FMainMemo.GetComplexCommandShortCut(ccSelectNextOccurrence));
-      SetFakeShortCut(ESelectAllOccurrences, FMainMemo.GetComplexCommandShortCut(ccSelectAllOccurrences));
-      SetFakeShortCut(ESelectAllFindMatches, FMainMemo.GetComplexCommandShortCut(ccSelectAllFindMatches));
-      SetFakeShortCut(EFoldLine, FMainMemo.GetComplexCommandShortCut(ccFoldLine));
-      SetFakeShortCut(EUnfoldLine, FMainMemo.GetComplexCommandShortCut(ccUnfoldLine));
-      SetFakeShortCut(EToggleLinesComment, FMainMemo.GetComplexCommandShortCut(ccToggleLinesComment));
-      SetFakeShortCut(EBraceMatch, FMainMemo.GetComplexCommandShortCut(ccBraceMatch));
-    end;
+    if Memo = FMainMemo then
+      SetComplexCommandFakeShortCuts(False);
 
     Memo.SmartHome := FOptions.SmartHome;
     Memo.UseFolding := FOptions.UseFolding;
@@ -5632,16 +5626,18 @@ begin
       end else begin
         var ClassMember := False;
         const Name = FActiveMemo.GetTextRange(VarOrFuncRange.StartPos, VarOrFuncRange.EndPos);
+        var UserDefined := BuildUserDefinedFunctionDefinitions(FActiveMemo, Line);
         var Index := 0;
         var Count: Integer;
-        var FunctionDefinition := GetScriptFunctionDefinition(ClassMember, Name, Index, Count);
+        var FunctionDefinition := GetScriptFunctionDefinition(ClassMember, Name, Index, UserDefined, Count);
         if Count = 0 then begin
           ClassMember := not ClassMember;
-          FunctionDefinition := GetScriptFunctionDefinition(ClassMember, Name, Index, Count);
+          UserDefined := [];
+          FunctionDefinition := GetScriptFunctionDefinition(ClassMember, Name, Index, UserDefined, Count);
         end;
         while Index < Count do begin
           if Index <> 0 then
-            FunctionDefinition := GetScriptFunctionDefinition(ClassMember, Name, Index);
+            FunctionDefinition := GetScriptFunctionDefinition(ClassMember, Name, Index, UserDefined);
           if HintStr <> '' then
             HintStr := HintStr + #13;
           HintStr := HintStr + ScriptFuncHeaderKindToStr(FunctionDefinition.HeaderKind) +
