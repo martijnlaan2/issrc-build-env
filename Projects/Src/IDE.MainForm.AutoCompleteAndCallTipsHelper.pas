@@ -24,7 +24,7 @@ type
     procedure InitiateAutoComplete(const AMemo: TScintEdit; const Key: AnsiChar);
     procedure AutoCompleteAndCallTipsHandleCharAdded(const AMemo: TScintEdit; const Ch: AnsiChar);
     function BuildUserDefinedFunctionDefinitions(const AMemo: TScintEdit;
-      const ALine: Integer): TFunctionDefinitionsWithName;
+      const ALine: Integer; const AClassMember: Boolean): TFunctionDefinitionsWithName;
     procedure CallTipsHandleArrowClick(const AMemo: TScintEdit; const Up: Boolean);
     procedure CallTipsHandleCtrlSpace(const AMemo: TScintEdit);
     procedure CallTipsHandleUpdateUI(const AMemo: TScintEdit);
@@ -433,7 +433,8 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
     Result := True;
   end;
 
-  function BuildCodeRoutinesWordList(const Line: Integer): AnsiString;
+  function BuildUserDefinedWordList(const Line: Integer;
+    const ClassMember: Boolean): AnsiString;
   begin
     Result := '';
     if not _TryAcquireAndHoldCodeSectionAtLine(AMemo, Line) then
@@ -441,12 +442,29 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
 
     const Names = CreateSortedCaseInsensitiveStringList;
     try
-      for var I := 0 to FAutoCompleteAndCallTipsLiveCodeSection.Section.RoutineCount-1 do
-        Names.Add(FAutoCompleteAndCallTipsLiveCodeSection.Section.Routines[I].Name);
+      const Section = FAutoCompleteAndCallTipsLiveCodeSection.Section;
+      if ClassMember then begin
+        for var I := 0 to Section.InterfaceMethodCount-1 do
+          Names.Add(Section.InterfaceMethods[I].Name)
+      end else
+        for var I := 0 to Section.RoutineCount-1 do
+          Names.Add(Section.Routines[I].Name);
       Result := BuildAutoCompleteWordList(Names, awtScriptFunction);
     finally
       Names.Free;
     end;
+  end;
+
+  function DotIsPartOfNumberOrRange(const LinePos, DotPos: Integer): Boolean;
+  begin
+    { Ask the styler if the dot is part of a number }
+    AMemo.StyleNeeded(DotPos);
+    if TInnoSetupStyler.IsPascalNumberStyle(AMemo.GetStyleAtPosition(DotPos)) then
+      Exit(True);
+    { Checking if the dot is part of a range ourselves }
+    const PositionBeforeDotPos = AMemo.GetPositionBefore(DotPos);
+    Result := (PositionBeforeDotPos >= LinePos) and
+      (AMemo.GetByteAtPosition(PositionBeforeDotPos) = '.');
   end;
 
   function ChooseCodeWordList(const LinePos, WordStartPos: Integer;
@@ -479,14 +497,17 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
     end;
 
     { If no event function was found then autocomplete script functions,
-      types, etc if the current word has no dot before it, merging in the
-      current section's own routines }
+      types, etc, or class members if the current word has a dot before it,
+      merging in the current section's own routines or interface methods }
     if WordList = '' then begin
-      const ClassOrRecordMember = (PositionBeforeWordStartPos >= LinePos) and (AMemo.GetByteAtPosition(PositionBeforeWordStartPos) = '.');
-      WordList := GetScriptAutoCompleteWordList(ClassOrRecordMember);
-      if not ClassOrRecordMember then
-        WordList := MergeAutoCompleteWordLists(WordList,
-          BuildCodeRoutinesWordList(AMemo.GetLineFromPosition(LinePos)));
+      var ClassOrRecordMember := False;
+      if (PositionBeforeWordStartPos >= LinePos) and (AMemo.GetByteAtPosition(PositionBeforeWordStartPos) = '.') then begin
+        if DotIsPartOfNumberOrRange(LinePos, PositionBeforeWordStartPos) then
+          Exit;
+        ClassOrRecordMember := True;
+      end;
+      WordList := MergeAutoCompleteWordLists(GetScriptAutoCompleteWordList(ClassOrRecordMember),
+        BuildUserDefinedWordList(AMemo.GetLineFromPosition(LinePos), ClassOrRecordMember));
     end;
 
     if WordList = '' then
@@ -682,7 +703,8 @@ begin
 end;
 
 function TMainFormAutoCompleteAndCallTipsHelper.BuildUserDefinedFunctionDefinitions(
-  const AMemo: TScintEdit; const ALine: Integer): TFunctionDefinitionsWithName;
+  const AMemo: TScintEdit; const ALine: Integer;
+  const AClassMember: Boolean): TFunctionDefinitionsWithName;
 
   function IsAsciiString(const S: String): Boolean;
   begin
@@ -692,6 +714,24 @@ function TMainFormAutoCompleteAndCallTipsHelper.BuildUserDefinedFunctionDefiniti
     Result := True;
   end;
 
+  procedure AddDefinition(const Prototypes: TStringList; const Name: String;
+    const Kind: TCodeSectionRoutineKind; const Prototype: String);
+  begin
+    if not IsAsciiString(Prototype) or (Prototypes.IndexOf(Prototype) >= 0) then
+      Exit;
+    Prototypes.Add(Prototype);
+    var HeaderKind: TScriptFuncHeaderKind;
+    if Kind = rkFunction then
+      HeaderKind := hkFunction
+    else
+      HeaderKind := hkProcedure;
+    var UserDefinedFunctionDefinition: TFunctionDefinitionWithName;
+    UserDefinedFunctionDefinition.Name := Name;
+    UserDefinedFunctionDefinition.Definition :=
+      TFunctionDefinition.CreateUserDefined(Prototype, HeaderKind);
+    Result := Result + [UserDefinedFunctionDefinition];
+  end;
+
 begin
   Result := [];
   if not _TryAcquireAndHoldCodeSectionAtLine(AMemo, ALine) then
@@ -699,22 +739,17 @@ begin
 
   const Prototypes = CreateSortedCaseInsensitiveStringList;
   try
-    for var I := 0 to FAutoCompleteAndCallTipsLiveCodeSection.Section.RoutineCount-1 do begin
-      const Routine = FAutoCompleteAndCallTipsLiveCodeSection.Section.Routines[I];
-      const Prototype = Routine.Prototype;
-      if not IsAsciiString(Prototype) or (Prototypes.IndexOf(Prototype) >= 0) then
-        Continue;
-      Prototypes.Add(Prototype);
-      var HeaderKind: TScriptFuncHeaderKind;
-      if Routine.Kind = rkFunction then
-        HeaderKind := hkFunction
-      else
-        HeaderKind := hkProcedure;
-      var UserDefinedFunctionDefinition: TFunctionDefinitionWithName;
-      UserDefinedFunctionDefinition.Name := Routine.Name;
-      UserDefinedFunctionDefinition.Definition :=
-        TFunctionDefinition.CreateUserDefined(Prototype, HeaderKind);
-      Result := Result + [UserDefinedFunctionDefinition];
+    const Section = FAutoCompleteAndCallTipsLiveCodeSection.Section;
+    if AClassMember then begin
+      for var I := 0 to Section.InterfaceMethodCount-1 do begin
+        const Method = Section.InterfaceMethods[I];
+        AddDefinition(Prototypes, Method.Name, Method.Kind, Method.Prototype);
+      end;
+    end else begin
+      for var I := 0 to Section.RoutineCount-1 do begin
+        const Routine = Section.Routines[I];
+        AddDefinition(Prototypes, Routine.Name, Routine.Kind, Routine.Prototype);
+      end;
     end;
   finally
     Prototypes.Free;
@@ -735,10 +770,9 @@ begin
   if FCallTipState.ISPPExpressionContext then
     FunctionDefinition := GetISPPFunctionDefinition(CurrentCallTipWord, FCallTipState.CurrentCallTip, FCallTipState.MaxCallTips)
   else begin
-    var UserDefined: TFunctionDefinitionsWithName := [];
-    if not FCallTipState.ClassOrRecordMember then
-      UserDefined := BuildUserDefinedFunctionDefinitions(AMemo,
-        AMemo.GetLineFromPosition(FCallTipState.LastPosCallTip));
+    const UserDefined = BuildUserDefinedFunctionDefinitions(AMemo,
+      AMemo.GetLineFromPosition(FCallTipState.LastPosCallTip),
+      FCallTipState.ClassOrRecordMember);
     FunctionDefinition := GetScriptFunctionDefinition(FCallTipState.ClassOrRecordMember, CurrentCallTipWord, FCallTipState.CurrentCallTip, UserDefined, FCallTipState.MaxCallTips);
   end;
   if ((FCallTipState.MaxCallTips = 1) and FunctionDefinition.HasParams) or //if there's a single definition then only show if it has a parameter

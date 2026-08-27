@@ -2205,8 +2205,8 @@ begin
   Assert(Definition.ScriptFuncWithoutHeader = 'Foo(');
   Assert(not Definition.HasParams);
 
-  { CreateUserDefined takes the kind from the caller and accepts the whitespace
-    a prototype read from the script can carry }
+  { CreateUserDefined takes the kind from the caller and separates the header
+    on any whitespace, not just the single space a cleaned prototype has }
   Definition := TFunctionDefinition.CreateUserDefined('procedure'#9'Foo(const A: Integer);', hkProcedure);
   Assert(Definition.HeaderKind = hkProcedure);
   Assert(Definition.ScriptFuncWithoutHeader = 'Foo(const A: Integer);');
@@ -2601,6 +2601,24 @@ begin
     Assert(Section.Routines[0].Name = 'TakesCallback');
     Assert(Section.Routines[0].FirstLine = 7);
 
+    { A name after the keyword does start a header, even after one of those
+      tokens: ROPS never names a procedural type, so the declaration above is
+      still being typed and keeps the routine below it }
+    const UnfinishedDeclarations: TArray<String> = [
+      'type X =', 'var P:', 'type X = array of'];
+    for var I := 0 to High(UnfinishedDeclarations) do begin
+      Section.Parse([
+        UnfinishedDeclarations[I], { 0 }
+        'procedure Existing;',     { 1 }
+        'begin',                   { 2 }
+        'end;']);                  { 3 }
+      Assert(Section.RoutineCount = 1);
+      Assert(Section.Routines[0].Name = 'Existing');
+      Assert(Section.Routines[0].FirstLine = 1);
+      Assert(Section.Routines[0].BodyFirstLine = 2);
+      Assert(Section.Routines[0].BodyLastLine = 3);
+    end;
+
     { Also not after ':' inside a parameter list or as a procedural return
       type. A parameter list's ';' separators do not terminate the header. }
     Section.Parse([
@@ -2634,18 +2652,93 @@ begin
       'function(const A: String; const B: String): Integer');
 
     { Something else can share the header's first or last physical line: the
-      prototype is exactly the keyword through its ';'. Within a line the
-      header is kept as written. }
+      prototype is exactly the keyword through its ';' }
     Section.Parse(['const C = 1; procedure Shared; begin end;']);
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].Name = 'Shared');
     Assert(Section.Routines[0].Prototype = 'procedure Shared;');
     Assert(Section.Routines[0].ResultTypeText = '');
+
+    { Every whitespace run collapses to a single space, also within a line,
+      except before ')', ';', ',' and ']' }
     Section.Parse(['function  Spaced  (A: Integer) : Boolean ;', 'begin', 'end;']);
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].Prototype =
-      'function  Spaced  (A: Integer) : Boolean ;');
+      'function Spaced (A: Integer) : Boolean;');
     Assert(Section.Routines[0].ResultTypeText = 'Boolean');
+    Section.Parse(['function'#9'Tabbed(A:'#9'Integer):'#9'Boolean;', 'begin', 'end;']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Prototype = 'function Tabbed(A: Integer): Boolean;');
+    Assert(Section.Routines[0].ResultTypeText = 'Boolean');
+
+    { A comment separates tokens like whitespace does, so it collapses into
+      the surrounding run instead of merging its neighbours. Both block forms
+      are recognized. }
+    Section.Parse([
+      'function{ a }Commented(A: Integer (* the size *)): Boolean;',
+      'begin',
+      'end;']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Name = 'Commented');
+    Assert(Section.Routines[0].Prototype =
+      'function Commented(A: Integer): Boolean;');
+    Assert(Section.Routines[0].ResultTypeText = 'Boolean');
+
+    { A '(*' opener's own '*' may close the comment, like the ROPS tokenizer,
+      so '(*)' is complete. See Script.ROPS.Test.iss for a compiler witness. }
+    Section.Parse([
+      'procedure Degenerate(A: Integer (*) );',
+      'begin',
+      'end;']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Name = 'Degenerate');
+    Assert(Section.Routines[0].Prototype = 'procedure Degenerate(A: Integer);');
+
+    { For the same reason a '*' keeps its space before a ')' }
+    Section.Parse(['procedure Starred(A: Integer = (2 * ));', 'begin', 'end;']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Prototype = 'procedure Starred(A: Integer = (2 * ));');
+
+    { A '//' comment ends at its line break, so the rest of the header
+      survives, and it runs to the end when there is no line break left }
+    Section.Parse([
+      'function Split(A: // cut here',
+      '  Integer): Boolean;',
+      'begin',
+      'end;']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Prototype = 'function Split(A: Integer): Boolean;');
+    Section.Parse(['procedure Trailing(A: Integer // note']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Prototype = 'procedure Trailing(A: Integer');
+
+    { A comment surrounded by whitespace merges into a single separator, and
+      one trailing the result type leaves no trailing space }
+    Section.Parse(['function Edges: { kind } Boolean { done };', 'begin', 'end;']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Prototype = 'function Edges: Boolean;');
+    Assert(Section.Routines[0].ResultTypeText = 'Boolean');
+
+    { A comment's opening characters inside a string literal are kept: the
+      literal is not a comment }
+    Section.Parse(['procedure Literal(const S: String = ''{app}'');', 'begin', 'end;']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Prototype =
+      'procedure Literal(const S: String = ''{app}'');');
+    Section.Parse(['procedure Quoted(const S: String = ''it''''s { x }'');', 'begin', 'end;']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Prototype =
+      'procedure Quoted(const S: String = ''it''''s { x }'');');
+
+    { A non-ASCII comment leaves the prototype ASCII, unlike a non-ASCII string
+      literal, which the call tip's ASCII test then still rejects }
+    Section.Parse(['procedure Accented(A: Integer { caf'#$00E9' });', 'begin', 'end;']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Prototype = 'procedure Accented(A: Integer);');
+    Section.Parse(['procedure Kept(const S: String = ''caf'#$00E9''');', 'begin', 'end;']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Prototype =
+      'procedure Kept(const S: String = ''caf'#$00E9''');');
 
     { An unterminated header is cut short by the next declaration's keyword,
       its own body's 'begin', a tokenize error, or the section's end, keeping
@@ -2728,6 +2821,18 @@ begin
       'procedure P(var A: Integer; const B: String);');
     Assert(Section.Routines[0].BodyFirstLine = 1);
 
+    { Nor does the 'end' of an inline record parameter type, which ROPS accepts }
+    Section.Parse([
+      'procedure P(A: record X: Integer; end);',  { 0 }
+      'begin',                                    { 1 }
+      'end;']);                                   { 2 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Prototype =
+      'procedure P(A: record X: Integer; end);');
+    Assert(Section.Routines[0].BodyFirstLine = 1);
+    Assert(Section.Routines[0].BodyLastLine = 2);
+    Assert(Section.Routines[0].LastLine = 2);
+
     { A header left unterminated inside its parameter list is cut by the next
       routine's keyword, which is never legal there, so the routines below a
       half-typed 'procedure X(' survive }
@@ -2782,9 +2887,29 @@ begin
     Assert(Section.Routines[0].BodyLastLine = 2);
     Assert(Section.Routines[0].LastLine = 2);
 
-    { A declaration block after a bodyless header is taken for the routine's
-      own local blocks, so a type block there is not listed and the routine's
-      span covers it }
+    { An open parameter list does not swallow the type block below it:
+      'type' never appears inside one }
+    Section.Parse([
+      'procedure Foo(',    { 0 }
+      'type',              { 1 }
+      '  Y = Integer;']);  { 2 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.TypeCount = 1);
+    Assert(Section.Types[0].Name = 'Y');
+
+    { 'label' cuts inside one too. The block is then searched through as a
+      possibly local one, so the routine still extends over it. }
+    Section.Parse([
+      'procedure Foo(',  { 0 }
+      'label',           { 1 }
+      '  L;']);          { 2 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Prototype = 'procedure Foo(');
+    Assert(Section.Routines[0].BodyFirstLine = -1);
+    Assert(Section.Routines[0].LastLine = 2);
+
+    { ROPS has no local type block, so one after a bodyless header is parsed
+      rather than skipped. The search for 'begin' goes on past it. }
     Section.Parse([
       'procedure Foo;',      { 0 }
       'type',                { 1 }
@@ -2796,9 +2921,36 @@ begin
     Assert(Section.Routines[0].Name = 'Foo');
     Assert(Section.Routines[0].BodyFirstLine = -1);
     Assert(Section.Routines[0].LastLine = 2);
-    Assert(Section.TypeCount = 0);
+    Assert(Section.TypeCount = 1);
+    Assert(Section.Types[0].Name = 'TBar');
+    Assert(Section.Types[0].Line = 2);
     Assert(Section.Routines[1].Name = 'Baz');
     Assert(Section.Routines[1].BodyFirstLine = 4);
+
+    { A 'var' block is a local one, so it is still searched through }
+    Section.Parse([
+      'procedure Foo;',   { 0 }
+      'var',              { 1 }
+      '  A: Integer;',    { 2 }
+      'begin',            { 3 }
+      'end;']);           { 4 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].BodyFirstLine = 3);
+    Assert(Section.Routines[0].BodyLastLine = 4);
+    Assert(Section.TypeCount = 0);
+
+    { A routine whose body is still missing does not swallow the type block
+      below it, whichever way its body is unfinished }
+    const UnfinishedRoutines: TArray<String> = [
+      'procedure x;', 'procedure x; end;', 'procedure x; forward',
+      'procedure x; const C = 1;'];
+    for var I := 0 to High(UnfinishedRoutines) do begin
+      Section.Parse([UnfinishedRoutines[I], 'type', '  Y = Integer;']);
+      Assert(Section.RoutineCount = 1);
+      Assert(Section.TypeCount = 1);
+      Assert(Section.Types[0].Name = 'Y');
+      Assert(Section.Types[0].Line = 2);
+    end;
 
     { <event('...')> attributes before a header are tolerated; FirstLine stays
       the keyword's line }
@@ -3344,6 +3496,943 @@ begin
     Assert(Section.Types[1].Name = 'TAfter');
     Assert(Section.Types[1].TypeText = 'Integer');
     Assert(Section.RoutineCount = 1);
+
+    { The next declaration is found while a record or a parameter list of the
+      one being typed is still open }
+    const UnfinishedStructuredTypes: TArray<String> = [
+      '  X = record A: Integer;', '  X = procedure(A: Integer'];
+    for var I := 0 to High(UnfinishedStructuredTypes) do begin
+      Section.Parse(['type', UnfinishedStructuredTypes[I], '  Y = Integer;']);
+      Assert(Section.TypeCount = 2);
+      Assert(Section.Types[1].Name = 'Y');
+      Assert(Section.Types[1].TypeText = 'Integer');
+      Assert(Section.Types[1].Line = 2);
+    end;
+
+    { A name followed by '=' after the keyword is the next type declaration,
+      not a routine name }
+    Section.Parse([
+      'type',              { 0 }
+      '  X = procedure',   { 1 }
+      '  Y = Integer;']);  { 2 }
+    Assert(Section.RoutineCount = 0);
+    Assert(Section.TypeCount = 2);
+    Assert(Section.Types[1].Name = 'Y');
+    Assert(Section.Types[1].TypeText = 'Integer');
+
+    { A malformed declaration does not hide the finished ones below it }
+    Section.Parse([
+      'type',                 { 0 }
+      '  = Integer;',         { 1 }
+      '  ;',                  { 2 }
+      '  TKept = String;']);  { 3 }
+    Assert(Section.TypeCount = 1);
+    Assert(Section.Types[0].Name = 'TKept');
+    Assert(Section.Types[0].TypeText = 'String');
+    Assert(Section.Types[0].Line = 3);
+  finally
+    Section.Free;
+  end;
+end;
+
+procedure TestCodeSectionEnumerationValues;
+begin
+  const Section = TScriptModelCodeSection.Create;
+  try
+    { An enumeration definition yields its type item plus one item per value,
+      with each value pointing back at the type }
+    Section.Parse([
+      'type',
+      '  TMyState = (msOne, msTwo);']);
+    Assert(Section.TypeCount = 1);
+    Assert(Section.Types[0].Name = 'TMyState');
+    Assert(Section.Types[0].TypeText = 'enumeration');
+    Assert(Section.EnumerationValueCount = 2);
+    Assert(Section.EnumerationValues[0].Name = 'msOne');
+    Assert(Section.EnumerationValues[0].DeclarationTypeIndex = 0);
+    Assert(Section.EnumerationValues[0].Line = 1);
+    Assert(Section.EnumerationValues[1].Name = 'msTwo');
+    Assert(Section.EnumerationValues[1].DeclarationTypeIndex = 0);
+    Assert(Section.EnumerationValues[1].Line = 1);
+
+    { The next Parse replaces the previous items }
+    Section.Parse(['type', '  TOther = (a);']);
+    Assert(Section.EnumerationValueCount = 1);
+    Assert(Section.EnumerationValues[0].Name = 'a');
+    Assert(Section.EnumerationValues[0].DeclarationTypeIndex = 0);
+    Section.Parse([]);
+    Assert(Section.EnumerationValueCount = 0);
+
+    { Values spread over multiple lines report their own lines }
+    Section.Parse([
+      'type',               { 0 }
+      '  TMyState = (',     { 1 }
+      '    msOne,',         { 2 }
+      '    msTwo, msThree', { 3 }
+      '  );']);             { 4 }
+    Assert(Section.EnumerationValueCount = 3);
+    Assert(Section.EnumerationValues[0].Name = 'msOne');
+    Assert(Section.EnumerationValues[0].Line = 2);
+    Assert(Section.EnumerationValues[1].Name = 'msTwo');
+    Assert(Section.EnumerationValues[1].Line = 3);
+    Assert(Section.EnumerationValues[2].Name = 'msThree');
+    Assert(Section.EnumerationValues[2].Line = 3);
+
+    { Two enumerations keep their values apart }
+    Section.Parse([
+      'type',
+      '  TA = (aOne, aTwo);',
+      '  TB = (bOne);']);
+    Assert(Section.TypeCount = 2);
+    Assert(Section.Types[0].Name = 'TA');
+    Assert(Section.Types[1].Name = 'TB');
+    Assert(Section.EnumerationValueCount = 3);
+    Assert(Section.EnumerationValues[0].Name = 'aOne');
+    Assert(Section.EnumerationValues[0].DeclarationTypeIndex = 0);
+    Assert(Section.EnumerationValues[1].Name = 'aTwo');
+    Assert(Section.EnumerationValues[1].DeclarationTypeIndex = 0);
+    Assert(Section.EnumerationValues[2].Name = 'bOne');
+    Assert(Section.EnumerationValues[2].DeclarationTypeIndex = 1);
+
+    { Two enumerations sharing a name still keep their values apart }
+    Section.Parse([
+      'type',
+      '  TSame = (sOne);',
+      '  TSame = (sTwo);']);
+    Assert(Section.TypeCount = 2);
+    Assert(Section.EnumerationValueCount = 2);
+    Assert(Section.EnumerationValues[0].Name = 'sOne');
+    Assert(Section.EnumerationValues[0].DeclarationTypeIndex = 0);
+    Assert(Section.EnumerationValues[1].Name = 'sTwo');
+    Assert(Section.EnumerationValues[1].DeclarationTypeIndex = 1);
+
+    { An anonymous enumeration after 'of' belongs to the type being declared }
+    Section.Parse([
+      'type',
+      '  TItems = array of (one, two);']);
+    Assert(Section.TypeCount = 1);
+    Assert(Section.Types[0].Name = 'TItems');
+    Assert(Section.Types[0].TypeText = 'array');
+    Assert(Section.EnumerationValueCount = 2);
+    Assert(Section.EnumerationValues[0].Name = 'one');
+    Assert(Section.EnumerationValues[0].DeclarationTypeIndex = 0);
+    Assert(Section.EnumerationValues[1].Name = 'two');
+    Assert(Section.EnumerationValues[1].DeclarationTypeIndex = 0);
+
+    { The same for one after ':', in a record field }
+    Section.Parse([
+      'type',                        { 0 }
+      '  TFoo = record',             { 1 }
+      '    A: (aOne, aTwo);',        { 2 }
+      '    B: Integer;',             { 3 }
+      '  end;',                      { 4 }
+      '  TAfter = (bOne);']);        { 5 }
+    Assert(Section.TypeCount = 2);
+    Assert(Section.Types[0].Name = 'TFoo');
+    Assert(Section.Types[0].TypeText = 'record');
+    Assert(Section.Types[1].Name = 'TAfter');
+    Assert(Section.EnumerationValueCount = 3);
+    Assert(Section.EnumerationValues[0].Name = 'aOne');
+    Assert(Section.EnumerationValues[0].DeclarationTypeIndex = 0);
+    Assert(Section.EnumerationValues[0].Line = 2);
+    Assert(Section.EnumerationValues[1].Name = 'aTwo');
+    Assert(Section.EnumerationValues[1].DeclarationTypeIndex = 0);
+    Assert(Section.EnumerationValues[2].Name = 'bOne');
+    Assert(Section.EnumerationValues[2].DeclarationTypeIndex = 1);
+
+    { One in a procedural type's parameter list keeps the brace depth balanced,
+      so the definition still terminates on its own semicolon }
+    Section.Parse([
+      'type',
+      '  TProc = procedure(A: (pOne, pTwo); B: Integer);',
+      '  TAfter = Integer;']);
+    Assert(Section.TypeCount = 2);
+    Assert(Section.Types[0].Name = 'TProc');
+    Assert(Section.Types[0].TypeText = 'procedure');
+    Assert(Section.Types[1].Name = 'TAfter');
+    Assert(Section.EnumerationValueCount = 2);
+    Assert(Section.EnumerationValues[0].Name = 'pOne');
+    Assert(Section.EnumerationValues[0].DeclarationTypeIndex = 0);
+    Assert(Section.EnumerationValues[1].Name = 'pTwo');
+
+    { Non-enumeration definitions with parentheses contribute no values }
+    Section.Parse([
+      'type',
+      '  TProc = procedure(Sender: TObject);',
+      '  IFoo = interface',
+      '    procedure M1(A: Integer);',
+      '  end;']);
+    Assert(Section.TypeCount = 2);
+    Assert(Section.EnumerationValueCount = 0);
+
+    { An enumeration cut by a routine header keeps the values already seen }
+    Section.Parse([
+      'type',
+      '  TState = (stOne, stTwo',
+      'procedure P;',
+      'begin',
+      'end;']);
+    Assert(Section.EnumerationValueCount = 2);
+    Assert(Section.EnumerationValues[0].Name = 'stOne');
+    Assert(Section.EnumerationValues[1].Name = 'stTwo');
+    Assert(Section.RoutineCount = 1);
+
+    { A declaration block start ends an unterminated definition }
+    Section.Parse([
+      'type',
+      '  TState = (stOne, stTwo',
+      'type',
+      '  TOther = Integer;']);
+    Assert(Section.EnumerationValueCount = 2);
+    Assert(Section.TypeCount = 2);
+    Assert(Section.Types[0].Name = 'TState');
+    Assert(Section.Types[1].Name = 'TOther');
+
+    { A record following an unterminated list contributes no values, not even
+      its comma-separated fields, and is still found as a type of its own }
+    Section.Parse([
+      'type',
+      '  TState = (stOne, stTwo',
+      '  TRec = record A, B: Integer; end;']);
+    Assert(Section.EnumerationValueCount = 2);
+    Assert(Section.EnumerationValues[0].Name = 'stOne');
+    Assert(Section.EnumerationValues[1].Name = 'stTwo');
+    Assert(Section.TypeCount = 2);
+    Assert(Section.Types[0].Name = 'TState');
+    Assert(Section.Types[1].Name = 'TRec');
+    Assert(Section.Types[1].TypeText = 'record');
+
+    { Every stage of typing a new type above an existing one keeps that one }
+    const TypedSoFar: TArray<String> = [
+      '  X', '  X =', '  X = (', '  X = (one', '  X = (one,',
+      '  X = (one)', '  X = (one;', '  X = (one);'];
+    for var I := 0 to High(TypedSoFar) do begin
+      Section.Parse(['type', TypedSoFar[I], '  Y = Integer;']);
+      Assert(Section.Types[Section.TypeCount-1].Name = 'Y');
+      Assert(Section.Types[Section.TypeCount-1].TypeText = 'Integer');
+      Assert(Section.Types[Section.TypeCount-1].Line = 2);
+    end;
+  finally
+    Section.Free;
+  end;
+end;
+
+procedure TestCodeSectionConstants;
+begin
+  const Section = TScriptModelCodeSection.Create;
+  try
+    { A const block yields one item per constant, with a display type
+      inferred from a single-literal value }
+    Section.Parse([
+      'const',                      { 0 }
+      '  MyInt = 5;',               { 1 }
+      '  MyHex = $FF;',             { 2 }
+      '  MyNegative = -5;',         { 3 }
+      '  MyPositive = +5;',         { 4 }
+      '  MyReal = 1.5;',            { 5 }
+      '  MyNegativeReal = -0.5;',   { 6 }
+      '  MyExponent = 2.5E10;',     { 7 }
+      '  MyString = ''abc'';',      { 8 }
+      '  MyChar = #13;',            { 9 }
+      '  MyParts = ''a''#13''b'';', { 10 }
+      '  MyTrue = True;',           { 11 }
+      '  MyFalse = FALSE;']);       { 12 }
+    Assert(Section.ConstantCount = 12);
+    Assert(Section.Constants[0].Name = 'MyInt');
+    Assert(Section.Constants[0].TypeText = 'Integer');
+    Assert(Section.Constants[0].Line = 1);
+    Assert(Section.Constants[1].Name = 'MyHex');
+    Assert(Section.Constants[1].TypeText = 'Integer');
+    Assert(Section.Constants[2].Name = 'MyNegative');
+    Assert(Section.Constants[2].TypeText = 'Integer');
+    Assert(Section.Constants[3].Name = 'MyPositive');
+    Assert(Section.Constants[3].TypeText = 'Integer');
+    Assert(Section.Constants[4].Name = 'MyReal');
+    Assert(Section.Constants[4].TypeText = 'Extended');
+    Assert(Section.Constants[5].Name = 'MyNegativeReal');
+    Assert(Section.Constants[5].TypeText = 'Extended');
+    Assert(Section.Constants[6].Name = 'MyExponent');
+    Assert(Section.Constants[6].TypeText = 'Extended');
+    Assert(Section.Constants[7].Name = 'MyString');
+    Assert(Section.Constants[7].TypeText = 'String');
+    Assert(Section.Constants[8].Name = 'MyChar');
+    Assert(Section.Constants[8].TypeText = 'String');
+    Assert(Section.Constants[9].Name = 'MyParts');
+    Assert(Section.Constants[9].TypeText = 'String');
+    Assert(Section.Constants[10].Name = 'MyTrue');
+    Assert(Section.Constants[10].TypeText = 'Boolean');
+    Assert(Section.Constants[11].Name = 'MyFalse');
+    Assert(Section.Constants[11].TypeText = 'Boolean');
+    Assert(Section.Constants[11].Line = 12);
+
+    { The next Parse replaces the previous items }
+    Section.Parse(['const', '  A = 1;']);
+    Assert(Section.ConstantCount = 1);
+    Assert(Section.Constants[0].Name = 'A');
+    Section.Parse([]);
+    Assert(Section.ConstantCount = 0);
+
+    { An expression gets a coarse type: operands are literals and already
+      declared constants, a comparison makes the value 'Boolean' even with
+      unresolved operands, mod/shl/shr keep it 'Integer', and other
+      operators, including '/' and 'div', take their operands' type, an
+      integer next to a real widening to 'Extended' }
+    Section.Parse([
+      'const',                      { 0 }
+      '  CA = 10;',                 { 1 }
+      '  CB = CA + 5;',             { 2 }
+      '  CC = CA * CB div 3;',      { 3 }
+      '  CD = CA > CB;',            { 4 }
+      '  CE = not False;',          { 5 }
+      '  CF = (CA shl 2) or $0F;',  { 6 }
+      '  CG = CA mod 3;',           { 7 }
+      '  CH = CA / 2;',             { 8 }
+      '  CI = 1 + 1.5;',            { 9 }
+      '  CJ = ''a'' + ''b'';',      { 10 }
+      '  CK = CE and (CA <> CB);',  { 11 }
+      '  CL = not not True;',       { 12 }
+      '  CM = CA / 1.5;',           { 13 }
+      '  CN = CA div 1.5;',         { 14 }
+      '  CO = MaxInt > 0;']);       { 15 }
+    Assert(Section.ConstantCount = 15);
+    Assert(Section.Constants[0].Name = 'CA');
+    Assert(Section.Constants[0].TypeText = 'Integer');
+    Assert(Section.Constants[1].Name = 'CB');
+    Assert(Section.Constants[1].TypeText = 'Integer');
+    Assert(Section.Constants[2].TypeText = 'Integer');
+    Assert(Section.Constants[3].TypeText = 'Boolean');
+    Assert(Section.Constants[4].TypeText = 'Boolean');
+    Assert(Section.Constants[5].TypeText = 'Integer');
+    Assert(Section.Constants[6].TypeText = 'Integer');
+    { Without PS_DELPHIDIV, '/' on integers is an integer division in ROPS }
+    Assert(Section.Constants[7].TypeText = 'Integer');
+    Assert(Section.Constants[8].TypeText = 'Extended');
+    Assert(Section.Constants[9].TypeText = 'String');
+    Assert(Section.Constants[10].TypeText = 'Boolean');
+    Assert(Section.Constants[11].TypeText = 'Boolean');
+    Assert(Section.Constants[12].TypeText = 'Extended');
+    { ROPS 'div' takes real operands too, and then gives a real result
+      like '/' }
+    Assert(Section.Constants[13].TypeText = 'Extended');
+    { A comparison is 'Boolean' although MaxInt itself is out of reach }
+    Assert(Section.Constants[14].TypeText = 'Boolean');
+
+    { An '=' comparing an already declared constant on the value's own line
+      is not the next declaration }
+    Section.Parse([
+      'const',              { 0 }
+      '  A = 1;',           { 1 }
+      '  IsOne = A = 1;',   { 2 }
+      '  Below = 2;']);     { 3 }
+    Assert(Section.ConstantCount = 3);
+    Assert(Section.Constants[0].Name = 'A');
+    Assert(Section.Constants[1].Name = 'IsOne');
+    Assert(Section.Constants[1].TypeText = 'Boolean');
+    Assert(Section.Constants[1].Line = 2);
+    Assert(Section.Constants[2].Name = 'Below');
+    Assert(Section.Constants[2].TypeText = 'Integer');
+
+    { A value with an unresolved operand or token has no display type: an
+      unknown name, a predefined script constant (the model only knows the
+      constants the section itself declares), a forward-referenced or
+      self-referencing name, an operand mix no operator allows, a real
+      operand of an integer-only operator, or a set literal }
+    Section.Parse([
+      'const',
+      '  MyUnknown = SomethingUndefined;',
+      '  MyPredefined = MaxInt;',
+      '  MyForward = MyLater + 1;',
+      '  MySelf = MySelf + 1;',
+      '  MyMix = ''a'' + 5;',
+      '  MyBooleanMix = True + 1;',
+      '  MyRealMod = 1.5 mod 2;',
+      '  MySet = [1];',
+      '  MyLater = 1;']);
+    Assert(Section.ConstantCount = 9);
+    for var I := 0 to 7 do
+      Assert(Section.Constants[I].TypeText = '');
+    Assert(Section.Constants[8].Name = 'MyLater');
+    Assert(Section.Constants[8].TypeText = 'Integer');
+
+    { Every const block is top-level, also between a routine's header and
+      its body: ROPS has no local const blocks }
+    Section.Parse([
+      'const',           { 0 }
+      '  A = 1;',        { 1 }
+      'procedure P;',    { 2 }
+      'const',           { 3 }
+      '  B = 2;',        { 4 }
+      'begin',           { 5 }
+      'end;',            { 6 }
+      'const',           { 7 }
+      '  C = ''x'';']);  { 8 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].BodyFirstLine = 5);
+    Assert(Section.ConstantCount = 3);
+    Assert(Section.Constants[0].Name = 'A');
+    Assert(Section.Constants[0].TypeText = 'Integer');
+    Assert(Section.Constants[0].Line = 1);
+    Assert(Section.Constants[1].Name = 'B');
+    Assert(Section.Constants[1].TypeText = 'Integer');
+    Assert(Section.Constants[1].Line = 4);
+    Assert(Section.Constants[2].Name = 'C');
+    Assert(Section.Constants[2].TypeText = 'String');
+    Assert(Section.Constants[2].Line = 8);
+
+    { An unfinished forward or external decoration does not swallow a
+      following block }
+    Section.Parse([
+      'procedure P; forward',  { 0 }
+      'const',                 { 1 }
+      '  A = 1;']);            { 2 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].BodilessType = btForward);
+    Assert(Section.ConstantCount = 1);
+    Assert(Section.Constants[0].Name = 'A');
+    Assert(Section.Constants[0].Line = 2);
+
+    { A value still being typed is cut by the next declaration }
+    Section.Parse([
+      'const',      { 0 }
+      '  A =',      { 1 }
+      '  B = 2;']); { 2 }
+    Assert(Section.ConstantCount = 2);
+    Assert(Section.Constants[0].Name = 'A');
+    Assert(Section.Constants[0].TypeText = '');
+    Assert(Section.Constants[0].Line = 1);
+    Assert(Section.Constants[1].Name = 'B');
+    Assert(Section.Constants[1].TypeText = 'Integer');
+    Assert(Section.Constants[1].Line = 2);
+
+    { And by a routine header, still inferring from what is there }
+    Section.Parse([
+      'const',         { 0 }
+      '  A = 5',       { 1 }
+      'procedure P;',  { 2 }
+      'begin',         { 3 }
+      'end;']);        { 4 }
+    Assert(Section.ConstantCount = 1);
+    Assert(Section.Constants[0].TypeText = 'Integer');
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Name = 'P');
+    Assert(Section.Routines[0].FirstLine = 2);
+
+    { And by another declaration block }
+    Section.Parse([
+      'const',           { 0 }
+      '  A =',           { 1 }
+      'var',             { 2 }
+      '  X: Integer;']); { 3 }
+    Assert(Section.ConstantCount = 1);
+    Assert(Section.Constants[0].TypeText = '');
+    Assert(Section.GlobalVariableCount = 1);
+    Assert(Section.GlobalVariables[0].Name = 'X');
+
+    { A name alone is not yet a declaration }
+    Section.Parse(['const', '  X']);
+    Assert(Section.ConstantCount = 0);
+
+    { A malformed declaration does not hide the finished ones below it }
+    Section.Parse([
+      'const',       { 0 }
+      '  X;',        { 1 }
+      '  ;',         { 2 }
+      '  Y = 1;']);  { 3 }
+    Assert(Section.ConstantCount = 1);
+    Assert(Section.Constants[0].Name = 'Y');
+    Assert(Section.Constants[0].TypeText = 'Integer');
+    Assert(Section.Constants[0].Line = 3);
+
+    { Every stage of typing a new constant above an existing one keeps it }
+    const TypedSoFar: TArray<String> = ['  X', '  X =', '  X = 5', '  X = 5;'];
+    for var I := 0 to High(TypedSoFar) do begin
+      Section.Parse(['const', TypedSoFar[I], '  Y = 1;']);
+      const Last = Section.Constants[Section.ConstantCount-1];
+      Assert(Last.Name = 'Y');
+      Assert(Last.TypeText = 'Integer');
+      Assert(Last.Line = 2);
+    end;
+  finally
+    Section.Free;
+  end;
+end;
+
+procedure TestCodeSectionGlobalVariables;
+begin
+  const Section = TScriptModelCodeSection.Create;
+  try
+    { A var block yields one item per variable, with the type as written }
+    Section.Parse([
+      'var',                                                { 0 }
+      '  MyInt: Integer;',                                  { 1 }
+      '  MyList: array of String;',                         { 2 }
+      '  MyProc: procedure(A: Integer; var B: String);']);  { 3 }
+    Assert(Section.GlobalVariableCount = 3);
+    Assert(Section.GlobalVariables[0].Name = 'MyInt');
+    Assert(Section.GlobalVariables[0].TypeText = 'Integer');
+    Assert(Section.GlobalVariables[0].Line = 1);
+    Assert(Section.GlobalVariables[1].Name = 'MyList');
+    Assert(Section.GlobalVariables[1].TypeText = 'array of String');
+    Assert(Section.GlobalVariables[1].Line = 2);
+    Assert(Section.GlobalVariables[2].Name = 'MyProc');
+    Assert(Section.GlobalVariables[2].TypeText =
+      'procedure(A: Integer; var B: String)');
+    Assert(Section.GlobalVariables[2].Line = 3);
+
+    { The next Parse replaces the previous items }
+    Section.Parse(['var', '  A: Integer;']);
+    Assert(Section.GlobalVariableCount = 1);
+    Assert(Section.GlobalVariables[0].Name = 'A');
+    Section.Parse([]);
+    Assert(Section.GlobalVariableCount = 0);
+
+    { A multi-name group splits into one item per name, each with the line
+      its own name sits on }
+    Section.Parse([
+      'var',               { 0 }
+      '  A, B: Integer;',  { 1 }
+      '  C,',              { 2 }
+      '    D: String;']);  { 3 }
+    Assert(Section.GlobalVariableCount = 4);
+    Assert(Section.GlobalVariables[0].Name = 'A');
+    Assert(Section.GlobalVariables[0].TypeText = 'Integer');
+    Assert(Section.GlobalVariables[0].Line = 1);
+    Assert(Section.GlobalVariables[1].Name = 'B');
+    Assert(Section.GlobalVariables[1].TypeText = 'Integer');
+    Assert(Section.GlobalVariables[1].Line = 1);
+    Assert(Section.GlobalVariables[2].Name = 'C');
+    Assert(Section.GlobalVariables[2].TypeText = 'String');
+    Assert(Section.GlobalVariables[2].Line = 2);
+    Assert(Section.GlobalVariables[3].Name = 'D');
+    Assert(Section.GlobalVariables[3].TypeText = 'String');
+    Assert(Section.GlobalVariables[3].Line = 3);
+
+    { A declaration spanning lines: the item has the name's line and the
+      type's line breaks collapse to single spaces }
+    Section.Parse([
+      'var',              { 0 }
+      '  X:',             { 1 }
+      '    array of',     { 2 }
+      '      Integer;']); { 3 }
+    Assert(Section.GlobalVariableCount = 1);
+    Assert(Section.GlobalVariables[0].Name = 'X');
+    Assert(Section.GlobalVariables[0].TypeText = 'array of Integer');
+    Assert(Section.GlobalVariables[0].Line = 1);
+
+    { Blocks between and below routines are top-level ones, a routine's local
+      block is not }
+    Section.Parse([
+      'var',              { 0 }
+      '  A: Integer;',    { 1 }
+      'procedure P;',     { 2 }
+      'var',              { 3 }
+      '  Local: String;', { 4 }
+      'begin',            { 5 }
+      'end;',             { 6 }
+      'var',              { 7 }
+      '  B: Boolean;']);  { 8 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.GlobalVariableCount = 2);
+    Assert(Section.GlobalVariables[0].Name = 'A');
+    Assert(Section.GlobalVariables[0].Line = 1);
+    Assert(Section.GlobalVariables[1].Name = 'B');
+    Assert(Section.GlobalVariables[1].TypeText = 'Boolean');
+    Assert(Section.GlobalVariables[1].Line = 8);
+
+    { A type still being typed is ended by the next group: a name followed
+      by ':' or ',' in it is that group's first name }
+    Section.Parse([
+      'var',             { 0 }
+      '  X:',            { 1 }
+      '  Y: String;']);  { 2 }
+    Assert(Section.GlobalVariableCount = 2);
+    Assert(Section.GlobalVariables[0].Name = 'X');
+    Assert(Section.GlobalVariables[0].TypeText = '');
+    Assert(Section.GlobalVariables[0].Line = 1);
+    Assert(Section.GlobalVariables[1].Name = 'Y');
+    Assert(Section.GlobalVariables[1].TypeText = 'String');
+    Assert(Section.GlobalVariables[1].Line = 2);
+    Section.Parse([
+      'var',                { 0 }
+      '  X: Intege',        { 1 }
+      '  Y, Z: String;']);  { 2 }
+    Assert(Section.GlobalVariableCount = 3);
+    Assert(Section.GlobalVariables[0].Name = 'X');
+    Assert(Section.GlobalVariables[0].TypeText = 'Intege');
+    Assert(Section.GlobalVariables[1].Name = 'Y');
+    Assert(Section.GlobalVariables[1].TypeText = 'String');
+    Assert(Section.GlobalVariables[2].Name = 'Z');
+    Assert(Section.GlobalVariables[2].TypeText = 'String');
+
+    { A name alone is kept with no type yet }
+    Section.Parse(['var', '  X']);
+    Assert(Section.GlobalVariableCount = 1);
+    Assert(Section.GlobalVariables[0].Name = 'X');
+    Assert(Section.GlobalVariables[0].TypeText = '');
+
+    { A block above a routine keeps the routine, cutting an unterminated
+      type }
+    Section.Parse([
+      'var',           { 0 }
+      '  X: TColor',   { 1 }
+      'procedure P;',  { 2 }
+      'begin',         { 3 }
+      'end;']);        { 4 }
+    Assert(Section.GlobalVariableCount = 1);
+    Assert(Section.GlobalVariables[0].TypeText = 'TColor');
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Name = 'P');
+    Assert(Section.Routines[0].FirstLine = 2);
+    Assert(Section.Routines[0].BodyFirstLine = 3);
+
+    { Another declaration block also ends it }
+    Section.Parse([
+      'var',            { 0 }
+      '  X: Integer;',  { 1 }
+      'const',          { 2 }
+      '  A = 1;']);     { 3 }
+    Assert(Section.GlobalVariableCount = 1);
+    Assert(Section.ConstantCount = 1);
+
+    { An unfinished external decoration does not swallow a following block }
+    Section.Parse([
+      'function GetX: Integer; external ''x@y.dll''',  { 0 }
+      'var',                                           { 1 }
+      '  G: Integer;']);                               { 2 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].BodilessType = btExternal);
+    Assert(Section.GlobalVariableCount = 1);
+    Assert(Section.GlobalVariables[0].Name = 'G');
+    Assert(Section.GlobalVariables[0].Line = 2);
+
+    { An unclosed '[' does not block the next-group cut or a block keyword:
+      ':', ';' and block keywords are never legal inside brackets }
+    Section.Parse([
+      'var',               { 0 }
+      '  X: array[0..5',   { 1 }
+      '  Y: Integer;']);   { 2 }
+    Assert(Section.GlobalVariableCount = 2);
+    Assert(Section.GlobalVariables[0].Name = 'X');
+    Assert(Section.GlobalVariables[0].TypeText = 'array[0..5');
+    Assert(Section.GlobalVariables[1].Name = 'Y');
+    Assert(Section.GlobalVariables[1].TypeText = 'Integer');
+    Assert(Section.GlobalVariables[1].Line = 2);
+    Section.Parse([
+      'var',               { 0 }
+      '  X: array[0..5',   { 1 }
+      'const',             { 2 }
+      '  A = 1;']);        { 3 }
+    Assert(Section.GlobalVariableCount = 1);
+    Assert(Section.GlobalVariables[0].TypeText = 'array[0..5');
+    Assert(Section.ConstantCount = 1);
+    Assert(Section.Constants[0].Name = 'A');
+
+    { A ',' inside brackets is an array bound list, not a next group }
+    Section.Parse([
+      'var',
+      '  X: array[A, B] of Integer;',
+      '  Y: String;']);
+    Assert(Section.GlobalVariableCount = 2);
+    Assert(Section.GlobalVariables[0].Name = 'X');
+    Assert(Section.GlobalVariables[0].TypeText = 'array[A, B] of Integer');
+    Assert(Section.GlobalVariables[1].Name = 'Y');
+
+    { Inside an open '(' nothing distinguishes a next group from a parameter
+      list, so it is swallowed; a routine below still survives }
+    Section.Parse([
+      'var',              { 0 }
+      '  X: procedure(',  { 1 }
+      '  Y: Integer;',    { 2 }
+      'procedure P;',     { 3 }
+      'begin',            { 4 }
+      'end;']);           { 5 }
+    Assert(Section.GlobalVariableCount = 1);
+    Assert(Section.GlobalVariables[0].Name = 'X');
+    Assert(Section.GlobalVariables[0].TypeText = 'procedure( Y: Integer;');
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Name = 'P');
+    Assert(Section.Routines[0].FirstLine = 3);
+
+    { A malformed declaration does not hide the finished ones below it }
+    Section.Parse([
+      'var',             { 0 }
+      '  Integer;',      { 1 }
+      '  ;',             { 2 }
+      '  Y: String;']);  { 3 }
+    Assert(Section.GlobalVariableCount = 2);
+    Assert(Section.GlobalVariables[0].Name = 'Integer');
+    Assert(Section.GlobalVariables[0].TypeText = '');
+    Assert(Section.GlobalVariables[1].Name = 'Y');
+    Assert(Section.GlobalVariables[1].TypeText = 'String');
+    Assert(Section.GlobalVariables[1].Line = 3);
+
+    { Every stage of typing a new variable above an existing one keeps it }
+    const TypedSoFar: TArray<String> = [
+      '  X', '  X,', '  X:', '  X: array', '  X: array of', '  X: Intege',
+      '  X: Integer', '  X: Integer;'];
+    for var I := 0 to High(TypedSoFar) do begin
+      Section.Parse(['var', TypedSoFar[I], '  Y: String;']);
+      Assert(Section.GlobalVariableCount = 2);
+      Assert(Section.GlobalVariables[0].Name = 'X');
+      const Last = Section.GlobalVariables[1];
+      Assert(Last.Name = 'Y');
+      Assert(Last.TypeText = 'String');
+      Assert(Last.Line = 2);
+    end;
+  finally
+    Section.Free;
+  end;
+end;
+
+procedure TestCodeSectionInterfaceMethods;
+begin
+  const Section = TScriptModelCodeSection.Create;
+  try
+    { Every method of an interface definition, in source order, with its name,
+      kind, result type, prototype, declaring type and line. The parent
+      interface and the GUID string are tolerated, and trailing decoration
+      such as 'safecall' stays out of the prototype. }
+    Section.Parse([
+      'type',                                                                  { 0 }
+      '  IPersistFile = interface(IPersist)',                                  { 1 }
+      '    ''{0000010B-0000-0000-C000-000000000046}''',                        { 2 }
+      '    procedure Save(pszFileName: String; fRemember: BOOL); safecall;',   { 3 }
+      '    function GetCurFile: String; safecall;',                            { 4 }
+      '  end;']);                                                              { 5 }
+    Assert(Section.TypeCount = 1);
+    Assert(Section.Types[0].Name = 'IPersistFile');
+    Assert(Section.Types[0].TypeText = 'interface');
+    Assert(Section.RoutineCount = 0);
+    Assert(Section.InterfaceMethodCount = 2);
+    Assert(Section.InterfaceMethods[0].Name = 'Save');
+    Assert(Section.InterfaceMethods[0].Kind = rkProcedure);
+    Assert(Section.InterfaceMethods[0].DeclarationTypeIndex = 0);
+    Assert(Section.InterfaceMethods[0].ResultTypeText = '');
+    Assert(Section.InterfaceMethods[0].Prototype =
+      'procedure Save(pszFileName: String; fRemember: BOOL);');
+    Assert(Section.InterfaceMethods[0].Line = 3);
+    Assert(Section.InterfaceMethods[1].Name = 'GetCurFile');
+    Assert(Section.InterfaceMethods[1].Kind = rkFunction);
+    Assert(Section.InterfaceMethods[1].DeclarationTypeIndex = 0);
+    Assert(Section.InterfaceMethods[1].ResultTypeText = 'String');
+    Assert(Section.InterfaceMethods[1].Prototype = 'function GetCurFile: String;');
+    Assert(Section.InterfaceMethods[1].Line = 4);
+
+    { The next Parse replaces the previous items }
+    Section.Parse(['type', '  IOnly = interface', '    procedure M;', '  end;']);
+    Assert(Section.InterfaceMethodCount = 1);
+    Assert(Section.InterfaceMethods[0].Name = 'M');
+    Section.Parse([]);
+    Assert(Section.InterfaceMethodCount = 0);
+
+    { A method header spanning lines: Line is the keyword's line and the
+      prototype's line breaks collapse to single spaces }
+    Section.Parse([
+      'type',                                                     { 0 }
+      '  IShellLinkW = interface(IUnknown)',                      { 1 }
+      '    procedure GetIconLocation(pszIconPath: String;',       { 2 }
+      '      cchIconPath: Integer); safecall;',                   { 3 }
+      '  end;']);                                                 { 4 }
+    Assert(Section.InterfaceMethodCount = 1);
+    Assert(Section.InterfaceMethods[0].Name = 'GetIconLocation');
+    Assert(Section.InterfaceMethods[0].Prototype =
+      'procedure GetIconLocation(pszIconPath: String; cchIconPath: Integer);');
+    Assert(Section.InterfaceMethods[0].Line = 2);
+
+    { Several interfaces in one block keep their methods apart, and the list
+      is flat across them }
+    Section.Parse([
+      'type',                   { 0 }
+      '  IFirst = interface',   { 1 }
+      '    procedure A;',       { 2 }
+      '  end;',                 { 3 }
+      '  ISecond = interface',  { 4 }
+      '    procedure B;',       { 5 }
+      '    function C: Integer;', { 6 }
+      '  end;']);               { 7 }
+    Assert(Section.TypeCount = 2);
+    Assert(Section.InterfaceMethodCount = 3);
+    Assert(Section.InterfaceMethods[0].Name = 'A');
+    Assert(Section.InterfaceMethods[0].DeclarationTypeIndex = 0);
+    Assert(Section.InterfaceMethods[0].Line = 2);
+    Assert(Section.InterfaceMethods[1].Name = 'B');
+    Assert(Section.InterfaceMethods[1].DeclarationTypeIndex = 1);
+    Assert(Section.InterfaceMethods[1].Line = 5);
+    Assert(Section.InterfaceMethods[2].Name = 'C');
+    Assert(Section.InterfaceMethods[2].DeclarationTypeIndex = 1);
+    Assert(Section.InterfaceMethods[2].ResultTypeText = 'Integer');
+    Assert(Section.InterfaceMethods[2].Line = 6);
+
+    { A record contributes nothing, not even its procedural fields }
+    Section.Parse([
+      'type',
+      '  TRec = record',
+      '    A: Integer;',
+      '    P: procedure(X: Integer);',
+      '  end;']);
+    Assert(Section.TypeCount = 1);
+    Assert(Section.RoutineCount = 0);
+    Assert(Section.InterfaceMethodCount = 0);
+
+    { An unterminated method header is cut by the next method's keyword,
+      keeping what is there }
+    Section.Parse([
+      'type',                { 0 }
+      '  IFoo = interface',  { 1 }
+      '    procedure M1',    { 2 }
+      '    procedure M2;',   { 3 }
+      '  end;']);            { 4 }
+    Assert(Section.InterfaceMethodCount = 2);
+    Assert(Section.InterfaceMethods[0].Name = 'M1');
+    Assert(Section.InterfaceMethods[0].Prototype = 'procedure M1');
+    Assert(Section.InterfaceMethods[1].Name = 'M2');
+    Assert(Section.InterfaceMethods[1].Prototype = 'procedure M2;');
+
+    { It is also cut by the interface's own 'end', so a method being typed
+      does not swallow the routines below }
+    Section.Parse([
+      'type',                { 0 }
+      '  IFoo = interface',  { 1 }
+      '    procedure M1;',   { 2 }
+      '    function GetX',   { 3 }
+      '  end;',              { 4 }
+      'procedure P;',        { 5 }
+      'begin',               { 6 }
+      'end;']);              { 7 }
+    Assert(Section.TypeCount = 1);
+    Assert(Section.InterfaceMethodCount = 2);
+    Assert(Section.InterfaceMethods[1].Name = 'GetX');
+    Assert(Section.InterfaceMethods[1].Prototype = 'function GetX');
+    Assert(Section.InterfaceMethods[1].ResultTypeText = '');
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Name = 'P');
+    Assert(Section.Routines[0].FirstLine = 5);
+
+    { An interface left unterminated does take the routines below it as its
+      methods: they are indistinguishable from method declarations }
+    Section.Parse([
+      'type',                { 0 }
+      '  IFoo = interface',  { 1 }
+      '    procedure M1;',   { 2 }
+      '',                    { 3 }
+      'procedure P;',        { 4 }
+      'begin',               { 5 }
+      'end;']);              { 6 }
+    Assert(Section.TypeCount = 1);
+    Assert(Section.RoutineCount = 0);
+    Assert(Section.InterfaceMethodCount = 2);
+    Assert(Section.InterfaceMethods[0].Name = 'M1');
+    Assert(Section.InterfaceMethods[1].Name = 'P');
+
+    { An interface nested in an array type is anonymous, like in ROPS, so its
+      methods point to the array type instead }
+    Section.Parse([
+      'type',                                             { 0 }
+      '  TItems = array of interface(IUnknown)',          { 1 }
+      '    ''{148BD527-A2AB-11CE-B11F-00AA00530503}''',   { 2 }
+      '    procedure Foo;',                               { 3 }
+      '  end;']);                                         { 4 }
+    Assert(Section.TypeCount = 1);
+    Assert(Section.Types[0].Name = 'TItems');
+    Assert(Section.Types[0].TypeText = 'array');
+    Assert(Section.RoutineCount = 0);
+    Assert(Section.InterfaceMethodCount = 1);
+    Assert(Section.InterfaceMethods[0].Name = 'Foo');
+    Assert(Section.InterfaceMethods[0].DeclarationTypeIndex = 0);
+    Assert(Section.InterfaceMethods[0].Line = 3);
+
+    { The same for one nested in a record type }
+    Section.Parse([
+      'type',                                             { 0 }
+      '  TRec = record',                                  { 1 }
+      '    F: interface(IUnknown)',                       { 2 }
+      '      ''{148BD527-A2AB-11CE-B11F-00AA00530503}''', { 3 }
+      '      procedure Foo;',                             { 4 }
+      '    end;',                                         { 5 }
+      '  end;']);                                         { 6 }
+    Assert(Section.TypeCount = 1);
+    Assert(Section.Types[0].TypeText = 'record');
+    Assert(Section.RoutineCount = 0);
+    Assert(Section.InterfaceMethodCount = 1);
+    Assert(Section.InterfaceMethods[0].Name = 'Foo');
+    Assert(Section.InterfaceMethods[0].DeclarationTypeIndex = 0);
+
+    { A type without methods before it still takes an index }
+    Section.Parse([
+      'type',                              { 0 }
+      '  TRecA = record A: Integer; end;', { 1 }
+      '  TRecB = record',                  { 2 }
+      '    F: interface',                  { 3 }
+      '      procedure Foo;',              { 4 }
+      '    end;',                          { 5 }
+      '  end;']);                          { 6 }
+    Assert(Section.TypeCount = 2);
+    Assert(Section.InterfaceMethodCount = 1);
+    Assert(Section.InterfaceMethods[0].Name = 'Foo');
+    Assert(Section.InterfaceMethods[0].DeclarationTypeIndex = 1);
+
+    { Two of them stay apart through their types, a state ROPS itself rejects
+      as a duplicate identifier but the model still keeps apart while typing }
+    Section.Parse([
+      'type',                           { 0 }
+      '  TFirst = array of interface',  { 1 }
+      '    procedure Foo;',             { 2 }
+      '  end;',                         { 3 }
+      '  TSecond = array of interface', { 4 }
+      '    procedure Bar;',             { 5 }
+      '  end;']);                       { 6 }
+    Assert(Section.TypeCount = 2);
+    Assert(Section.InterfaceMethodCount = 2);
+    Assert(Section.InterfaceMethods[0].DeclarationTypeIndex = 0);
+    Assert(Section.InterfaceMethods[1].DeclarationTypeIndex = 1);
+
+    { A named and an anonymous one in a single block }
+    Section.Parse([
+      'type',                           { 0 }
+      '  IFoo = interface',             { 1 }
+      '    procedure Foo;',             { 2 }
+      '  end;',                         { 3 }
+      '  TItems = array of interface',  { 4 }
+      '    procedure Bar;',             { 5 }
+      '  end;']);                       { 6 }
+    Assert(Section.TypeCount = 2);
+    Assert(Section.InterfaceMethodCount = 2);
+    Assert(Section.InterfaceMethods[0].DeclarationTypeIndex = 0);
+    Assert(Section.InterfaceMethods[1].DeclarationTypeIndex = 1);
+
+    { The indexes also run across type blocks }
+    Section.Parse([
+      'type',                           { 0 }
+      '  TFirst = array of interface',  { 1 }
+      '    procedure Foo;',             { 2 }
+      '  end;',                         { 3 }
+      'type',                           { 4 }
+      '  TSecond = array of interface', { 5 }
+      '    procedure Bar;',             { 6 }
+      '  end;']);                       { 7 }
+    Assert(Section.InterfaceMethodCount = 2);
+    Assert(Section.InterfaceMethods[0].DeclarationTypeIndex = 0);
+    Assert(Section.InterfaceMethods[1].DeclarationTypeIndex = 1);
+
+    { The interface's 'end' also cuts a method whose parameter list is left
+      open, so the routines below it stay top-level }
+    Section.Parse([
+      'type',                { 0 }
+      '  IFoo = interface',  { 1 }
+      '    procedure M1;',   { 2 }
+      '    procedure M2(',   { 3 }
+      '  end;',              { 4 }
+      'procedure P;',        { 5 }
+      'begin',               { 6 }
+      'end;']);              { 7 }
+    Assert(Section.TypeCount = 1);
+    Assert(Section.InterfaceMethodCount = 2);
+    Assert(Section.InterfaceMethods[1].Name = 'M2');
+    Assert(Section.InterfaceMethods[1].Prototype = 'procedure M2(');
+    Assert(Section.InterfaceMethods[1].DeclarationTypeIndex = 0);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Name = 'P');
+    Assert(Section.Routines[0].FirstLine = 5);
   finally
     Section.Free;
   end;
@@ -3507,8 +4596,10 @@ begin
     Assert(not Section.TryGetRoutine(3, Routine));
     Assert(not Section.TryGetRoutine(4, Routine));
 
-    { 'const', 'var' and 'label' blocks are not parsed yet but also end the
-      span }
+    { 'const', 'var' and 'label' blocks also end the span, and 'const' and
+      'var' blocks after it are top-level ones: the 'var' block's name counts
+      as a global, while the 'const' block's name is not yet a declaration
+      without its '=' }
     const BlockKeywords: TArray<String> = ['const', 'var', 'label'];
     for var BlockKeyword in BlockKeywords do begin
       Section.Parse([
@@ -3520,11 +4611,17 @@ begin
       Assert(Section.RoutineCount = 1);
       Assert(Section.Routines[0].LastLine = 2);
       Assert(not Section.TryGetRoutine(3, Routine));
+      Assert(Section.ConstantCount = 0);
+      if BlockKeyword = 'var' then
+        Assert(Section.GlobalVariableCount = 1)
+      else
+        Assert(Section.GlobalVariableCount = 0);
     end;
 
-    { But when the error hit before the routine's 'begin', a following block
-      keyword can start the routine's own local block, so the span stays
-      open. A type block coming up is still parsed. }
+    { But when the error hit before the routine's 'begin', the span stays
+      open whatever block follows: the 'begin' may still follow it. A 'var'
+      block can be the routine's own local block, so it is not parsed as a
+      top-level one, while a 'const' or 'type' block always is. }
     Section.Parse([
       'procedure Typing;',     { 0 }
       'const',                 { 1 }
@@ -3535,6 +4632,10 @@ begin
       'end;']);                { 6 }
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].LastLine = 6);
+    Assert(Section.ConstantCount = 1);
+    Assert(Section.Constants[0].Name = 'C');
+    Assert(Section.Constants[0].TypeText = '');
+    Assert(Section.GlobalVariableCount = 0);
     Assert(Section.TryGetRoutine(5, Routine));
     Assert(Routine = Section.Routines[0]);
     Section.Parse([
@@ -3545,11 +4646,71 @@ begin
       '  T = Integer;']);      { 4 }
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].LastLine = 4);
+    Assert(Section.ConstantCount = 1);
     Assert(Section.TypeCount = 1);
     Assert(Section.Types[0].Name = 'T');
     Assert(Section.Types[0].Line = 4);
     Assert(Section.TryGetRoutine(4, Routine));
     Assert(Routine = Section.Routines[0]);
+
+    { A 'begin' met after the resync ends the search for it, so the span ends
+      at the next block and that block's variables are global ones }
+    Section.Parse([
+      'procedure Typing;',     { 0 }
+      'const',                 { 1 }
+      '  C = ''unterminated',  { 2 }
+      'begin',                 { 3 }
+      'end;',                  { 4 }
+      'var',                   { 5 }
+      '  G: Integer;']);       { 6 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].LastLine = 4);
+    Assert(Section.Routines[0].BodyFirstLine = -1);
+    Assert(Section.ConstantCount = 1);
+    Assert(Section.Constants[0].Name = 'C');
+    Assert(Section.GlobalVariableCount = 1);
+    Assert(Section.GlobalVariables[0].Name = 'G');
+    Assert(Section.GlobalVariables[0].TypeText = 'Integer');
+    Assert(Section.GlobalVariables[0].Line = 6);
+    Assert(Section.TryGetRoutine(4, Routine));
+    Assert(not Section.TryGetRoutine(6, Routine));
+
+    { The same when the error cut the header itself, which keeps the text up
+      to the cut }
+    Section.Parse([
+      'procedure P(const S: String = ''x);',  { 0 }
+      'begin',                                { 1 }
+      'end;',                                 { 2 }
+      'var',                                  { 3 }
+      '  G: Integer;']);                      { 4 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Name = 'P');
+    Assert(Section.Routines[0].Prototype = 'procedure P(const S: String =');
+    Assert(Section.Routines[0].LastLine = 2);
+    Assert(Section.Routines[0].BodyFirstLine = -1);
+    Assert(Section.GlobalVariableCount = 1);
+    Assert(Section.GlobalVariables[0].Name = 'G');
+    Assert(Section.GlobalVariables[0].TypeText = 'Integer');
+    Assert(Section.GlobalVariables[0].Line = 4);
+
+    { A block cut by an error while the routine's body was being searched for
+      is resumed too, so its finished declarations below survive.
+      Known limitation: the 'begin' after it is no longer taken as the body. }
+    Section.Parse([
+      'procedure P;',              { 0 }
+      'const',                     { 1 }
+      '  Broken = ''unfinished',   { 2 }
+      '  Finished = 1;',           { 3 }
+      'begin',                     { 4 }
+      'end;']);                    { 5 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].BodyFirstLine = -1);
+    Assert(Section.ConstantCount = 2);
+    Assert(Section.Constants[0].Name = 'Broken');
+    Assert(Section.Constants[0].TypeText = '');
+    Assert(Section.Constants[1].Name = 'Finished');
+    Assert(Section.Constants[1].TypeText = 'Integer');
+    Assert(Section.Constants[1].Line = 3);
 
     { With no declaration after the error the cut routine's span runs to the
       section's last line }
@@ -3620,30 +4781,88 @@ begin
     Assert(Section.Routines[0].FirstLine = 2);
     Assert(Section.Routines[0].LastLine = 4);
 
-    { An error inside a type block: the members found before it are kept; the
-      resync continues at top-level context, so the block's remaining members
-      are skipped until the next block or declaration }
+    { An error inside a top-level block: the declarations found before it are
+      kept, and the resync resumes the block, so the declarations after it
+      are kept too }
     Section.Parse([
       'type',                   { 0 }
       '  TBefore = Integer;',   { 1 }
       '  TBad = ''x',           { 2 }
-      '  TLost = String;',      { 3 }
+      '  TKept = String;',      { 3 }
       'type',                   { 4 }
       '  TFound = Boolean;',    { 5 }
       'procedure P;',           { 6 }
       'begin',                  { 7 }
       'end;']);                 { 8 }
-    Assert(Section.TypeCount = 3);
+    Assert(Section.TypeCount = 4);
     Assert(Section.Types[0].Name = 'TBefore');
     Assert(Section.Types[0].Line = 1);
     Assert(Section.Types[1].Name = 'TBad');
     Assert(Section.Types[1].TypeText = ''); { The error cut it before its kind }
     Assert(Section.Types[1].Line = 2);
-    Assert(Section.Types[2].Name = 'TFound');
-    Assert(Section.Types[2].Line = 5);
+    Assert(Section.Types[2].Name = 'TKept');
+    Assert(Section.Types[2].TypeText = 'String');
+    Assert(Section.Types[2].Line = 3);
+    Assert(Section.Types[3].Name = 'TFound');
+    Assert(Section.Types[3].Line = 5);
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].Name = 'P');
     Assert(Section.Routines[0].FirstLine = 6);
+
+    { The same for const and var blocks, including a second error in the
+      resumed block }
+    Section.Parse([
+      'const',                    { 0 }
+      '  Typing = ''unfinished',  { 1 }
+      '  Finished = 1;']);        { 2 }
+    Assert(Section.ConstantCount = 2);
+    Assert(Section.Constants[0].Name = 'Typing');
+    Assert(Section.Constants[0].TypeText = '');
+    Assert(Section.Constants[0].Line = 1);
+    Assert(Section.Constants[1].Name = 'Finished');
+    Assert(Section.Constants[1].TypeText = 'Integer');
+    Assert(Section.Constants[1].Line = 2);
+    Section.Parse([
+      'const',          { 0 }
+      '  A = ''one',    { 1 }
+      '  B = ''two',    { 2 }
+      '  C = 1;',       { 3 }
+      'procedure P;',   { 4 }
+      'begin',          { 5 }
+      'end;']);         { 6 }
+    Assert(Section.ConstantCount = 3);
+    Assert(Section.Constants[0].Name = 'A');
+    Assert(Section.Constants[1].Name = 'B');
+    Assert(Section.Constants[2].Name = 'C');
+    Assert(Section.Constants[2].TypeText = 'Integer');
+    Assert(Section.Constants[2].Line = 3);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].FirstLine = 4);
+    Section.Parse([
+      'var',                     { 0 }
+      '  Typing: #$',            { 1 }
+      '  Finished: Integer;']);  { 2 }
+    Assert(Section.GlobalVariableCount = 2);
+    Assert(Section.GlobalVariables[0].Name = 'Typing');
+    Assert(Section.GlobalVariables[0].TypeText = '');
+    Assert(Section.GlobalVariables[0].Line = 1);
+    Assert(Section.GlobalVariables[1].Name = 'Finished');
+    Assert(Section.GlobalVariables[1].TypeText = 'Integer');
+    Assert(Section.GlobalVariables[1].Line = 2);
+
+    { A resync landing on a value's continuation line keeps the block: what
+      it lands on is skipped instead of ending it }
+    Section.Parse([
+      'const',                { 0 }
+      '  A = ''unfinished',   { 1 }
+      '    + 1;',             { 2 }
+      '  B = 3;']);           { 3 }
+    Assert(Section.ConstantCount = 2);
+    Assert(Section.Constants[0].Name = 'A');
+    Assert(Section.Constants[0].TypeText = '');
+    Assert(Section.Constants[1].Name = 'B');
+    Assert(Section.Constants[1].TypeText = 'Integer');
+    Assert(Section.Constants[1].Line = 3);
 
     { An unterminated comment of either syntax is not resynced past: the
       tokenizer consumes it to the end of the text }
@@ -3705,6 +4924,10 @@ begin
   TestPrepareCodeSectionText;
   TestCodeSection;
   TestCodeSectionTypes;
+  TestCodeSectionEnumerationValues;
+  TestCodeSectionConstants;
+  TestCodeSectionGlobalVariables;
+  TestCodeSectionInterfaceMethods;
   TestCodeSectionRoutineAtLine;
   TestCodeSectionResync;
   {$IFDEF ISTESTTOOLPROJ}
