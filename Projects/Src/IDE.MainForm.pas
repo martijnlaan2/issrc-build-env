@@ -1656,7 +1656,7 @@ begin
         AddControlToArray(ControlToAdd, StatusPanel, Controls, RegionControls, NControls);
     end;
     if UpdatePanel.Visible then begin
-      if FUpdatePanelMessages[UpdateLinkLabel.Tag].HasLink then
+      if UpdateLinkLabel.TabStop then
         AddControlToArray(UpdateLinkLabel, UpdatePanel, Controls, RegionControls, NControls)
       else
         AddControlToArray(UpdatePanelDonateBitBtn, UpdatePanel, Controls, RegionControls, NControls);
@@ -4391,22 +4391,24 @@ begin
           NNT(awtSectionName, 'ac\structure-filled'),
           NNT(awtParameterName, 'ac\xml-filled'),
           NNT(awtKeyName, 'ac\xml-filled'),
-          NNT(awtMemberValue, 'ac\values'),
           NNT(awtPreprocessorDirective, 'ac\symbol-hashtag'),
           NNT(awtPreprocessorSubDirective, 'ac\symbol-hashtag-arrow-right-2'),
-          NNT(awtConstant, 'ac\constant-filled_2'),
           NNT(awtScriptFunction, 'ac\method-filled'),
+          NNT(awtISPPFunction, 'ac\method-filled'),
           NNT(awtScriptType, 'ac\types'),
-          NNT(awtScriptVariable, 'ac\variables'),
-          NNT(awtScriptConstant, 'ac\constant-filled'),
+          NNT(awtScriptVariable, 'ac\constant-filled'),            { Green }
+          NNT(awtISPPVariable, 'ac\constant-filled'),              { Green }
+          NNT(awtConstant, 'ac\constant-filled_2'),                { Purple }
+          NNT(awtMemberValue, 'ac\constant-filled_3'),             { Blue }
+          NNT(awtScriptFunctionParameter, 'ac\constant-filled_4'), { Orange}
+          NNT(awtScriptFunctionVariable, 'ac\constant-filled_5'),  { Yellow }
+          NNT(awtScriptConstant, 'ac\constant-filled_6'),          { Gray }
+          NNT(awtScriptEnumValue, 'ac\constant-filled_6'),         { Gray }
+          NNT(awtISPPConstant, 'ac\constant-filled_6'),            { Gray }
           NNT(awtScriptInterface, 'ac\interface-filled'),
           NNT(awtScriptProperty, 'ac\properties-filled'),
           NNT(awtScriptEvent, 'ac\event-filled'),
-          NNT(awtScriptKeyword, 'ac\list'),
-          NNT(awtScriptEnumValue, 'ac\constant-filled'),
-          NNT(awtISPPFunction, 'ac\method-filled'),
-          NNT(awtISPPVariable, 'ac\variables'),
-          NNT(awtISPPConstant, 'ac\constant-filled')];
+          NNT(awtScriptKeyword, 'ac\list')];
 
         for var NamedType in NamedTypes do
           AddMarkerOrAcBitmap(AutoCompleteBitmaps, DC, BitmapInfo, NamedType.Key, AutoCompleteBkBrush, ImageList, NamedType.Value);
@@ -6494,6 +6496,7 @@ begin
     var MessageToShowIndex := FUpdatePanelMessages.Count-1;
     UpdateLinkLabel.Tag := MessageToShowIndex;
     UpdateLinkLabel.Caption := FUpdatePanelMessages[MessageToShowIndex].Msg;
+    UpdateLinkLabel.TabStop := FUpdatePanelMessages[MessageToShowIndex].HasLink;
     if not FHighContrastActive then
       UpdatePanel.Color := FUpdatePanelMessages[MessageToShowIndex].Color;
     if FUpdatePanelMessages[MessageToShowIndex].ConfigIdent.StartsWith('Purchase') then

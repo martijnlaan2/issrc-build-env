@@ -204,6 +204,20 @@ type
   TCodeSectionRoutineKind = (rkProcedure, rkFunction);
   TCodeSectionRoutineBodilessType = (btNo, btForward, btExternal);
 
+  { A user-defined type, constant or global variable, a parameter of a
+    user-defined routine or interface method, or a local variable of a
+    user-defined routine }
+  TCodeSectionDeclaration = class
+  private
+    FName: String;
+    FTypeText: String; { Constants: 'String' even for characters, 'Integer' for any width, '' when not inferable. Parameters: '' when untyped. }
+    FLine: Integer;
+  public
+    property Name: String read FName;
+    property TypeText: String read FTypeText;
+    property Line: Integer read FLine;
+  end;
+
   { A user-defined procedure or function }
   TCodeSectionRoutine = class
   private
@@ -211,17 +225,26 @@ type
     FKind: TCodeSectionRoutineKind;
     FResultTypeText: String;
     FPrototype: String;
-    FFirstLine, FLastLine: Integer;         { Always set }
-    FBodyFirstLine, FBodyLastLine: Integer; { -1/-1 for a bodiless routine and while no matching 'end' is found }
+    FParameters: TObjectList<TCodeSectionDeclaration>;
+    FLocals: TObjectList<TCodeSectionDeclaration>;
+    FFirstLine, FLastLine: Integer; { Always set }
+    FBodyFirstLine: Integer;        { -1 for a bodiless routine and until its 'begin' is seen }
     FBodilessType: TCodeSectionRoutineBodilessType;
+    function GetParameter(Index: Integer): TCodeSectionDeclaration;
+    function GetLocal(Index: Integer): TCodeSectionDeclaration;
   public
+    constructor Create;
+    destructor Destroy; override;
+    function ParameterCount: Integer;
+    function LocalCount: Integer;
     property Name: String read FName;
     property Kind: TCodeSectionRoutineKind read FKind;
     property ResultTypeText: String read FResultTypeText;
     property Prototype: String read FPrototype;
+    property Parameters[Index: Integer]: TCodeSectionDeclaration read GetParameter;
+    property Locals[Index: Integer]: TCodeSectionDeclaration read GetLocal;
     property FirstLine: Integer read FFirstLine;
     property BodyFirstLine: Integer read FBodyFirstLine;
-    property BodyLastLine: Integer read FBodyLastLine;
     property LastLine: Integer read FLastLine;
     property BodilessType: TCodeSectionRoutineBodilessType read FBodilessType;
   end;
@@ -234,13 +257,19 @@ type
     FDeclarationTypeIndex: Integer; { For anonymous interfaces this is the type it is nested in, so not an interface }
     FResultTypeText: String;
     FPrototype: String;
+    FParameters: TObjectList<TCodeSectionDeclaration>;
     FLine: Integer;
+    function GetParameter(Index: Integer): TCodeSectionDeclaration;
   public
+    constructor Create;
+    destructor Destroy; override;
+    function ParameterCount: Integer;
     property Name: String read FName;
     property Kind: TCodeSectionRoutineKind read FKind;
     property DeclarationTypeIndex: Integer read FDeclarationTypeIndex;
     property ResultTypeText: String read FResultTypeText;
     property Prototype: String read FPrototype;
+    property Parameters[Index: Integer]: TCodeSectionDeclaration read GetParameter;
     property Line: Integer read FLine;
   end;
 
@@ -253,18 +282,6 @@ type
   public
     property Name: String read FName;
     property DeclarationTypeIndex: Integer read FDeclarationTypeIndex;
-    property Line: Integer read FLine;
-  end;
-
-  { A user-defined type, constant or global variable }
-  TCodeSectionDeclaration = class
-  private
-    FName: String;
-    FTypeText: String; { Constants: 'String' even for characters, 'Integer' for any width, '' when not inferable }
-    FLine: Integer;
-  public
-    property Name: String read FName;
-    property TypeText: String read FTypeText;
     property Line: Integer read FLine;
   end;
 
@@ -298,7 +315,8 @@ type
     function ConstantCount: Integer;
     function GlobalVariableCount: Integer;
     function TryGetRoutine(const ALine: Integer;
-      out ARoutine: TCodeSectionRoutine): Boolean;
+      out ARoutine: TCodeSectionRoutine;
+      const AFromBodyOnly: Boolean = False): Boolean;
     property Routines[Index: Integer]: TCodeSectionRoutine read GetRoutine;
     property Types[Index: Integer]: TCodeSectionDeclaration read GetType;
     property EnumerationValues[Index: Integer]: TCodeSectionEnumerationValue read GetEnumerationValue;
@@ -1520,6 +1538,69 @@ begin
     Result := Definition.DefaultValue;
 end;
 
+{ TCodeSectionRoutine }
+
+constructor TCodeSectionRoutine.Create;
+begin
+  inherited Create;
+  FParameters := TObjectList<TCodeSectionDeclaration>.Create;
+  FLocals := TObjectList<TCodeSectionDeclaration>.Create;
+end;
+
+destructor TCodeSectionRoutine.Destroy;
+begin
+  FLocals.Free;
+  FParameters.Free;
+  inherited;
+end;
+
+function TCodeSectionRoutine.ParameterCount: Integer;
+begin
+  Result := Integer(FParameters.Count);
+end;
+
+function TCodeSectionRoutine.GetParameter(
+  Index: Integer): TCodeSectionDeclaration;
+begin
+  Result := FParameters[Index];
+end;
+
+function TCodeSectionRoutine.LocalCount: Integer;
+begin
+  Result := Integer(FLocals.Count);
+end;
+
+function TCodeSectionRoutine.GetLocal(
+  Index: Integer): TCodeSectionDeclaration;
+begin
+  Result := FLocals[Index];
+end;
+
+{ TCodeSectionInterfaceMethod }
+
+constructor TCodeSectionInterfaceMethod.Create;
+begin
+  inherited Create;
+  FParameters := TObjectList<TCodeSectionDeclaration>.Create;
+end;
+
+destructor TCodeSectionInterfaceMethod.Destroy;
+begin
+  FParameters.Free;
+  inherited;
+end;
+
+function TCodeSectionInterfaceMethod.ParameterCount: Integer;
+begin
+  Result := Integer(FParameters.Count);
+end;
+
+function TCodeSectionInterfaceMethod.GetParameter(
+  Index: Integer): TCodeSectionDeclaration;
+begin
+  Result := FParameters[Index];
+end;
+
 { TScriptModelCodeSection }
 
 function PrepareCodeSectionText(const ALines: array of String): AnsiString;
@@ -1738,18 +1819,21 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
 
   procedure ParseVarBlock(const AParser: TPSPascalParser;
     const AText: AnsiString; const ALineOffset: Integer;
+    const AVariables: TObjectList<TCodeSectionDeclaration>;
     var ALastTokenID: TPSPasToken;
     const AResumedAfterError: Boolean = False); forward;
 
   function TryParseDeclarationBlock(const AParser: TPSPascalParser;
     const AText: AnsiString; const ALineOffset: Integer;
-    const AVarBlockIsRoutineLocal: Boolean; var ALastTokenID: TPSPasToken;
+    const AVarBlockVariables: TObjectList<TCodeSectionDeclaration>;
+    var ALastTokenID: TPSPasToken;
     out AResumeBlockTokenID: TPSPasToken): Boolean;
   { Parses the block the parser is on, and returns False without moving the
     parser when it is not on a block this keeps declarations from. ROPS has
     no local 'type' or 'const' blocks, so those are always top-level ones.
-    AVarBlockIsRoutineLocal says the 'var' block is a routine's own, whose
-    variables are not kept yet.
+    AVarBlockVariables is the list a 'var' block's variables are added to:
+    a routine's locals when the block sits between its header and its
+    'begin', and the global list otherwise.
     AResumeBlockTokenID is the block's keyword when the block ended on what
     may be a tokenizer error, and CSTI_EOF otherwise. }
   begin
@@ -1759,11 +1843,8 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
     case BlockTokenID of
       CSTII_type: ParseTypeBlock(AParser, AText, ALineOffset, ALastTokenID);
       CSTII_const: ParseConstBlock(AParser, ALineOffset, ALastTokenID);
-      CSTII_var:
-        if AVarBlockIsRoutineLocal then
-          Result := False
-        else
-          ParseVarBlock(AParser, AText, ALineOffset, ALastTokenID);
+      CSTII_var: ParseVarBlock(AParser, AText, ALineOffset, AVarBlockVariables,
+        ALastTokenID);
     else
       Result := False;
     end;
@@ -1772,14 +1853,38 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
   end;
 
   type
+    TParsedParameter = record
+      Name: String;
+      TypeText: String; { '' when untyped }
+      Line: Integer;
+    end;
+
     TParsedRoutineHeader = record
       Name: String;
       Kind: TCodeSectionRoutineKind;
       ResultTypeText: String;
       Prototype: String;
+      Parameters: TArray<TParsedParameter>;
       FirstLine: Integer;
       Terminated: Boolean;
     end;
+
+  procedure AddParsedParameters(const AText: AnsiString;
+    const ANames: TArray<String>; const ANameLines: TArray<Integer>;
+    const ATypeStartPos, ATypeEndPos: Integer;
+    var AParameters: TArray<TParsedParameter>);
+  begin
+    var TypeText := '';
+    if ATypeStartPos >= 0 then
+      TypeText := SliceCleanText(AText, ATypeStartPos, ATypeEndPos);
+    for var I := 0 to High(ANames) do begin
+      var Parameter: TParsedParameter;
+      Parameter.Name := ANames[I];
+      Parameter.TypeText := TypeText;
+      Parameter.Line := ANameLines[I];
+      AParameters := AParameters + [Parameter];
+    end;
+  end;
 
   function ParseRoutineHeader(const AParser: TPSPascalParser;
     const AText: AnsiString; const ALineOffset: Integer;
@@ -1805,16 +1910,26 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
     ALastTokenID := CSTI_Identifier;
     AParser.Next;
 
-    { Parse the rest of the prototype until the terminating ';',
-      remembering the position of a function's result type }
+    { Parse the rest of the prototype until the terminating ';', remembering
+      the position of a function's result type and collecting the parameter
+      list's name groups on the way }
+    var ParameterListSeen := False;
+    var InParameterList := False;
     var BraceDepth := 0;
     var ResultTypeColonSeen := False;
     var ResultTypeStartPos := -1;
     var EndPos := -1;
+    { Next 4 collect the group of names which share one type, as in 'A, B: Integer', reset each time }
+    var ParameterNames: TArray<String> := [];
+    var ParameterNameLines: TArray<Integer> := [];
+    var ParameterColonSeen := False;
+    var ParameterTypeStartPos := -1;
     while AParser.CurrTokenID <> CSTI_EOF do begin
       const PrototypeTokenID = AParser.CurrTokenID;
       if ResultTypeColonSeen and (ResultTypeStartPos < 0) then
         ResultTypeStartPos := Integer(AParser.CurrTokenPos);
+      if ParameterColonSeen and (ParameterTypeStartPos < 0) then
+        ParameterTypeStartPos := Integer(AParser.CurrTokenPos);
       { Unterminated: cut by a new declaration, its own 'begin', the 'end' of
         the interface it is a method of, or a declaration block. 'const' and
         'var' cut only outside parameter lists because they may be parameter
@@ -1825,12 +1940,49 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
          (IsDeclarationBlockStart(PrototypeTokenID) and
           (not IsParameterModifier(PrototypeTokenID) or (BraceDepth = 0))) then
         Break;
-      if PrototypeTokenID = CSTI_OpenRound then
-        Inc(BraceDepth)
-      else if (PrototypeTokenID = CSTI_CloseRound) and (BraceDepth > 0) then
-        Dec(BraceDepth)
-      else if (PrototypeTokenID = CSTI_Colon) and (BraceDepth = 0) then
-        ResultTypeColonSeen := True;
+      if PrototypeTokenID = CSTI_OpenRound then begin
+        Inc(BraceDepth);
+        { The first '(' before the result-type colon starts the parameter list;
+          one after it belongs to a procedural result type }
+        if (BraceDepth = 1) and not ParameterListSeen and
+           not ResultTypeColonSeen then begin
+          ParameterListSeen := True;
+          InParameterList := True;
+        end;
+      end else if (PrototypeTokenID = CSTI_CloseRound) and (BraceDepth > 0) then begin
+        Dec(BraceDepth);
+        if InParameterList and (BraceDepth = 0) then begin
+          { Parameter list done, add final found parameters }
+          AddParsedParameters(AText, ParameterNames, ParameterNameLines,
+            ParameterTypeStartPos, Integer(AParser.CurrTokenPos),
+            AHeader.Parameters);
+          InParameterList := False;
+        end;
+      end else if (PrototypeTokenID = CSTI_Colon) and (BraceDepth = 0) then
+        ResultTypeColonSeen := True
+      else if InParameterList and (BraceDepth = 1) then begin
+        { Collect the group's names until its ':', after which its type runs
+          to the group's ';' or the list's ')'. The 'const', 'var' and 'out'
+          modifiers fall through, keeping them out of name and type. }
+        if PrototypeTokenID = CSTI_Identifier then begin
+          if not ParameterColonSeen then begin
+            ParameterNames := ParameterNames + [UTF8ToString(AParser.OriginalToken)];
+            ParameterNameLines := ParameterNameLines + [ALineOffset + Integer(AParser.Row)-1];
+          end;
+        end else if PrototypeTokenID = CSTI_Colon then
+          ParameterColonSeen := True
+        else if PrototypeTokenID = CSTI_Semicolon then begin
+          { Parameter group done, add found parameters }
+          AddParsedParameters(AText, ParameterNames, ParameterNameLines,
+            ParameterTypeStartPos, Integer(AParser.CurrTokenPos),
+            AHeader.Parameters);
+          { Reset for next group }
+          ParameterNames := [];
+          ParameterNameLines := [];
+          ParameterColonSeen := False;
+          ParameterTypeStartPos := -1;
+        end;
+      end;
       { Known limitation: for a function using an inline structured result type
         such as 'function F: record A: Integer; end;' it takes the first ';'
         as the end of the type, truncating Prototype and ResultTypeText.
@@ -1842,6 +1994,12 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
       AParser.Next;
       if Terminated then
         Break;
+    end;
+    if InParameterList then begin
+      { Header cut inside parameter list, so it could have swallowed a 'var' or
+        'const' block below it, because such a block looks like a parameter
+        group. Keep no parameters at all instead of the ones found. }
+      AHeader.Parameters := [];
     end;
 
     var ResultTypeEndPos: Integer;
@@ -1857,6 +2015,18 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
     if (AHeader.Kind = rkFunction) and (ResultTypeStartPos >= 0) then
       AHeader.ResultTypeText := SliceCleanText(AText, ResultTypeStartPos, ResultTypeEndPos);
     Result := True;
+  end;
+
+  procedure RoutineHeaderParametersToRoutineParameters(const AHeader: TParsedRoutineHeader;
+    const AParameters: TObjectList<TCodeSectionDeclaration>);
+  begin
+    for var HeaderParameter in AHeader.Parameters do begin
+      const Declaration = TCodeSectionDeclaration.Create;
+      AParameters.Add(Declaration);
+      Declaration.FName := HeaderParameter.Name;
+      Declaration.FTypeText := HeaderParameter.TypeText;
+      Declaration.FLine := HeaderParameter.Line;
+    end;
   end;
 
   procedure ParseRoutine(const AParser: TPSPascalParser;
@@ -1878,13 +2048,13 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
       const Routine = TCodeSectionRoutine.Create;
       FRoutines.Add(Routine);
       Routine.FBodyFirstLine := -1;
-      Routine.FBodyLastLine := -1;
       Routine.FLastLine := -1;
       Routine.FName := Header.Name;
       Routine.FKind := Header.Kind;
       Routine.FFirstLine := Header.FirstLine;
       Routine.FPrototype := Header.Prototype;
       Routine.FResultTypeText := Header.ResultTypeText;
+      RoutineHeaderParametersToRoutineParameters(Header, Routine.FParameters);
 
       if Header.Terminated or
          (AParser.CurrTokenID = CSTII_begin) or IsDeclarationBlockStart(AParser.CurrTokenID) then begin { A header cut by its own 'begin' or a declaration block still gets its body searched for and parsed }
@@ -1918,14 +2088,15 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
           Routine.FLastLine := DecorationLastLine
         else begin
           { Search for 'begin'. A block on the way whose declarations are
-            kept is parsed rather than skipped, so they survive a body still
-            being typed. The search goes on past the block either way,
-            because the 'begin' may still follow. }
+            kept is parsed rather than skipped, a 'var' block into the
+            routine's locals, so they survive a body still being typed. The
+            search goes on past the block either way, because the 'begin'
+            may still follow. }
           while (AParser.CurrTokenID <> CSTI_EOF) and
                 (AParser.CurrTokenID <> CSTII_begin) and
                 not IsRoutineHeaderStart(AParser, ALastTokenID) do begin
-            if not TryParseDeclarationBlock(AParser, AText, ALineOffset, True,
-                     ALastTokenID, AResumeBlockTokenID) then begin
+            if not TryParseDeclarationBlock(AParser, AText, ALineOffset,
+                     Routine.FLocals, ALastTokenID, AResumeBlockTokenID) then begin
               ALastTokenID := AParser.CurrTokenID;
               AParser.Next;
             end;
@@ -1945,18 +2116,14 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
                 Inc(BlockDepth)
               else if BodyTokenID = CSTII_end then begin
                 Dec(BlockDepth);
-                if BlockDepth = 0 then begin
-                  Routine.FBodyLastLine := ALineOffset + Integer(AParser.Row)-1;
-                  Routine.FLastLine := Routine.FBodyLastLine;
-                end;
+                if BlockDepth = 0 then
+                  Routine.FLastLine := ALineOffset + Integer(AParser.Row)-1;
               end;
               ALastTokenID := BodyTokenID;
               AParser.Next;
               if BlockDepth = 0 then
                 Break;
             end;
-            if Routine.FBodyLastLine < 0 then
-              Routine.FBodyFirstLine := -1; { No matching 'end' found }
           end;
         end;
       end;
@@ -1971,6 +2138,8 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
           Routine.FLastLine := ALineOffset + Integer(AParser.Row)-2;
           if Routine.FLastLine < Routine.FFirstLine then
             Routine.FLastLine := Routine.FFirstLine;
+          if Routine.FLastLine < Routine.FBodyFirstLine then
+            Routine.FLastLine := Routine.FBodyFirstLine; { A cut on the 'begin' line itself }
         end;
       end;
     end;
@@ -2112,6 +2281,7 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
             Method.FResultTypeText := Header.ResultTypeText;
             Method.FPrototype := Header.Prototype;
             Method.FLine := Header.FirstLine;
+            RoutineHeaderParametersToRoutineParameters(Header, Method.FParameters);
           end;
           Continue;
         end else if IsDeclarationBlockStart(DefinitionTokenID) and
@@ -2307,8 +2477,10 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
 
   procedure ParseVarBlock(const AParser: TPSPascalParser;
     const AText: AnsiString; const ALineOffset: Integer;
+    const AVariables: TObjectList<TCodeSectionDeclaration>;
     var ALastTokenID: TPSPasToken; const AResumedAfterError: Boolean = False);
-  { Parses a var block. Known limitation: an inline structured type such
+  { Parses a var block, adding its variables to AVariables: the global list
+    or a routine's locals. Known limitation: an inline structured type such
     as 'record A: Integer; end;' is not consumed as a whole, so its fields
     become groups of their own. }
   begin
@@ -2396,16 +2568,27 @@ procedure TScriptModelCodeSection.Parse(const ALines: array of String);
           TypeEndPos := Integer(AParser.CurrTokenPos); { Unterminated at the end: keep what is there }
       end;
 
-      { Add one global variable per name, with the group's type }
+      { Add one variable per name, with the group's type }
       for var I := 0 to High(Names) do begin
         const Declaration = TCodeSectionDeclaration.Create;
-        FGlobalVariables.Add(Declaration);
+        AVariables.Add(Declaration);
         Declaration.FName := Names[I];
         Declaration.FLine := NameLines[I];
         if TypeStartPos >= 0 then
           Declaration.FTypeText := SliceCleanText(AText, TypeStartPos, TypeEndPos);
       end;
     end;
+  end;
+
+  function VarBlockVariables(const AOpenRoutine: TCodeSectionRoutine):
+    TObjectList<TCodeSectionDeclaration>;
+  { The list a 'var' block parses into: the open routine's locals while its
+    'begin' is still missing, and the global list otherwise }
+  begin
+    if AOpenRoutine <> nil then
+      Result := AOpenRoutine.FLocals
+    else
+      Result := FGlobalVariables;
   end;
 
 begin
@@ -2460,7 +2643,7 @@ begin
           ParseRoutine(Parser, Text, LineOffset, LastTokenID, OpenRoutine,
             OpenRoutineBeginFound, ResumeBlockTokenID)
         else if not TryParseDeclarationBlock(Parser, Text, LineOffset,
-                    OpenRoutine <> nil, LastTokenID, ResumeBlockTokenID) then begin
+                    VarBlockVariables(OpenRoutine), LastTokenID, ResumeBlockTokenID) then begin
           LastTokenID := TokenID;
           Parser.Next;
         end;
@@ -2480,8 +2663,8 @@ begin
 
         Known limitation: when a tokenizer error cut a routine before its
         'begin', that 'begin' and its 'end' are never taken as the routine's
-        body, so BodyFirstLine and BodyLastLine stay -1. Fixing that would
-        add too much complexity for little gain. }
+        body, so BodyFirstLine stays -1. Fixing that would add too much
+        complexity for little gain. }
 
       { Some other error: keep what was found so far, and search for
         start of the next line }
@@ -2505,7 +2688,8 @@ begin
         case ResumeBlockTokenID of
           CSTII_type: ParseTypeBlock(Parser, Text, LineOffset, LastTokenID, True);
           CSTII_const: ParseConstBlock(Parser, LineOffset, LastTokenID, True);
-          CSTII_var: ParseVarBlock(Parser, Text, LineOffset, LastTokenID, True);
+          CSTII_var: ParseVarBlock(Parser, Text, LineOffset,
+            VarBlockVariables(OpenRoutine), LastTokenID, True);
         end;
         if Parser.CurrTokenID <> CSTI_EOF then
           ResumeBlockTokenID := CSTI_EOF;
@@ -2583,11 +2767,17 @@ begin
 end;
 
 function TScriptModelCodeSection.TryGetRoutine(const ALine: Integer;
-  out ARoutine: TCodeSectionRoutine): Boolean;
+  out ARoutine: TCodeSectionRoutine; const AFromBodyOnly: Boolean): Boolean;
 begin
-  { Multiple routines on one physical line: the first one wins }
+  { Multiple routines on one physical line: the first one wins. AFromBodyOnly
+    matches from the body's 'begin' onwards but still ends at LastLine, so a
+    body missing its 'end' matches to the end of the routine's span }
   for var Routine in FRoutines do begin
-    if (ALine >= Routine.FirstLine) and (ALine <= Routine.LastLine) then begin
+    var MatchFirstLine := Routine.FirstLine;
+    if AFromBodyOnly then
+      MatchFirstLine := Routine.BodyFirstLine;
+    if (MatchFirstLine >= 0) and (ALine >= MatchFirstLine) and
+       (ALine <= Routine.LastLine) then begin
       ARoutine := Routine;
       Exit(True);
     end;

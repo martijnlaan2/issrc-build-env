@@ -163,7 +163,8 @@ type
   public
     destructor Destroy; override;
     function TryGetRoutine(const AMemoLine: Integer;
-      out ARoutine: TCodeSectionRoutine): Boolean;
+      out ARoutine: TCodeSectionRoutine;
+      const AFromBodyOnly: Boolean = False): Boolean;
     property Section: TScriptModelCodeSection read FSection;
   end;
 
@@ -645,10 +646,11 @@ begin
 end;
 
 function TLiveScriptCodeSection.TryGetRoutine(const AMemoLine: Integer;
-  out ARoutine: TCodeSectionRoutine): Boolean;
+  out ARoutine: TCodeSectionRoutine; const AFromBodyOnly: Boolean): Boolean;
 begin
   ARoutine := nil;
-  Result := Valid and FSection.TryGetRoutine(AMemoLine - FFirstLine, ARoutine);
+  Result := Valid and FSection.TryGetRoutine(AMemoLine - FFirstLine, ARoutine,
+    AFromBodyOnly);
 end;
 
 { TLiveScriptObjectFactory }
@@ -1142,7 +1144,7 @@ function CollectParameterValuesFromFactories(
 { Collects the distinct values which are valid for the AParameterName parameter
   from the given factories' script. nil and duplicate factories are skipped.
   Sorts using same sort as autocompletion and Scintilla, so using CompareText.
-  Also see InternalBuildAutoCompleteWordList. }
+  Also see BuildAutoCompleteWordList. }
 
   function FactoryAlreadyProcessed(const AIndex: NativeInt): Boolean;
   begin

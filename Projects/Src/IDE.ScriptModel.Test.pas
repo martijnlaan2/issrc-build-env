@@ -2179,47 +2179,48 @@ begin
   var Definition := TFunctionDefinition.Create(
     'function MsgBox(const Text: String; const Typ: TMsgBoxType; const Buttons: Integer): Integer;');
   Assert(Definition.HeaderKind = hkFunction);
-  Assert(Definition.HasParams);
+  Assert(Definition.HasParameters);
   Assert(Definition.ScriptFuncWithoutHeader =
     'MsgBox(const Text: String; const Typ: TMsgBoxType; const Buttons: Integer): Integer;');
   Definition := TFunctionDefinition.Create('procedure InitializeWizard;');
   Assert(Definition.HeaderKind = hkProcedure);
-  Assert(not Definition.HasParams);
+  Assert(not Definition.HasParameters);
   Definition := TFunctionDefinition.Create('constructor Create(AOwner: TComponent);');
   Assert(Definition.HeaderKind = hkConstructor);
-  Assert(Definition.HasParams);
+  Assert(Definition.HasParameters);
   Definition := TFunctionDefinition.CreateISPP('str GetEnv(str Name)');
   Assert(Definition.HeaderKind = hkISPPStr);
-  Assert(Definition.HasParams);
+  Assert(Definition.HasParameters);
   Assert(Definition.ScriptFuncWithoutHeader = 'GetEnv(str Name)');
   Definition := TFunctionDefinition.CreateISPP('int FindCode');
   Assert(Definition.HeaderKind = hkISPPInt);
-  Assert(not Definition.HasParams);
+  Assert(not Definition.HasParameters);
   Definition := TFunctionDefinition.CreateISPP('void EmitLanguagesSection');
   Assert(Definition.HeaderKind = hkISPPVoid);
-  Assert(not Definition.HasParams);
+  Assert(not Definition.HasParameters);
 
-  { HasParams tests ')', so a header cut short inside its parameter list
-    counts as parameterless and the single-definition rule hides its call tip }
-  Definition := TFunctionDefinition.Create('procedure Foo(');
-  Assert(Definition.ScriptFuncWithoutHeader = 'Foo(');
-  Assert(not Definition.HasParams);
-
-  { CreateUserDefined takes the kind from the caller and separates the header
-    on any whitespace, not just the single space a cleaned prototype has }
-  Definition := TFunctionDefinition.CreateUserDefined('procedure'#9'Foo(const A: Integer);', hkProcedure);
+  { CreateUserDefined takes the kind and the parameter presence from the
+    caller, and separates the header on any whitespace, not just the single
+    space a cleaned prototype has }
+  Definition := TFunctionDefinition.CreateUserDefined('procedure'#9'Foo(const A: Integer);', hkProcedure, True);
   Assert(Definition.HeaderKind = hkProcedure);
   Assert(Definition.ScriptFuncWithoutHeader = 'Foo(const A: Integer);');
-  Assert(Definition.HasParams);
-  Definition := TFunctionDefinition.CreateUserDefined('function  Bar: Boolean;', hkFunction);
+  Assert(Definition.HasParameters);
+  Definition := TFunctionDefinition.CreateUserDefined('function  Bar: Boolean;', hkFunction, False);
   Assert(Definition.HeaderKind = hkFunction);
   Assert(Definition.ScriptFuncWithoutHeader = 'Bar: Boolean;');
-  Assert(not Definition.HasParams);
+  Assert(not Definition.HasParameters);
+
+  { The caller's parameter presence wins over the prototype text, so an empty
+    parameter list still counts as parameterless and the single-definition
+    rule hides its call tip }
+  Definition := TFunctionDefinition.CreateUserDefined('procedure Foo();', hkProcedure, False);
+  Assert(not Definition.HasParameters);
 
   { Only a procedure or a function can be user-defined }
   var CaughtInvalidHeaderKind := False;
   try
-    Definition := TFunctionDefinition.CreateUserDefined('constructor Create;', hkConstructor);
+    Definition := TFunctionDefinition.CreateUserDefined('constructor Create;', hkConstructor, False);
   except
     CaughtInvalidHeaderKind := True;
   end;
@@ -2329,6 +2330,7 @@ begin
   const TypeSeparator: AnsiString = AutoCompleteWordListTypeSeparator;
   const ListSeparator: AnsiString = AutoCompleteWordListSeparator;
   const MemberValueType = AnsiString(IntToStr(awtMemberValue));
+  const ScriptFunctionType = AnsiString(IntToStr(awtScriptFunction));
   Assert(BuildAutoCompleteWordList(['abc', '_x', 'ab', 'Def'], awtMemberValue) =
     'ab' + TypeSeparator + MemberValueType + ListSeparator +
     'abc' + TypeSeparator + MemberValueType + ListSeparator +
@@ -2342,14 +2344,18 @@ begin
     'abc' + TypeSeparator + MemberValueType + ListSeparator +
     'ab' + TypeSeparator + MemberValueType);
 
-  { The TStrings overload takes the words from a string list }
+  { AddAutoCompleteWordToList and the string list overload build a list of
+    words which do not all have the same type }
   const WordsList = TStringList.Create;
   try
-    WordsList.Add('abc');
-    WordsList.Add('ab');
-    Assert(BuildAutoCompleteWordList(WordsList, awtMemberValue) =
+    AddAutoCompleteWordToList(WordsList, 'abc', awtScriptFunction);
+    AddAutoCompleteWordToList(WordsList, 'ab', awtMemberValue);
+    Assert(BuildAutoCompleteWordList(WordsList, False) =
+      'abc' + TypeSeparator + ScriptFunctionType + ListSeparator +
+      'ab' + TypeSeparator + MemberValueType);
+    Assert(BuildAutoCompleteWordList(WordsList) =
       'ab' + TypeSeparator + MemberValueType + ListSeparator +
-      'abc' + TypeSeparator + MemberValueType);
+      'abc' + TypeSeparator + ScriptFunctionType);
   finally
     WordsList.Free;
   end;
@@ -2375,7 +2381,6 @@ begin
 
   { The same word under a different type digit is a different entry, and '1'
     sorting before '3' puts the awtScriptFunction entry first }
-  const ScriptFunctionType = AnsiString(IntToStr(awtScriptFunction));
   Assert(MergeAutoCompleteWordLists(BaseList,
     BuildAutoCompleteWordList(['Beta'], awtScriptFunction)) =
     'Beta' + TypeSeparator + ScriptFunctionType + ListSeparator + BaseList);
@@ -2384,6 +2389,57 @@ begin
   Assert(MergeAutoCompleteWordLists('', BaseList) = BaseList);
   Assert(MergeAutoCompleteWordLists(BaseList, '') = BaseList);
   Assert(MergeAutoCompleteWordLists('', '') = '');
+
+  { MergeScopedAutoCompleteWordLists resolves shadowing instead of deduping:
+    when both lists have entries for a word, only the narrower (second)
+    list's entries for it survive, whatever their types }
+  const ScriptVariableType = AnsiString(IntToStr(awtScriptVariable));
+  const ScriptFunctionParameterType = AnsiString(IntToStr(awtScriptFunctionParameter));
+  const ScriptFunctionVariableType = AnsiString(IntToStr(awtScriptFunctionVariable));
+  const BroaderList = BuildAutoCompleteWordList(['Beta', 'Echo'], awtScriptVariable);
+  Assert(MergeScopedAutoCompleteWordLists(BroaderList,
+    BuildAutoCompleteWordList(['Echo'], awtScriptFunctionParameter)) =
+    'Beta' + TypeSeparator + ScriptVariableType + ListSeparator +
+    'Echo' + TypeSeparator + ScriptFunctionParameterType);
+
+  { Words in one list only merge in sort order, and a word extending another
+    is not a collision }
+  Assert(MergeScopedAutoCompleteWordLists(BroaderList,
+    BuildAutoCompleteWordList(['Alpha', 'Beta2', 'Zulu'], awtScriptFunctionParameter)) =
+    'Alpha' + TypeSeparator + ScriptFunctionParameterType + ListSeparator +
+    'Beta' + TypeSeparator + ScriptVariableType + ListSeparator +
+    'Beta2' + TypeSeparator + ScriptFunctionParameterType + ListSeparator +
+    'Echo' + TypeSeparator + ScriptVariableType + ListSeparator +
+    'Zulu' + TypeSeparator + ScriptFunctionParameterType);
+
+  { A shadowed word's broader entries are all dropped whatever their types,
+    and the narrower list's own multiple entries for it are all kept }
+  const ShadowedList = MergeAutoCompleteWordLists(BroaderList,
+    BuildAutoCompleteWordList(['Beta'], awtScriptFunction));
+  const ScopedWordsList = TStringList.Create;
+  try
+    AddAutoCompleteWordToList(ScopedWordsList, 'Beta', awtScriptFunctionParameter);
+    AddAutoCompleteWordToList(ScopedWordsList, 'Beta', awtScriptFunctionVariable);
+    Assert(MergeScopedAutoCompleteWordLists(ShadowedList,
+      BuildAutoCompleteWordList(ScopedWordsList)) =
+      'Beta' + TypeSeparator + ScriptFunctionParameterType + ListSeparator +
+      'Beta' + TypeSeparator + ScriptFunctionVariableType + ListSeparator +
+      'Echo' + TypeSeparator + ScriptVariableType);
+  finally
+    ScopedWordsList.Free;
+  end;
+
+  { Collisions are case-insensitive, keeping the narrower entry's spelling,
+    and an entry without a type suffix counts as its word alone }
+  Assert(MergeScopedAutoCompleteWordLists(
+    BuildAutoCompleteWordList(['Beta', 'Echo'], -1),
+    BuildAutoCompleteWordList(['BETA'], awtScriptFunctionParameter)) =
+    'BETA' + TypeSeparator + ScriptFunctionParameterType + ListSeparator +
+    'Echo');
+
+  { An empty list returns the other list unchanged }
+  Assert(MergeScopedAutoCompleteWordLists('', BroaderList) = BroaderList);
+  Assert(MergeScopedAutoCompleteWordLists(BroaderList, '') = BroaderList);
 
   { The sections word list, without the sections SectionMap excludes }
   Assert(ListHasEntry(SectionsAutoCompleteWordList, '[Files]', awtSectionName));
@@ -2543,7 +2599,6 @@ begin
     Assert(Section.Routines[0].Prototype = 'function InitializeSetup: Boolean;');
     Assert(Section.Routines[0].ResultTypeText = 'Boolean');
     Assert(Section.Routines[0].BodyFirstLine = 4);
-    Assert(Section.Routines[0].BodyLastLine = 6);
     Assert(Section.Routines[0].LastLine = 6);
     Assert(Section.Routines[0].BodilessType = btNo);
     Assert(Section.Routines[1].Name = 'DoSomething');
@@ -2552,7 +2607,6 @@ begin
     Assert(Section.Routines[1].Prototype = 'procedure DoSomething(const A: Integer);');
     Assert(Section.Routines[1].ResultTypeText = '');
     Assert(Section.Routines[1].BodyFirstLine = 9);
-    Assert(Section.Routines[1].BodyLastLine = 10);
     Assert(Section.Routines[1].LastLine = 10);
 
     { The next Parse replaces the previous items }
@@ -2616,7 +2670,7 @@ begin
       Assert(Section.Routines[0].Name = 'Existing');
       Assert(Section.Routines[0].FirstLine = 1);
       Assert(Section.Routines[0].BodyFirstLine = 2);
-      Assert(Section.Routines[0].BodyLastLine = 3);
+      Assert(Section.Routines[0].LastLine = 3);
     end;
 
     { Also not after ':' inside a parameter list or as a procedural return
@@ -2752,11 +2806,9 @@ begin
     Assert(Section.Routines[0].Prototype = 'function Foo(A: Integer): Boolean');
     Assert(Section.Routines[0].ResultTypeText = 'Boolean');
     Assert(Section.Routines[0].BodyFirstLine = -1);
-    Assert(Section.Routines[0].BodyLastLine = -1);
     Assert(Section.Routines[0].LastLine = 0); { Line before the next declaration }
     Assert(Section.Routines[1].Name = 'Bar');
     Assert(Section.Routines[1].BodyFirstLine = 2);
-    Assert(Section.Routines[1].BodyLastLine = 3);
     Assert(Section.Routines[1].LastLine = 3);
     Section.Parse(['function Typing(A: Integer): Str']);
     Assert(Section.RoutineCount = 1);
@@ -2780,7 +2832,6 @@ begin
     Assert(Section.Routines[0].Prototype = 'function NoSemicolon: Boolean');
     Assert(Section.Routines[0].ResultTypeText = 'Boolean');
     Assert(Section.Routines[0].BodyFirstLine = 1);
-    Assert(Section.Routines[0].BodyLastLine = 3);
     Assert(Section.Routines[0].LastLine = 3);
     Assert(Section.Routines[1].Name = 'After');
     Assert(Section.Routines[1].BodyFirstLine = 5);
@@ -2793,11 +2844,11 @@ begin
     Assert(Section.Routines[0].Prototype = 'procedure NoSemicolon');
     Assert(Section.Routines[0].ResultTypeText = '');
     Assert(Section.Routines[0].BodyFirstLine = 1);
-    Assert(Section.Routines[0].BodyLastLine = 2);
     Assert(Section.Routines[0].LastLine = 2);
 
     { A header missing its ';' is also cut by a declaration block start,
-      possibly its own local blocks, which the 'begin' search then skips }
+      possibly its own local blocks, which the 'begin' search then parses
+      into its locals }
     Section.Parse([
       'function Foo: Boolean',  { 0 }
       'var',                    { 1 }
@@ -2808,8 +2859,9 @@ begin
     Assert(Section.Routines[0].Prototype = 'function Foo: Boolean');
     Assert(Section.Routines[0].ResultTypeText = 'Boolean');
     Assert(Section.Routines[0].BodyFirstLine = 3);
-    Assert(Section.Routines[0].BodyLastLine = 4);
     Assert(Section.Routines[0].LastLine = 4);
+    Assert(Section.Routines[0].LocalCount = 1);
+    Assert(Section.Routines[0].Locals[0].Name = 'X');
 
     { 'var' and 'const' in a parameter list do not cut the header }
     Section.Parse([
@@ -2830,7 +2882,6 @@ begin
     Assert(Section.Routines[0].Prototype =
       'procedure P(A: record X: Integer; end);');
     Assert(Section.Routines[0].BodyFirstLine = 1);
-    Assert(Section.Routines[0].BodyLastLine = 2);
     Assert(Section.Routines[0].LastLine = 2);
 
     { A header left unterminated inside its parameter list is cut by the next
@@ -2852,7 +2903,6 @@ begin
     Assert(Section.Routines[1].Prototype = 'function InitializeSetup: Boolean;');
     Assert(Section.Routines[1].FirstLine = 2);
     Assert(Section.Routines[1].BodyFirstLine = 3);
-    Assert(Section.Routines[1].BodyLastLine = 5);
     Assert(Section.Routines[1].LastLine = 5);
     Section.Parse([
       'procedure X(A: Integer;',  { 0 }
@@ -2884,7 +2934,6 @@ begin
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].Prototype = 'procedure X(');
     Assert(Section.Routines[0].BodyFirstLine = 1);
-    Assert(Section.Routines[0].BodyLastLine = 2);
     Assert(Section.Routines[0].LastLine = 2);
 
     { An open parameter list does not swallow the type block below it:
@@ -2927,7 +2976,8 @@ begin
     Assert(Section.Routines[1].Name = 'Baz');
     Assert(Section.Routines[1].BodyFirstLine = 4);
 
-    { A 'var' block is a local one, so it is still searched through }
+    { A 'var' block is the routine's own, parsed into its locals, and the
+      search for 'begin' goes on past it }
     Section.Parse([
       'procedure Foo;',   { 0 }
       'var',              { 1 }
@@ -2936,7 +2986,10 @@ begin
       'end;']);           { 4 }
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].BodyFirstLine = 3);
-    Assert(Section.Routines[0].BodyLastLine = 4);
+    Assert(Section.Routines[0].LocalCount = 1);
+    Assert(Section.Routines[0].Locals[0].Name = 'A');
+    Assert(Section.GlobalVariableCount = 0);
+    Assert(Section.Routines[0].LastLine = 4);
     Assert(Section.TypeCount = 0);
 
     { A routine whose body is still missing does not swallow the type block
@@ -3049,9 +3102,9 @@ begin
     Assert(Section.Routines[0].Name = 'Current');
     Assert(Section.Routines[0].FirstLine = 2);
 
-    { Body ranges: BodyFirstLine is the 'begin' line, BodyLastLine its
+    { Body ranges: BodyFirstLine is the 'begin' line, and LastLine the
       matching 'end' line found by depth counting: 'begin', 'case' and 'try'
-      nest. LastLine is then BodyLastLine. }
+      nest }
     Section.Parse([
       'procedure Nested(A: Integer);',
       'begin',
@@ -3070,11 +3123,9 @@ begin
       'end;']);
     Assert(Section.RoutineCount = 2);
     Assert(Section.Routines[0].BodyFirstLine = 1);
-    Assert(Section.Routines[0].BodyLastLine = 10);
     Assert(Section.Routines[0].LastLine = 10);
     Assert(Section.Routines[0].BodilessType = btNo);
     Assert(Section.Routines[1].BodyFirstLine = 13);
-    Assert(Section.Routines[1].BodyLastLine = 14);
     Assert(Section.Routines[1].LastLine = 14);
 
     { Bodiless routines: 'forward' and 'external' mean no body. LastLine is
@@ -3093,7 +3144,6 @@ begin
     Assert(Section.Routines[0].Name = 'Later');
     Assert(Section.Routines[0].BodilessType = btForward);
     Assert(Section.Routines[0].BodyFirstLine = -1);
-    Assert(Section.Routines[0].BodyLastLine = -1);
     Assert(Section.Routines[0].LastLine = 0);
     Assert(Section.Routines[0].Prototype = 'procedure Later(A: Integer);');
     Assert(Section.Routines[1].Name = 'GetSysDir');
@@ -3105,7 +3155,6 @@ begin
     Assert(Section.Routines[2].Name = 'Later');
     Assert(Section.Routines[2].BodilessType = btNo);
     Assert(Section.Routines[2].BodyFirstLine = 6);
-    Assert(Section.Routines[2].BodyLastLine = 7);
     Assert(Section.Routines[2].LastLine = 7);
 
     { 'export' says nothing about the body }
@@ -3116,10 +3165,10 @@ begin
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].BodilessType = btNo);
     Assert(Section.Routines[0].BodyFirstLine = 1);
-    Assert(Section.Routines[0].BodyLastLine = 2);
     Assert(Section.Routines[0].LastLine = 2);
 
-    { 'label' and 'var' blocks before the body are skipped }
+    { 'label' and 'var' blocks before the body do not hide it: the 'label'
+      block is skipped and the 'var' block parses into the locals }
     Section.Parse([
       'procedure WithLabel;',
       'label',
@@ -3132,8 +3181,9 @@ begin
       'end;']);
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].BodyFirstLine = 5);
-    Assert(Section.Routines[0].BodyLastLine = 8);
     Assert(Section.Routines[0].LastLine = 8);
+    Assert(Section.Routines[0].LocalCount = 1);
+    Assert(Section.Routines[0].Locals[0].Name = 'A');
 
     { A terminated header with no body yet: the begin search stops at the
       next declaration, or at the section's end }
@@ -3146,14 +3196,12 @@ begin
     Assert(Section.RoutineCount = 2);
     Assert(Section.Routines[0].Name = 'NewProc');
     Assert(Section.Routines[0].BodyFirstLine = -1);
-    Assert(Section.Routines[0].BodyLastLine = -1);
     Assert(Section.Routines[0].LastLine = 1);
     Assert(Section.Routines[0].BodilessType = btNo);
     Assert(Section.Routines[1].Name = 'Existing');
     Section.Parse(['procedure NewProc;', '']);
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].BodyFirstLine = -1);
-    Assert(Section.Routines[0].BodyLastLine = -1);
     Assert(Section.Routines[0].LastLine = 1);
     Assert(Section.Routines[0].BodilessType = btNo);
     Section.Parse(['procedure A; procedure B; begin end;']);
@@ -3162,11 +3210,12 @@ begin
     Assert(Section.Routines[0].LastLine = 0); { Clamped to FirstLine }
     Assert(Section.Routines[1].Name = 'B');
     Assert(Section.Routines[1].BodyFirstLine = 0);
-    Assert(Section.Routines[1].BodyLastLine = 0);
+    Assert(Section.Routines[1].LastLine = 0);
 
-    { An unterminated body gives -1/-1 and a span running to the line before
-      the next declaration, or to the section's last line, so a caret query
-      inside a body still being typed reports the routine }
+    { An unterminated body keeps its 'begin' line and gives a span running
+      to the line before the next declaration, or to the section's last
+      line, so a caret query inside a body still being typed reports the
+      routine }
     Section.Parse([
       'procedure Typing;',
       'begin',
@@ -3177,13 +3226,11 @@ begin
       'end;']);
     Assert(Section.RoutineCount = 2);
     Assert(Section.Routines[0].Name = 'Typing');
-    Assert(Section.Routines[0].BodyFirstLine = -1);
-    Assert(Section.Routines[0].BodyLastLine = -1);
+    Assert(Section.Routines[0].BodyFirstLine = 1);
     Assert(Section.Routines[0].LastLine = 3);
     Assert(Section.Routines[0].BodilessType = btNo);
     Assert(Section.Routines[1].Name = 'Next');
     Assert(Section.Routines[1].BodyFirstLine = 5);
-    Assert(Section.Routines[1].BodyLastLine = 6);
     Assert(Section.Routines[1].LastLine = 6);
     Section.Parse([
       'procedure Typing;',
@@ -3192,13 +3239,12 @@ begin
       '  end;',
       '']);
     Assert(Section.RoutineCount = 1);
-    Assert(Section.Routines[0].BodyFirstLine = -1);
-    Assert(Section.Routines[0].BodyLastLine = -1);
+    Assert(Section.Routines[0].BodyFirstLine = 1);
     Assert(Section.Routines[0].LastLine = 4);
 
-    { A declaration block also ends an unterminated body, so the block is not
-      swallowed as body text: a type block still gets its types, and a
-      record's 'end' inside it does not pose as the body's 'end' }
+    { A declaration block also ends an unterminated body's span, so the
+      block is not swallowed as body text: a type block still gets its types,
+      and a record's 'end' inside it does not pose as the body's 'end' }
     Section.Parse([
       'procedure Typing;',  { 0 }
       'begin',              { 1 }
@@ -3212,8 +3258,7 @@ begin
       '  V: Integer;']);    { 9 }
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].Name = 'Typing');
-    Assert(Section.Routines[0].BodyFirstLine = -1);
-    Assert(Section.Routines[0].BodyLastLine = -1);
+    Assert(Section.Routines[0].BodyFirstLine = 1);
     Assert(Section.Routines[0].LastLine = 3);
     Assert(Section.TypeCount = 1);
     Assert(Section.Types[0].Name = 'TFoo');
@@ -3225,9 +3270,14 @@ begin
       'var',                { 2 }
       '  V: Integer;']);    { 3 }
     Assert(Section.RoutineCount = 1);
-    Assert(Section.Routines[0].BodyFirstLine = -1);
-    Assert(Section.Routines[0].BodyLastLine = -1);
+    Assert(Section.Routines[0].BodyFirstLine = 1);
     Assert(Section.Routines[0].LastLine = 1);
+    Section.Parse([
+      'procedure Typing;',        { 0 }
+      'begin var A: Integer;']);  { 1 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].BodyFirstLine = 1);
+    Assert(Section.Routines[0].LastLine = 1); { Clamped to BodyFirstLine }
 
     { Malformed input never raises: declarations before a tokenize error are
       kept, and the scan resyncs past the error (see TestCodeSectionResync) }
@@ -3331,7 +3381,7 @@ begin
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].Name = 'UseState');
     Assert(Section.Routines[0].FirstLine = 2);
-    Assert(Section.Routines[0].BodyLastLine = 4);
+    Assert(Section.Routines[0].LastLine = 4);
 
     { A routine header also ends an unterminated definition, keeping the type }
     Section.Parse([
@@ -4038,6 +4088,8 @@ begin
     Assert(Section.GlobalVariables[1].Name = 'B');
     Assert(Section.GlobalVariables[1].TypeText = 'Boolean');
     Assert(Section.GlobalVariables[1].Line = 8);
+    Assert(Section.Routines[0].LocalCount = 1);
+    Assert(Section.Routines[0].Locals[0].Name = 'Local');
 
     { A type still being typed is ended by the next group: a name followed
       by ':' or ',' in it is that group's first name }
@@ -4438,6 +4490,309 @@ begin
   end;
 end;
 
+procedure TestCodeSectionParameters;
+begin
+  const Section = TScriptModelCodeSection.Create;
+  try
+    { Parameters of a routine, in source order: modifiers stay out of name
+      and type, a multi-name group splits into one parameter per name, and
+      an untyped 'var' parameter gets an empty type }
+    Section.Parse([
+      'procedure Foo(const A: String; var B, C: Integer; var D; out E: Boolean);', { 0 }
+      'begin',                                                                     { 1 }
+      'end;']);                                                                    { 2 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].ParameterCount = 5);
+    Assert(Section.Routines[0].Parameters[0].Name = 'A');
+    Assert(Section.Routines[0].Parameters[0].TypeText = 'String');
+    Assert(Section.Routines[0].Parameters[0].Line = 0);
+    Assert(Section.Routines[0].Parameters[1].Name = 'B');
+    Assert(Section.Routines[0].Parameters[1].TypeText = 'Integer');
+    Assert(Section.Routines[0].Parameters[2].Name = 'C');
+    Assert(Section.Routines[0].Parameters[2].TypeText = 'Integer');
+    Assert(Section.Routines[0].Parameters[3].Name = 'D');
+    Assert(Section.Routines[0].Parameters[3].TypeText = '');
+    Assert(Section.Routines[0].Parameters[4].Name = 'E');
+    Assert(Section.Routines[0].Parameters[4].TypeText = 'Boolean');
+
+    { A parameterless routine, without and with parentheses }
+    Section.Parse([
+      'procedure NoParams;',              { 0 }
+      'begin',                            { 1 }
+      'end;',                             { 2 }
+      'function EmptyParams(): Boolean;', { 3 }
+      'begin',                            { 4 }
+      'end;']);                           { 5 }
+    Assert(Section.RoutineCount = 2);
+    Assert(Section.Routines[0].ParameterCount = 0);
+    Assert(Section.Routines[1].ParameterCount = 0);
+    Assert(Section.Routines[1].ResultTypeText = 'Boolean');
+
+    { A header spanning physical lines: each parameter reports the line its
+      name sits on }
+    Section.Parse([
+      'function Bar(const A: String;', { 0 }
+      '  var B: Integer): Boolean;',   { 1 }
+      'begin',                         { 2 }
+      'end;']);                        { 3 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].ParameterCount = 2);
+    Assert(Section.Routines[0].Parameters[0].Name = 'A');
+    Assert(Section.Routines[0].Parameters[0].Line = 0);
+    Assert(Section.Routines[0].Parameters[1].Name = 'B');
+    Assert(Section.Routines[0].Parameters[1].Line = 1);
+
+    { A procedural-type parameter: its own parameters stay inside its type
+      instead of joining the routine's }
+    Section.Parse([
+      'procedure Callback(Handler: procedure(A: Integer); const B: String);', { 0 }
+      'begin',                                                                { 1 }
+      'end;']);                                                               { 2 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].ParameterCount = 2);
+    Assert(Section.Routines[0].Parameters[0].Name = 'Handler');
+    Assert(Section.Routines[0].Parameters[0].TypeText = 'procedure(A: Integer)');
+    Assert(Section.Routines[0].Parameters[1].Name = 'B');
+    Assert(Section.Routines[0].Parameters[1].TypeText = 'String');
+
+    { A procedural result type keeps its own parameters out of the routine's:
+      the header's own list can only come before the result-type colon }
+    Section.Parse([
+      'function GetHandler: function(A, B: Integer): Boolean;', { 0 }
+      'begin',                                                  { 1 }
+      'end;']);                                                 { 2 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].ParameterCount = 0);
+
+    { The same with a parameter list of its own before it }
+    Section.Parse([
+      'function Mixed(N: Integer): function(A, B: Integer): Boolean;', { 0 }
+      'begin',                                                         { 1 }
+      'end;']);                                                        { 2 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].ParameterCount = 1);
+    Assert(Section.Routines[0].Parameters[0].Name = 'N');
+    Assert(Section.Routines[0].Parameters[0].TypeText = 'Integer');
+
+    { A parameter list left open takes no parameters: it could have swallowed
+      the text below the header. The routine below it is still kept. }
+    Section.Parse([
+      'procedure Typing(A: Integer; B', { 0 }
+      'procedure P;',                   { 1 }
+      'begin',                          { 2 }
+      'end;']);                         { 3 }
+    Assert(Section.RoutineCount = 2);
+    Assert(Section.Routines[0].ParameterCount = 0);
+    Assert(Section.Routines[1].Name = 'P');
+
+    { The same at the end of the section }
+    Section.Parse(['procedure Typing2(A: Integer']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].ParameterCount = 0);
+
+    { A 'var' block below an open list is shaped like a parameter group, so
+      keeping the parameters found would take its variables for parameters }
+    Section.Parse([
+      'function InitializeSetup(: Boolean;', { 0 }
+      'var',                                 { 1 }
+      '  X: Integer;',                       { 2 }
+      'begin',                               { 3 }
+      'end;']);                              { 4 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].Name = 'InitializeSetup');
+    Assert(Section.Routines[0].ParameterCount = 0);
+
+    { A closed list does keep its parameters, also when the header itself is
+      left unterminated }
+    Section.Parse([
+      'procedure Closed(A: Integer)', { 0 }
+      'begin',                        { 1 }
+      'end;']);                       { 2 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].ParameterCount = 1);
+    Assert(Section.Routines[0].Parameters[0].Name = 'A');
+    Assert(Section.Routines[0].Parameters[0].TypeText = 'Integer');
+
+    { Parameters of interface methods, following the same rules, with a
+      parameterless method written both without and with parentheses }
+    Section.Parse([
+      'type',                                       { 0 }
+      '  IFoo = interface',                         { 1 }
+      '    procedure M1(const A: String; var B);',  { 2 }
+      '    function M2(X, Y: Integer): Boolean;',   { 3 }
+      '    procedure M3;',                          { 4 }
+      '    procedure M4();',                        { 5 }
+      '  end;']);                                   { 6 }
+    Assert(Section.InterfaceMethodCount = 4);
+    Assert(Section.InterfaceMethods[0].ParameterCount = 2);
+    Assert(Section.InterfaceMethods[0].Parameters[0].Name = 'A');
+    Assert(Section.InterfaceMethods[0].Parameters[0].TypeText = 'String');
+    Assert(Section.InterfaceMethods[0].Parameters[0].Line = 2);
+    Assert(Section.InterfaceMethods[0].Parameters[1].Name = 'B');
+    Assert(Section.InterfaceMethods[0].Parameters[1].TypeText = '');
+    Assert(Section.InterfaceMethods[1].ParameterCount = 2);
+    Assert(Section.InterfaceMethods[1].Parameters[0].Name = 'X');
+    Assert(Section.InterfaceMethods[1].Parameters[0].TypeText = 'Integer');
+    Assert(Section.InterfaceMethods[1].Parameters[1].Name = 'Y');
+    Assert(Section.InterfaceMethods[1].Parameters[1].TypeText = 'Integer');
+    Assert(Section.InterfaceMethods[1].Parameters[1].Line = 3);
+    Assert(Section.InterfaceMethods[2].ParameterCount = 0);
+    Assert(Section.InterfaceMethods[3].ParameterCount = 0);
+
+    { A method's procedural result type keeps its parameters out too }
+    Section.Parse([
+      'type',                                                     { 0 }
+      '  IFoo = interface',                                       { 1 }
+      '    function GetHandler: function(A: Integer): Boolean;',  { 2 }
+      '  end;']);                                                 { 3 }
+    Assert(Section.InterfaceMethodCount = 1);
+    Assert(Section.InterfaceMethods[0].ParameterCount = 0);
+  finally
+    Section.Free;
+  end;
+end;
+
+procedure TestCodeSectionLocals;
+begin
+  const Section = TScriptModelCodeSection.Create;
+  try
+    { 'var' blocks between a routine's header and its 'begin' are the
+      routine's locals, following the global variable rules: one item per
+      name with the type as written, multi-name groups split }
+    Section.Parse([
+      'procedure Foo;',    { 0 }
+      'var',               { 1 }
+      '  A: Integer;',     { 2 }
+      '  B, C: String;',   { 3 }
+      'begin',             { 4 }
+      'end;']);            { 5 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.GlobalVariableCount = 0);
+    Assert(Section.Routines[0].LocalCount = 3);
+    Assert(Section.Routines[0].Locals[0].Name = 'A');
+    Assert(Section.Routines[0].Locals[0].TypeText = 'Integer');
+    Assert(Section.Routines[0].Locals[0].Line = 2);
+    Assert(Section.Routines[0].Locals[1].Name = 'B');
+    Assert(Section.Routines[0].Locals[1].TypeText = 'String');
+    Assert(Section.Routines[0].Locals[1].Line = 3);
+    Assert(Section.Routines[0].Locals[2].Name = 'C');
+    Assert(Section.Routines[0].Locals[2].TypeText = 'String');
+    Assert(Section.Routines[0].Locals[2].Line = 3);
+    Assert(Section.Routines[0].BodyFirstLine = 4);
+
+    { The next Parse replaces the previous items }
+    Section.Parse(['procedure Foo;', 'var', '  X: Integer;', 'begin', 'end;']);
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].LocalCount = 1);
+    Section.Parse([]);
+    Assert(Section.RoutineCount = 0);
+
+    { Several blocks all fill the same routine's list, and a 'label' block
+      between them is skipped }
+    Section.Parse([
+      'function Bar: Boolean;', { 0 }
+      'var',                    { 1 }
+      '  A: Integer;',          { 2 }
+      'label',                  { 3 }
+      '  Skip;',                { 4 }
+      'var',                    { 5 }
+      '  B: String;',           { 6 }
+      'begin',                  { 7 }
+      'end;']);                 { 8 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.GlobalVariableCount = 0);
+    Assert(Section.Routines[0].LocalCount = 2);
+    Assert(Section.Routines[0].Locals[0].Name = 'A');
+    Assert(Section.Routines[0].Locals[0].TypeText = 'Integer');
+    Assert(Section.Routines[0].Locals[0].Line = 2);
+    Assert(Section.Routines[0].Locals[1].Name = 'B');
+    Assert(Section.Routines[0].Locals[1].TypeText = 'String');
+    Assert(Section.Routines[0].Locals[1].Line = 6);
+    Assert(Section.Routines[0].BodyFirstLine = 7);
+
+    { Locals leak neither into the global list nor across routines }
+    Section.Parse([
+      'var',               { 0 }
+      '  G1: Integer;',    { 1 }
+      'procedure P1;',     { 2 }
+      'var',               { 3 }
+      '  L1: String;',     { 4 }
+      'begin',             { 5 }
+      'end;',              { 6 }
+      'procedure P2;',     { 7 }
+      'var',               { 8 }
+      '  L2: Boolean;',    { 9 }
+      'begin',             { 10 }
+      'end;',              { 11 }
+      'var',               { 12 }
+      '  G2: Integer;']);  { 13 }
+    Assert(Section.RoutineCount = 2);
+    Assert(Section.GlobalVariableCount = 2);
+    Assert(Section.GlobalVariables[0].Name = 'G1');
+    Assert(Section.GlobalVariables[1].Name = 'G2');
+    Assert(Section.Routines[0].LocalCount = 1);
+    Assert(Section.Routines[0].Locals[0].Name = 'L1');
+    Assert(Section.Routines[0].Locals[0].TypeText = 'String');
+    Assert(Section.Routines[0].Locals[0].Line = 4);
+    Assert(Section.Routines[1].LocalCount = 1);
+    Assert(Section.Routines[1].Locals[0].Name = 'L2');
+    Assert(Section.Routines[1].Locals[0].TypeText = 'Boolean');
+    Assert(Section.Routines[1].Locals[0].Line = 9);
+
+    { A block of a routine whose 'begin' is still missing keeps its locals }
+    Section.Parse([
+      'procedure Typing;',  { 0 }
+      'var',                { 1 }
+      '  A: Integer;']);    { 2 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.Routines[0].BodyFirstLine = -1);
+    Assert(Section.Routines[0].LocalCount = 1);
+    Assert(Section.Routines[0].Locals[0].Name = 'A');
+    Assert(Section.GlobalVariableCount = 0);
+
+    { A group still being typed does not swallow the routine below, which
+      keeps its own empty list }
+    Section.Parse([
+      'procedure P;',   { 0 }
+      'var',            { 1 }
+      '  X: Intege',    { 2 }
+      'procedure Q;',   { 3 }
+      'begin',          { 4 }
+      'end;']);         { 5 }
+    Assert(Section.RoutineCount = 2);
+    Assert(Section.Routines[0].LocalCount = 1);
+    Assert(Section.Routines[0].Locals[0].Name = 'X');
+    Assert(Section.Routines[0].Locals[0].TypeText = 'Intege');
+    Assert(Section.Routines[1].Name = 'Q');
+    Assert(Section.Routines[1].BodyFirstLine = 4);
+    Assert(Section.Routines[1].LocalCount = 0);
+    Assert(Section.GlobalVariableCount = 0);
+
+    { A tokenizer error inside a local block resumes it after the resync,
+      still into the same routine's locals (also see TestCodeSectionResync) }
+    Section.Parse([
+      'procedure P;',           { 0 }
+      'var',                    { 1 }
+      '  Bad: ''unterminated',  { 2 }
+      '  Kept: Integer;',       { 3 }
+      'begin',                  { 4 }
+      'end;']);                 { 5 }
+    Assert(Section.RoutineCount = 1);
+    Assert(Section.GlobalVariableCount = 0);
+    Assert(Section.Routines[0].LocalCount = 2);
+    Assert(Section.Routines[0].Locals[0].Name = 'Bad');
+    Assert(Section.Routines[0].Locals[0].TypeText = '');
+    Assert(Section.Routines[0].Locals[0].Line = 2);
+    Assert(Section.Routines[0].Locals[1].Name = 'Kept');
+    Assert(Section.Routines[0].Locals[1].TypeText = 'Integer');
+    Assert(Section.Routines[0].Locals[1].Line = 3);
+    Assert(Section.Routines[0].BodyFirstLine = -1);
+    Assert(Section.Routines[0].LastLine = 5);
+  finally
+    Section.Free;
+  end;
+end;
+
 procedure TestCodeSectionRoutineAtLine;
 begin
   const Section = TScriptModelCodeSection.Create;
@@ -4521,6 +4876,51 @@ begin
     Assert(Section.RoutineCount = 2);
     Assert(Section.TryGetRoutine(0, Routine));
     Assert(Routine = Section.Routines[0]);
+    Assert(Section.TryGetRoutine(0, Routine, True)); { A has no 'begin' }
+    Assert(Routine = Section.Routines[1]);
+
+    { TryGetRoutine with AFromBodyOnly matches from the body's 'begin'
+      onwards: not the header, not the local declarations, not a bodiless
+      routine, and not the lines between routines. A body missing its 'end'
+      matches to the end of the routine's span. }
+    Section.Parse([
+      'procedure Bodiless(A: Integer); forward;',   { 0 }
+      '',                                           { 1 }
+      'function Closed(const A: String): Boolean;', { 2 }
+      'var',                                        { 3 }
+      '  L: Integer;',                              { 4 }
+      'begin',                                      { 5 }
+      '  Result := True;',                          { 6 }
+      'end;',                                       { 7 }
+      '',                                           { 8 }
+      'procedure Typing;',                          { 9 }
+      'begin',                                      { 10 }
+      '  X := 1;',                                  { 11 }
+      '']);                                         { 12 }
+    Assert(Section.RoutineCount = 3);
+    Assert(not Section.TryGetRoutine(0, Routine, True)); { Bodiless }
+    Assert(Routine = nil);
+    Assert(not Section.TryGetRoutine(1, Routine, True)); { Between routines }
+    Assert(not Section.TryGetRoutine(2, Routine, True)); { Header }
+    Assert(not Section.TryGetRoutine(3, Routine, True)); { Local 'var' block }
+    Assert(not Section.TryGetRoutine(4, Routine, True));
+    Assert(Section.TryGetRoutine(5, Routine, True)); { The 'begin' line }
+    Assert(Routine = Section.Routines[1]);
+    Assert(Section.TryGetRoutine(6, Routine, True));
+    Assert(Routine = Section.Routines[1]);
+    Assert(Section.TryGetRoutine(7, Routine, True)); { The 'end;' line }
+    Assert(Routine = Section.Routines[1]);
+    Assert(not Section.TryGetRoutine(8, Routine, True)); { Between routines }
+    Assert(not Section.TryGetRoutine(9, Routine, True)); { Header of an open body }
+    Assert(Section.TryGetRoutine(10, Routine, True)); { The open body's 'begin' }
+    Assert(Routine = Section.Routines[2]);
+    Assert(Section.TryGetRoutine(11, Routine, True));
+    Assert(Routine = Section.Routines[2]);
+    Assert(Section.TryGetRoutine(12, Routine, True)); { To the span's end }
+    Assert(Routine = Section.Routines[2]);
+    Section.Parse(['procedure Foo;', 'begin var A: Integer;']);
+    Assert(Section.TryGetRoutine(1, Routine, True)); { A cut on the 'begin' line itself still matches it }
+    Assert(Routine = Section.Routines[0]);
   finally
     Section.Free;
   end;
@@ -4548,11 +4948,11 @@ begin
     Assert(Section.Routines[1].FirstLine = 4);
     Assert(Section.Routines[1].Prototype = 'procedure After;');
     Assert(Section.Routines[1].BodyFirstLine = 5);
-    Assert(Section.Routines[1].BodyLastLine = 6);
     Assert(Section.Routines[1].LastLine = 6);
 
-    { An error inside a body: the routine keeps -1/-1 and its span ends on
-      the line before the next declaration found after the resync }
+    { An error inside a body: the routine keeps its 'begin' line and its
+      span ends on the line before the next declaration found after the
+      resync }
     Section.Parse([
       'procedure Typing;',      { 0 }
       'begin',                  { 1 }
@@ -4564,8 +4964,7 @@ begin
       'end;']);                 { 7 }
     Assert(Section.RoutineCount = 2);
     Assert(Section.Routines[0].Name = 'Typing');
-    Assert(Section.Routines[0].BodyFirstLine = -1);
-    Assert(Section.Routines[0].BodyLastLine = -1);
+    Assert(Section.Routines[0].BodyFirstLine = 1);
     Assert(Section.Routines[0].LastLine = 4);
     Assert(Section.Routines[1].Name = 'After');
     Assert(Section.Routines[1].FirstLine = 5);
@@ -4585,8 +4984,7 @@ begin
       '  TAfter = Integer;']);  { 4 }
     Assert(Section.RoutineCount = 1);
     Assert(Section.Routines[0].Name = 'Typing');
-    Assert(Section.Routines[0].BodyFirstLine = -1);
-    Assert(Section.Routines[0].BodyLastLine = -1);
+    Assert(Section.Routines[0].BodyFirstLine = 1);
     Assert(Section.Routines[0].LastLine = 2);
     Assert(Section.TypeCount = 1);
     Assert(Section.Types[0].Name = 'TAfter');
@@ -4620,8 +5018,8 @@ begin
 
     { But when the error hit before the routine's 'begin', the span stays
       open whatever block follows: the 'begin' may still follow it. A 'var'
-      block can be the routine's own local block, so it is not parsed as a
-      top-level one, while a 'const' or 'type' block always is. }
+      block can be the routine's own local block, so it is parsed into its
+      locals, while a 'const' or 'type' block is always a top-level one. }
     Section.Parse([
       'procedure Typing;',     { 0 }
       'const',                 { 1 }
@@ -4636,6 +5034,10 @@ begin
     Assert(Section.Constants[0].Name = 'C');
     Assert(Section.Constants[0].TypeText = '');
     Assert(Section.GlobalVariableCount = 0);
+    Assert(Section.Routines[0].LocalCount = 1);
+    Assert(Section.Routines[0].Locals[0].Name = 'X');
+    Assert(Section.Routines[0].Locals[0].TypeText = 'Integer');
+    Assert(Section.Routines[0].Locals[0].Line = 4);
     Assert(Section.TryGetRoutine(5, Routine));
     Assert(Routine = Section.Routines[0]);
     Section.Parse([
@@ -4721,8 +5123,7 @@ begin
       '  X := 1;',              { 3 }
       '']);                     { 4 }
     Assert(Section.RoutineCount = 1);
-    Assert(Section.Routines[0].BodyFirstLine = -1);
-    Assert(Section.Routines[0].BodyLastLine = -1);
+    Assert(Section.Routines[0].BodyFirstLine = 1);
     Assert(Section.Routines[0].LastLine = 4);
 
     { An unterminated header cut by an error keeps the text up to the cut }
@@ -4928,6 +5329,8 @@ begin
   TestCodeSectionConstants;
   TestCodeSectionGlobalVariables;
   TestCodeSectionInterfaceMethods;
+  TestCodeSectionParameters;
+  TestCodeSectionLocals;
   TestCodeSectionRoutineAtLine;
   TestCodeSectionResync;
   {$IFDEF ISTESTTOOLPROJ}

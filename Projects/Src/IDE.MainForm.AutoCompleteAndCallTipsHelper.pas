@@ -440,18 +440,56 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
     if not _TryAcquireAndHoldCodeSectionAtLine(AMemo, Line) then
       Exit;
 
-    const Names = CreateSortedCaseInsensitiveStringList;
+    const Words = CreateSortedCaseInsensitiveStringList;
     try
       const Section = FAutoCompleteAndCallTipsLiveCodeSection.Section;
       if ClassMember then begin
         for var I := 0 to Section.InterfaceMethodCount-1 do
-          Names.Add(Section.InterfaceMethods[I].Name)
-      end else
+          AddAutoCompleteWordToList(Words,
+            AnsiString(Section.InterfaceMethods[I].Name), awtScriptFunction);
+      end else begin
         for var I := 0 to Section.RoutineCount-1 do
-          Names.Add(Section.Routines[I].Name);
-      Result := BuildAutoCompleteWordList(Names, awtScriptFunction);
+          AddAutoCompleteWordToList(Words,
+            AnsiString(Section.Routines[I].Name), awtScriptFunction);
+        for var I := 0 to Section.TypeCount-1 do begin
+          const Declaration = Section.Types[I];
+          AddAutoCompleteWordToList(Words, AnsiString(Declaration.Name),
+            IfThen(Declaration.TypeText = 'interface', awtScriptInterface, awtScriptType));
+        end;
+        for var I := 0 to Section.EnumerationValueCount-1 do
+          AddAutoCompleteWordToList(Words,
+            AnsiString(Section.EnumerationValues[I].Name), awtScriptEnumValue);
+        for var I := 0 to Section.ConstantCount-1 do
+          AddAutoCompleteWordToList(Words,
+            AnsiString(Section.Constants[I].Name), awtScriptConstant);
+        for var I := 0 to Section.GlobalVariableCount-1 do
+          AddAutoCompleteWordToList(Words,
+            AnsiString(Section.GlobalVariables[I].Name), awtScriptVariable);
+      end;
+      Result := BuildAutoCompleteWordList(Words, False);
     finally
-      Names.Free;
+      Words.Free;
+    end;
+
+    var Routine: TCodeSectionRoutine;
+    if not ClassMember and
+       FAutoCompleteAndCallTipsLiveCodeSection.TryGetRoutine(Line, Routine, True) then begin
+      const RoutineWords = CreateSortedCaseInsensitiveStringList;
+      try
+        for var I := 0 to Routine.ParameterCount-1 do
+          AddAutoCompleteWordToList(RoutineWords,
+            AnsiString(Routine.Parameters[I].Name), awtScriptFunctionParameter);
+        for var I := 0 to Routine.LocalCount-1 do
+          AddAutoCompleteWordToList(RoutineWords,
+            AnsiString(Routine.Locals[I].Name), awtScriptFunctionVariable);
+        if Routine.Kind = rkFunction then
+          AddAutoCompleteWordToList(RoutineWords, 'Result', awtScriptFunctionVariable);
+        { RoutineWords (locals) shadows Result (globals) }
+        Result := MergeScopedAutoCompleteWordLists(Result,
+          BuildAutoCompleteWordList(RoutineWords, False));
+      finally
+        RoutineWords.Free;
+      end;
     end;
   end;
 
@@ -498,7 +536,7 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
 
     { If no event function was found then autocomplete script functions,
       types, etc, or class members if the current word has a dot before it,
-      merging in the current section's own routines or interface methods }
+      merging in the current section's own functions, types, etc. }
     if WordList = '' then begin
       var ClassOrRecordMember := False;
       if (PositionBeforeWordStartPos >= LinePos) and (AMemo.GetByteAtPosition(PositionBeforeWordStartPos) = '.') then begin
@@ -506,8 +544,16 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
           Exit;
         ClassOrRecordMember := True;
       end;
-      WordList := MergeAutoCompleteWordLists(GetScriptAutoCompleteWordList(ClassOrRecordMember),
-        BuildUserDefinedWordList(AMemo.GetLineFromPosition(LinePos), ClassOrRecordMember));
+      const UserDefinedWordList = BuildUserDefinedWordList(
+        AMemo.GetLineFromPosition(LinePos), ClassOrRecordMember);
+      if ClassOrRecordMember then
+        WordList := MergeAutoCompleteWordLists(
+          GetScriptAutoCompleteWordList(True), UserDefinedWordList)
+      else begin
+        { UserDefinedWordList (globals shadowed by locals) shadows GetScriptAutoCompleteWordList (built-ins) }
+        WordList := MergeScopedAutoCompleteWordLists(
+          GetScriptAutoCompleteWordList(False), UserDefinedWordList);
+      end;
     end;
 
     if WordList = '' then
@@ -715,7 +761,8 @@ function TMainFormAutoCompleteAndCallTipsHelper.BuildUserDefinedFunctionDefiniti
   end;
 
   procedure AddDefinition(const Prototypes: TStringList; const Name: String;
-    const Kind: TCodeSectionRoutineKind; const Prototype: String);
+    const Kind: TCodeSectionRoutineKind; const Prototype: String;
+    const HasParameters: Boolean);
   begin
     if not IsAsciiString(Prototype) or (Prototypes.IndexOf(Prototype) >= 0) then
       Exit;
@@ -728,7 +775,7 @@ function TMainFormAutoCompleteAndCallTipsHelper.BuildUserDefinedFunctionDefiniti
     var UserDefinedFunctionDefinition: TFunctionDefinitionWithName;
     UserDefinedFunctionDefinition.Name := Name;
     UserDefinedFunctionDefinition.Definition :=
-      TFunctionDefinition.CreateUserDefined(Prototype, HeaderKind);
+      TFunctionDefinition.CreateUserDefined(Prototype, HeaderKind, HasParameters);
     Result := Result + [UserDefinedFunctionDefinition];
   end;
 
@@ -743,12 +790,14 @@ begin
     if AClassMember then begin
       for var I := 0 to Section.InterfaceMethodCount-1 do begin
         const Method = Section.InterfaceMethods[I];
-        AddDefinition(Prototypes, Method.Name, Method.Kind, Method.Prototype);
+        AddDefinition(Prototypes, Method.Name, Method.Kind, Method.Prototype,
+          Method.ParameterCount > 0);
       end;
     end else begin
       for var I := 0 to Section.RoutineCount-1 do begin
         const Routine = Section.Routines[I];
-        AddDefinition(Prototypes, Routine.Name, Routine.Kind, Routine.Prototype);
+        AddDefinition(Prototypes, Routine.Name, Routine.Kind, Routine.Prototype,
+          Routine.ParameterCount > 0);
       end;
     end;
   finally
@@ -775,7 +824,7 @@ begin
       FCallTipState.ClassOrRecordMember);
     FunctionDefinition := GetScriptFunctionDefinition(FCallTipState.ClassOrRecordMember, CurrentCallTipWord, FCallTipState.CurrentCallTip, UserDefined, FCallTipState.MaxCallTips);
   end;
-  if ((FCallTipState.MaxCallTips = 1) and FunctionDefinition.HasParams) or //if there's a single definition then only show if it has a parameter
+  if ((FCallTipState.MaxCallTips = 1) and FunctionDefinition.HasParameters) or //if there's a single definition then only show if it has a parameter
      (FCallTipState.MaxCallTips > 1) then begin                            //if there's multiple then show always just like MemoHintShow, so even the one without parameters if it exists
     FCallTipState.FunctionDefinition := FunctionDefinition.ScriptFuncWithoutHeader;
     if FCallTipState.MaxCallTips > 1 then
