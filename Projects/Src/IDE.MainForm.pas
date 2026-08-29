@@ -234,7 +234,7 @@ type
     OutputTabSet: TNewTabSet;
     DebugOutputList: TListBox;
     VDebugOutput: TMenuItem;
-    VHide: TMenuItem;
+    VHideStatusPanel: TMenuItem;
     N11: TMenuItem;
     TMenu: TMenuItem;
     TAddRemovePrograms: TMenuItem;
@@ -426,7 +426,7 @@ type
     procedure DebugOutputListDrawItem(Control: TWinControl; Index: Integer;
       Rect: TRect; State: TOwnerDrawState);
     procedure OutputTabSetClick(Sender: TObject);
-    procedure VHideClick(Sender: TObject);
+    procedure VHideStatusPanelClick(Sender: TObject);
     procedure VDebugOutputClick(Sender: TObject);
     procedure FormResize(Sender: TObject);
     procedure TAddRemoveProgramsClick(Sender: TObject);
@@ -775,6 +775,7 @@ var
   CommandLineWizard: Boolean;
   CommandLineLanguage: TIDELanguage;
   CommandLineLanguageSet: Boolean;
+  CommandLineNoRecentlyOpened: Boolean;
 
 implementation
 
@@ -1066,6 +1067,7 @@ constructor TMainForm.Create(AOwner: TComponent);
           LANG_DUTCH: MessageLanguage := ilDutch;
           LANG_GERMAN: MessageLanguage := ilGerman;
           LANG_JAPANESE: MessageLanguage := ilJapanese;
+          LANG_FRENCH: MessageLanguage := ilFrench;
         end;
         if MessageLanguage <> ilEnglish then
           CheckUpdatePanelMessage(Ini, 'Language', 0, 1,
@@ -3572,7 +3574,7 @@ begin
   FocusNavigator(Sender = VNavigatorFocusAndSelect);
 end;
 
-procedure TMainForm.VHideClick(Sender: TObject);
+procedure TMainForm.VHideStatusPanelClick(Sender: TObject);
 begin
   SetStatusPanelVisible(False);
 end;
