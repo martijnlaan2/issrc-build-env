@@ -20,9 +20,9 @@ uses
 
 type
   TInspectorRowKind = (rkParameter, rkParameterFlag, rkKey,
-    rkKeyFlag {$IFDEF DEBUG}, rkDebugStatus, rkDebugParseTime,
+    rkKeyFlag, rkCode {$IFDEF DEBUG}, rkDebugStatus, rkDebugParseTime,
     rkDebugSections, rkDebugEarlyExits,
-    rkDebugCaretAt, rkDebugCaretRoutine, rkCode {$ENDIF});
+    rkDebugCaretAt, rkDebugCaretRoutine {$ENDIF});
 
   { Kinds sharing a declaration must stay together: RowGetAsString looks
     them up by range }
@@ -67,11 +67,12 @@ type
     CheckBox: Boolean;
   end;
 
-  TCaretAtKind = (cakParameterSectionEntry, cakKeyValueSection);
+  TCaretAtKind = (cakParameterSectionEntry, cakKeyValueSection, cakCodeSection);
 
   TCaretAt = record
     Valid: Boolean;
     Kind: TCaretAtKind;
+    CodeKind: TInspectorRowCodeKind; { cakCodeSection: the kind, other: ckNone }
     Name: String;   { Protects against a stale Index. As in the script, so not cleaned. }
     Index: Integer; { Protects against duplicated Name. -1 if multi-entry editing. }
   end;
@@ -104,6 +105,8 @@ type
       FLiveKeyValueSectionIsDirectiveSection: Boolean;
       FLiveKeyValueSectionHasSiblingOccurrences: Boolean;
       FLiveKeyValueSectionIndex: Integer; { Factory section index it was created for }
+      FLiveCodeSection: TLiveScriptCodeSection;
+      FLiveCodeSectionIndex: Integer; { Factory section index it was acquired for }
       FChangeCountAtCreation: Int64; { Factory ChangeCount at the live object's creation }
       FSelectionLineRangesAtCreation: TArray<TScintLineRange>; { GetSelectionLineRanges result at the live object's creation }
       FIndividualSelectionLineRangesAtCreation: TArray<TScintLineRange>; { Same but the individual line ranges }
@@ -116,8 +119,6 @@ type
       {$IFDEF DEBUG}
       FDebugStatusRowString: String;
       FDebugCaretRoutineRowString: String;
-      FLiveCodeSection: TLiveScriptCodeSection;
-      FLiveCodeSectionIndex: Integer; { Factory section index it was created for }
       FUpdateFromCaretEarlyExitCount: Integer;
       {$ENDIF}
       FInEdit: Boolean;
@@ -306,9 +307,7 @@ begin
   FJvInspector.Free;
   FLiveParameterSectionEntries.Free;
   FLiveKeyValueSection.Free;
-  {$IFDEF DEBUG}
   TLiveScriptObjectFactory.ReleaseAndNil(FLiveCodeSection);
-  {$ENDIF}
   FRows.Free;
   if FMessagesWnd <> 0 then
     DeallocateHWnd(FMessagesWnd);
@@ -330,8 +329,8 @@ procedure TInspector.UpdateNote;
   end;
 
 begin
-  if (FLiveParameterSectionEntries = nil) and (FLiveKeyValueSection = nil)
-     {$IFDEF DEBUG} and (FLiveCodeSection = nil) {$ENDIF} then begin
+  if (FLiveParameterSectionEntries = nil) and (FLiveKeyValueSection = nil) and
+     ((FLiveCodeSection = nil) or FLiveCodeSection.Section.Empty) then begin
     if FMixedSelection then
       ShowNote(LFmtMessage(SInspectorMixedSelectionNote))
     else
@@ -341,9 +340,13 @@ begin
       ShowNote(LFmtMessage(SInspectorSiblingOccurrencesNote))
     else if FShowAllKnownDirectivesSuppressedNote then
       ShowNote(LFmtMessage(SInspectorShowAllKnownDirectivesSuppressedNote))
+    else if FLiveKeyValueSection.Section.Empty and not FShowAllKnownDirectives then 
+      ShowNote(LFmtMessage(SInspectorNothingToInspectNote))
     else
       HideNote;
-  end else
+  end else if (FLiveKeyValueSection <> nil) and FLiveKeyValueSection.Section.Empty then
+    ShowNote(LFmtMessage(SInspectorNothingToInspectNote))
+  else
     HideNote;
 end;
 
@@ -1337,7 +1340,6 @@ procedure TInspector.UpdateFromCaret;
     end;
   end;
 
-  {$IFDEF DEBUG}
   function AddCodeRow(const AParent: TJvCustomInspectorItem;
     const ADisplayName: String; const ACodeKind: TInspectorRowCodeKind;
     const AIndex: Integer;
@@ -1387,6 +1389,11 @@ procedure TInspector.UpdateFromCaret;
     end;
   end;
 
+  function AnonymousInterfaceRowName(const ATypeName: String): String;
+  begin
+    Result := ATypeName + '.<anonymous>';
+  end;
+
   procedure AddCodeInterfaceMethodRows(const ACategory,
     ATypeItem: TJvCustomInspectorItem; const ATypeIndex: Integer);
   { Adds the methods of the interface declared by type ATypeIndex, if any, as
@@ -1405,8 +1412,8 @@ procedure TInspector.UpdateFromCaret;
           Item := ATypeItem
         else begin
           { The interface itself is anonymous, so name the row after its type }
-          Item := AddCodeRow(ACategory, Declaration.Name + '.<anonymous>',
-            ckInterface, ATypeIndex);
+          Item := AddCodeRow(ACategory,
+            AnonymousInterfaceRowName(Declaration.Name), ckInterface, ATypeIndex);
         end;
       end;
       const MethodItem = AddCodeRow(Item, { Adds a child to Item }
@@ -1455,7 +1462,6 @@ procedure TInspector.UpdateFromCaret;
       end;
     end;
   end;
-  {$ENDIF}
 
   function FindItemByID(const AID: String; const AIDIncludesIndex: Boolean;
     const AParent: TJvCustomInspectorItem): TJvCustomInspectorItem;
@@ -1515,17 +1521,17 @@ procedure TInspector.UpdateFromCaret;
         AddDebugRow(DebugCategory, 'Caret routine', rkDebugCaretRoutine);
         AddDebugRow(DebugCategory, 'Early exits', rkDebugEarlyExits);
         AddDebugRow(DebugCategory, 'Caret at', rkDebugCaretAt);
-        if FLiveCodeSection <> nil then begin
-          AddCodeTypeRows;
-          AddCodeSymbolRows;
-          AddCodeRoutineRows;
-        end;
         {$ENDIF}
 
         if FLiveParameterSectionEntries <> nil then
           AddParameterSectionEntryRows
         else if FLiveKeyValueSection <> nil then
-          AddKeyValueSectionRows;
+          AddKeyValueSectionRows
+        else if FLiveCodeSection <> nil then begin
+          AddCodeTypeRows;
+          AddCodeSymbolRows;
+          AddCodeRoutineRows;
+        end;
 
         RestoreExpandedStates(ExpandedStates, FJvInspector.Root);
         if FFilterText <> '' then
@@ -1555,9 +1561,20 @@ procedure TInspector.UpdateFromCaret;
     end;
   end;
 
+  function CodeCaretAt(const ACodeKind: TInspectorRowCodeKind;
+    const AName: String; const AIndex: Integer): TCaretAt;
+  begin
+    Result := Default(TCaretAt);
+    Result.Valid := True;
+    Result.Kind := cakCodeSection;
+    Result.CodeKind := ACodeKind;
+    Result.Name := AName;
+    Result.Index := AIndex;
+  end;
+
   function GetCaretAt: TCaretAt;
   begin
-    Result.Valid := False;
+    Result := Default(TCaretAt);
     const CaretLine = FFactory.Memo.CaretLine;
     if (FLiveParameterSectionEntries <> nil) and FLiveParameterSectionEntries.Valid then begin
       const Memo = FFactory.Memo;
@@ -1603,6 +1620,36 @@ procedure TInspector.UpdateFromCaret;
           end;
         end;
       end;
+    end else if (FLiveCodeSection <> nil) and FLiveCodeSection.Valid then begin
+      const Section = FLiveCodeSection.Section;
+
+      const Line = CaretLine - FLiveCodeSection.FirstLine;
+      var Index: Integer;
+      if Section.TryGetRoutineIndex(Line, Index) then
+        Exit(CodeCaretAt(ckRoutine, Section.Routines[Index].Name, Index));
+      if Section.TryGetTypeIndex(Line, Index) then
+        Exit(CodeCaretAt(ckType, Section.Types[Index].Name, Index));
+      { An enumeration value line puts the caret at the type declaring it }
+      if Section.TryGetEnumerationValueIndex(Line, Index) then begin
+        const TypeIndex = Section.EnumerationValues[Index].DeclarationTypeIndex;
+        Exit(CodeCaretAt(ckType, Section.Types[TypeIndex].Name, TypeIndex));
+      end;
+      { An interface method line puts the caret at the interface: the row of
+        the type declaring it, or the row of its own an anonymous interface
+        gets, see AddCodeInterfaceMethodRows }
+      if Section.TryGetInterfaceMethodIndex(Line, Index) then begin
+        const TypeIndex = Section.InterfaceMethods[Index].DeclarationTypeIndex;
+        const Declaration = Section.Types[TypeIndex];
+        if Declaration.TypeText = 'interface' then
+          Exit(CodeCaretAt(ckType, Declaration.Name, TypeIndex));
+        Exit(CodeCaretAt(ckInterface,
+          AnonymousInterfaceRowName(Declaration.Name), TypeIndex));
+      end;
+      if Section.TryGetConstantIndex(Line, Index) then
+        Exit(CodeCaretAt(ckConstant, Section.Constants[Index].Name, Index));
+      if Section.TryGetGlobalVariableIndex(Line, Index) then
+        Exit(CodeCaretAt(ckGlobalVariable,
+          Section.GlobalVariables[Index].Name, Index));
     end;
   end;
 
@@ -1614,6 +1661,7 @@ procedure TInspector.UpdateFromCaret;
     if (CaretAt.Valid <> FCaretAt.Valid) or
        (CaretAt.Valid and
         ((CaretAt.Kind <> FCaretAt.Kind) or
+         (CaretAt.CodeKind <> FCaretAt.CodeKind) or
          (CaretAt.Name <> FCaretAt.Name) or
          (CaretAt.Index <> FCaretAt.Index))) then begin
       { The caret moved to a different member (or no member). Update CaretAt and
@@ -1690,26 +1738,27 @@ begin
       Exit;
     end;
   end;
-  {$IFDEF DEBUG}
   if (FLiveCodeSection <> nil) and FLiveCodeSection.Valid and
      (FRowSetSignature <> '') and not LiveObjectTextChanged and
      (SelectionTestPassed or not UseSelectionTest) then begin
     var SectionIndex: Integer;
     if FFactory.TryGetSectionAtLine(CaretLine, SectionIndex) and
        (SectionIndex = FLiveCodeSectionIndex) then begin
-      UpdateDebugCaretRoutineRowString(CaretLine);
       UpdateCaretAt;
+      {$IFDEF DEBUG}
+      UpdateDebugCaretRoutineRowString(CaretLine);
       Inc(FUpdateFromCaretEarlyExitCount);
       InvalidateChangedRows; { See above }
+      {$ENDIF}
       Exit;
     end;
   end;
-  {$ENDIF}
 
   FreeAndNil(FLiveParameterSectionEntries);
   FreeAndNil(FLiveKeyValueSection);
-  {$IFDEF DEBUG}
   TLiveScriptObjectFactory.ReleaseAndNil(FLiveCodeSection);
+  FMixedSelection := False;
+  {$IFDEF DEBUG}
   FUpdateFromCaretEarlyExitCount := 0;
   FDebugCaretRoutineRowString := 'None';
   {$ENDIF}
@@ -1792,19 +1841,20 @@ begin
         end;
       end;
     end
-    {$IFDEF DEBUG}
     else if (EntryRefusalReason <> rrMixedSelection) and
             FFactory.TryGetSectionAtLine(CaretLine, SectionIndex) and
             FFactory.TryAcquireCodeSection(SectionIndex, FLiveCodeSection) then begin
-      const Header = FFactory.SectionHeaders[SectionIndex];
       FLiveCodeSectionIndex := SectionIndex;
       FChangeCountAtCreation := FFactory.ChangeCount;
       FSelectionLineRangesAtCreation := SelectionLineRanges;
       FIndividualSelectionLineRangesAtCreation := IndividualSelectionLineRanges;
       FCaretLineAtCreation := CaretLine;
+      {$IFDEF DEBUG}
+      const Header = FFactory.SectionHeaders[SectionIndex];
       FDebugStatusRowString := Format('[%s] section at line %d',
         [Header.Name, Header.Line+1]);
       UpdateDebugCaretRoutineRowString(CaretLine);
+      {$ENDIF}
       RowSetSignature := 'C';
       const Model = FLiveCodeSection.Section;
       for var I := 0 to Model.RoutineCount-1 do begin
@@ -1852,7 +1902,6 @@ begin
         RowSetSignature := RowSetSignature + Format('|V%d|%s', [I, Declaration.Name]);
       end;
     end
-    {$ENDIF}
     else begin
       { Prefer the entry refusal }
       FSelectionLineRangesAtCreation := [];
@@ -1889,10 +1938,11 @@ end;
 function TInspector.RowMatchesCaretAt(const ARow: TInspectorRow): Boolean;
 const
   RowKindForCaretAtKind: array [TCaretAtKind] of TInspectorRowKind =
-    (rkParameter, rkKey);
+    (rkParameter, rkKey, rkCode);
 begin
   Result := FCaretAt.Valid and
     (ARow.Kind = RowKindForCaretAtKind[FCaretAt.Kind]) and
+    (ARow.CodeKind = FCaretAt.CodeKind) and
     (ARow.Index = FCaretAt.Index) and
     SameText(ARow.Name, FCaretAt.Name); { TInspectorRow uses clean names for known members, TCaretAt always uses names as in the script }
 end;
@@ -2037,10 +2087,8 @@ begin
 end;
 
 function TInspector.RowGetAsString(const ARow: TInspectorRow): String;
-{$IFDEF DEBUG}
 const
   RoutineKindNames: array[Boolean] of String = ('procedure', 'function'); { Do not localize }
-{$ENDIF}
 
   {$IFDEF DEBUG}
   function DebugParseTimeRowString: String;
@@ -2096,6 +2144,7 @@ begin
         Result := 'None';
     rkDebugCaretRoutine:
       Result := FDebugCaretRoutineRowString;
+    {$ENDIF}
     rkCode:
       case ARow.CodeKind of
         ckRoutine..ckRoutineLocal:
@@ -2156,7 +2205,6 @@ begin
              (ARow.Index < FLiveCodeSection.Section.GlobalVariableCount) then
             Result := FLiveCodeSection.Section.GlobalVariables[ARow.Index].TypeText;
       end;
-    {$ENDIF}
   end;
 end;
 
