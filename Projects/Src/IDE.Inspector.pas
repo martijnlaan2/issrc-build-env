@@ -24,8 +24,7 @@ type
     rkDebugSections, rkDebugEarlyExits,
     rkDebugCaretAt, rkDebugCaretRoutine {$ENDIF});
 
-  { Kinds sharing a declaration must stay together: RowGetAsString looks
-    them up by range }
+  { Kinds sharing a declaration must stay together }
   TInspectorRowCodeKind = (ckNone, ckRoutine, ckRoutineResult,
     ckRoutineParametersLabel, ckRoutineParameter,
     ckRoutineLocalsLabel, ckRoutineLocal, ckType,
@@ -136,6 +135,7 @@ type
     function SelectedRowResolves: Boolean;
     function GetSelectedRowValuePositions(
       const AMaxCount: Integer = 0): TArray<TValuePosition>;
+    function TryGetSelectedCodeRowMemoLine(out AMemoLine: Integer): Boolean;
     function GetRowValueSignature(const ARow: TInspectorRow): String;
     function RowGetAsOrdinal(const ARow: TInspectorRow): Int64; overload;
     procedure RowGetAsOrdinal(Sender: TJvCustomInspectorItem; var Value: Int64); overload;
@@ -333,6 +333,8 @@ begin
      ((FLiveCodeSection = nil) or FLiveCodeSection.Section.Empty) then begin
     if FMixedSelection then
       ShowNote(LFmtMessage(SInspectorMixedSelectionNote))
+    else if FLiveCodeSection <> nil then
+      ShowNote(LFmtMessage(SInspectorEmptySectionNote))
     else
       ShowNote(LFmtMessage(SInspectorNothingToInspectNote));
   end else if ShowingDirectiveSection then begin
@@ -340,12 +342,12 @@ begin
       ShowNote(LFmtMessage(SInspectorSiblingOccurrencesNote))
     else if FShowAllKnownDirectivesSuppressedNote then
       ShowNote(LFmtMessage(SInspectorShowAllKnownDirectivesSuppressedNote))
-    else if FLiveKeyValueSection.Section.Empty and not FShowAllKnownDirectives then 
-      ShowNote(LFmtMessage(SInspectorNothingToInspectNote))
+    else if FLiveKeyValueSection.Section.Empty and not FShowAllKnownDirectives then
+      ShowNote(LFmtMessage(SInspectorEmptySectionNote))
     else
       HideNote;
   end else if (FLiveKeyValueSection <> nil) and FLiveKeyValueSection.Section.Empty then
-    ShowNote(LFmtMessage(SInspectorNothingToInspectNote))
+    ShowNote(LFmtMessage(SInspectorEmptySectionNote))
   else
     HideNote;
 end;
@@ -468,7 +470,9 @@ end;
 
 function TInspector.CanGoToSelectedRow: Boolean;
 begin
-  Result := Length(GetSelectedRowValuePositions(1)) > 0;
+  var MemoLine: Integer;
+  Result := (Length(GetSelectedRowValuePositions(1)) > 0) or
+    TryGetSelectedCodeRowMemoLine(MemoLine);
 end;
 
 function TInspector.GetSelectedRowValuePositions(
@@ -516,6 +520,61 @@ begin
         end;
       end;
   end;
+end;
+
+function TInspector.TryGetSelectedCodeRowMemoLine(
+  out AMemoLine: Integer): Boolean;
+{ Fails for the rows with the Parameters and Locals labels, and for Result rows }
+begin
+  AMemoLine := -1;
+  const Item = FJvInspector.Selected;
+  var Row: TInspectorRow;
+  if (Item = nil) or not TryGetRow(Item, Row) or (Row.Kind <> rkCode) or
+     (FLiveCodeSection = nil) or not FLiveCodeSection.Valid then
+    Exit(False);
+  const Section = FLiveCodeSection.Section;
+  var Line := -1;
+  case Row.CodeKind of
+    ckRoutine..ckRoutineLocal:
+      if Row.Index < Section.RoutineCount then begin
+        const Routine = Section.Routines[Row.Index];
+        case Row.CodeKind of
+          ckRoutine: Line := Routine.FirstLine;
+          ckRoutineParameter:
+            if Row.SubIndex < Routine.ParameterCount then
+              Line := Routine.Parameters[Row.SubIndex].Line;
+          ckRoutineLocal:
+            if Row.SubIndex < Routine.LocalCount then
+              Line := Routine.Locals[Row.SubIndex].Line;
+        end;
+      end;
+    ckType, ckInterface:
+      begin
+        { An anonymous interface declares nothing of its own, so its row goes
+          to the type it is nested in, just like that type's own row }
+        if Row.Index < Section.TypeCount then
+          Line := Section.Types[Row.Index].Line;
+      end;
+    ckInterfaceMethod..ckInterfaceMethodParameter:
+      if Row.Index < Section.InterfaceMethodCount then begin
+        const Method = Section.InterfaceMethods[Row.Index];
+        case Row.CodeKind of
+          ckInterfaceMethod: Line := Method.Line;
+          ckInterfaceMethodParameter:
+            if Row.SubIndex < Method.ParameterCount then
+              Line := Method.Parameters[Row.SubIndex].Line;
+        end;
+      end;
+    ckConstant:
+      if Row.Index < Section.ConstantCount then
+        Line := Section.Constants[Row.Index].Line;
+    ckGlobalVariable:
+      if Row.Index < Section.GlobalVariableCount then
+        Line := Section.GlobalVariables[Row.Index].Line;
+  end;
+  Result := Line >= 0;
+  if Result then
+    AMemoLine := FLiveCodeSection.FirstLine + Line;
 end;
 
 procedure TInspector.JvInspectorLeafNameDblClick(Item: TJvCustomInspectorItem);
@@ -732,6 +791,16 @@ begin
   { Losing focus may have committed an edit, so need to update }
   UpdateFromCaret;
 
+  { For [Code] simply go to the line without selecting anything }
+  var MemoLine: Integer;
+  if TryGetSelectedCodeRowMemoLine(MemoLine) then begin
+    { Also see IDE.Navigator's GoToLine }
+    Memo.EnsurePositionInViewVertically(Memo.GetPositionFromLine(MemoLine));
+    Memo.CaretLine := MemoLine;
+    Exit;
+  end;
+
+  { Otherwise select the value(s) }
   const Positions = GetSelectedRowValuePositions;
   if Length(Positions) > 0 then begin
     for var I := 0 to High(Positions) do begin
@@ -1355,35 +1424,83 @@ procedure TInspector.UpdateFromCaret;
     Result.Flags := Result.Flags + [iifReadonly];
   end;
 
+  function AnyRoutineChildMatchesFilter(const ARoutine: TCodeSectionRoutine): Boolean;
+  begin
+    for var I := 0 to ARoutine.ParameterCount-1 do
+      if NameMatchesFilter(ARoutine.Parameters[I].Name) then
+        Exit(True);
+    for var I := 0 to ARoutine.LocalCount-1 do
+      if NameMatchesFilter(ARoutine.Locals[I].Name) then
+        Exit(True);
+    Result := False;
+  end;
+
+  function AnyMethodParameterMatchesFilter(
+    const AMethod: TCodeSectionInterfaceMethod): Boolean;
+  begin
+    for var I := 0 to AMethod.ParameterCount-1 do
+      if NameMatchesFilter(AMethod.Parameters[I].Name) then
+        Exit(True);
+    Result := False;
+  end;
+
+  function InterfaceMethodMatchesFilter(
+    const AMethod: TCodeSectionInterfaceMethod): Boolean;
+  begin
+    Result := NameMatchesFilter(AMethod.Name) or
+      AnyMethodParameterMatchesFilter(AMethod);
+  end;
+
+  function AnyInterfaceMethodMatchesFilter(const ATypeIndex: Integer): Boolean;
+  begin
+    const Section = FLiveCodeSection.Section;
+    for var I := 0 to Section.InterfaceMethodCount-1 do begin
+      const Method = Section.InterfaceMethods[I];
+      if (Method.DeclarationTypeIndex = ATypeIndex) and
+         InterfaceMethodMatchesFilter(Method) then
+        Exit(True);
+    end;
+    Result := False;
+  end;
+
   procedure AddCodeRoutineRows;
   begin
     const Section = FLiveCodeSection.Section;
-    if Section.RoutineCount > 0 then begin
-      const RoutinesCategory = NewCategory(SInspectorCategoryRoutines);
-      for var I := 0 to Section.RoutineCount-1 do begin
-        const Routine = Section.Routines[I];
+    var RoutinesCategory: TJvCustomInspectorItem := nil;
+    for var I := 0 to Section.RoutineCount-1 do begin
+      const Routine = Section.Routines[I];
+      const KeepAllChildren = NameMatchesFilter(Routine.Name);
+      if KeepAllChildren or AnyRoutineChildMatchesFilter(Routine) then begin
+        if RoutinesCategory = nil then
+          RoutinesCategory := NewCategory(SInspectorCategoryRoutines);
         const Item = AddCodeRow(RoutinesCategory, Routine.Name, ckRoutine, I);
-        if Routine.ParameterCount > 0 then begin
-          const ParametersItem = AddCodeRow(Item, { Adds a child to Item }
-            LFmtMessage(SInspectorParametersRow), ckRoutineParametersLabel, I);
-          ParametersItem.Expanded := True;
-          for var J := 0 to Routine.ParameterCount-1 do begin
-            const Parameter = Routine.Parameters[J];
+        var ParametersItem: TJvCustomInspectorItem := nil;
+        for var J := 0 to Routine.ParameterCount-1 do begin
+          const Parameter = Routine.Parameters[J];
+          if KeepAllChildren or NameMatchesFilter(Parameter.Name) then begin
+            if ParametersItem = nil then begin
+              ParametersItem := AddCodeRow(Item, { Adds a child to Item }
+                LFmtMessage(SInspectorParametersRow), ckRoutineParametersLabel, I);
+              ParametersItem.Expanded := True;
+            end;
             AddCodeRow(ParametersItem, { Adds a child to ParametersItem }
               Parameter.Name, ckRoutineParameter, I, J);
           end;
         end;
-        if Routine.LocalCount > 0 then begin
-          const LocalsItem = AddCodeRow(Item, { Adds a child to Item }
-            LFmtMessage(SInspectorLocalsRow), ckRoutineLocalsLabel, I);
-          LocalsItem.Expanded := True;
-          for var J := 0 to Routine.LocalCount-1 do begin
-            const Local = Routine.Locals[J];
+        var LocalsItem: TJvCustomInspectorItem := nil;
+        for var J := 0 to Routine.LocalCount-1 do begin
+          const Local = Routine.Locals[J];
+          if KeepAllChildren or NameMatchesFilter(Local.Name) then begin
+            if LocalsItem = nil then begin
+              LocalsItem := AddCodeRow(Item, { Adds a child to Item }
+                LFmtMessage(SInspectorLocalsRow), ckRoutineLocalsLabel, I);
+              LocalsItem.Expanded := True;
+            end;
             AddCodeRow(LocalsItem, { Adds a child to LocalsItem }
               Local.Name, ckRoutineLocal, I, J);
           end;
         end;
-        if Routine.Kind = rkFunction then
+        if KeepAllChildren and (Routine.Kind = rkFunction) then
           AddCodeRow(Item, 'Result', ckRoutineResult, I); { Adds a child to Item }
       end;
     end;
@@ -1395,10 +1512,11 @@ procedure TInspector.UpdateFromCaret;
   end;
 
   procedure AddCodeInterfaceMethodRows(const ACategory,
-    ATypeItem: TJvCustomInspectorItem; const ATypeIndex: Integer);
-  { Adds the methods of the interface declared by type ATypeIndex, if any, as
-    children of its row. An anonymous interface has no type of its own and
-    gets a row of its own in ACategory instead. }
+    ATypeItem: TJvCustomInspectorItem; const ATypeIndex: Integer;
+    const AKeepAllMethods: Boolean);
+  { Adds the methods of the interface declared by type ATypeIndex which pass the
+    filter, as children of its row. An anonymous interface has no type of its own
+    and gets a row of its own in ACategory instead. }
   begin
     const Section = FLiveCodeSection.Section;
     var Item: TJvCustomInspectorItem := nil;
@@ -1406,43 +1524,52 @@ procedure TInspector.UpdateFromCaret;
       const Method = Section.InterfaceMethods[I];
       if Method.DeclarationTypeIndex <> ATypeIndex then
         Continue;
-      if Item = nil then begin
-        const Declaration = Section.Types[ATypeIndex];
-        if Declaration.TypeText = 'interface' then
-          Item := ATypeItem
-        else begin
-          { The interface itself is anonymous, so name the row after its type }
-          Item := AddCodeRow(ACategory,
-            AnonymousInterfaceRowName(Declaration.Name), ckInterface, ATypeIndex);
+      const KeepAllChildren = AKeepAllMethods or NameMatchesFilter(Method.Name);
+      if AKeepAllMethods or InterfaceMethodMatchesFilter(Method) then begin
+        if Item = nil then begin
+          const Declaration = Section.Types[ATypeIndex];
+          if Declaration.TypeText = 'interface' then
+            Item := ATypeItem
+          else begin
+            { The interface itself is anonymous, so name the row after its type }
+            Item := AddCodeRow(ACategory,
+              AnonymousInterfaceRowName(Declaration.Name), ckInterface, ATypeIndex);
+          end;
         end;
-      end;
-      const MethodItem = AddCodeRow(Item, { Adds a child to Item }
-        Method.Name, ckInterfaceMethod, I);
-      if Method.ParameterCount > 0 then begin
-        const ParametersItem = AddCodeRow(MethodItem, { Adds a child to MethodItem }
-          LFmtMessage(SInspectorParametersRow), ckInterfaceMethodParametersLabel, I);
-        ParametersItem.Expanded := True;
+        const MethodItem = AddCodeRow(Item, { Adds a child to Item }
+          Method.Name, ckInterfaceMethod, I);
+        var ParametersItem: TJvCustomInspectorItem := nil;
         for var J := 0 to Method.ParameterCount-1 do begin
           const Parameter = Method.Parameters[J];
-          AddCodeRow(ParametersItem, { Adds a child to ParametersItem }
-            Parameter.Name, ckInterfaceMethodParameter, I, J);
+          if KeepAllChildren or NameMatchesFilter(Parameter.Name) then begin
+            if ParametersItem = nil then begin
+              ParametersItem := AddCodeRow(MethodItem, { Adds a child to MethodItem }
+                LFmtMessage(SInspectorParametersRow), ckInterfaceMethodParametersLabel, I);
+              ParametersItem.Expanded := True;
+            end;
+            AddCodeRow(ParametersItem, { Adds a child to ParametersItem }
+              Parameter.Name, ckInterfaceMethodParameter, I, J);
+          end;
         end;
+        if KeepAllChildren and (Method.Kind = rkFunction) then
+          AddCodeRow(MethodItem, 'Result', ckInterfaceMethodResult, I); { Adds a child to MethodItem }
       end;
-      if Method.Kind = rkFunction then
-        AddCodeRow(MethodItem, 'Result', ckInterfaceMethodResult, I); { Adds a child to MethodItem }
     end;
   end;
 
   procedure AddCodeTypeRows;
   begin
     const Section = FLiveCodeSection.Section;
-    if Section.TypeCount > 0 then begin
-      const TypesCategory = NewCategory(SInspectorCategoryTypes);
-      for var I := 0 to Section.TypeCount-1 do begin
-        const Declaration = Section.Types[I];
+    var TypesCategory: TJvCustomInspectorItem := nil;
+    for var I := 0 to Section.TypeCount-1 do begin
+      const Declaration = Section.Types[I];
+      const KeepAllMethods = NameMatchesFilter(Declaration.Name);
+      if KeepAllMethods or AnyInterfaceMethodMatchesFilter(I) then begin
+        if TypesCategory = nil then
+          TypesCategory := NewCategory(SInspectorCategoryTypes);
         const TypeItem = AddCodeRow(TypesCategory, Declaration.Name,
           ckType, I);
-        AddCodeInterfaceMethodRows(TypesCategory, TypeItem, I);
+        AddCodeInterfaceMethodRows(TypesCategory, TypeItem, I, KeepAllMethods);
       end;
     end;
   end;
@@ -1450,14 +1577,20 @@ procedure TInspector.UpdateFromCaret;
   procedure AddCodeSymbolRows;
   begin
     const Section = FLiveCodeSection.Section;
-    if (Section.ConstantCount > 0) or (Section.GlobalVariableCount > 0) then begin
-      const SymbolsCategory = NewCategory(SInspectorCategorySymbols);
-      for var I := 0 to Section.ConstantCount-1 do begin
-        const Declaration = Section.Constants[I];
+    var SymbolsCategory: TJvCustomInspectorItem := nil;
+    for var I := 0 to Section.ConstantCount-1 do begin
+      const Declaration = Section.Constants[I];
+      if NameMatchesFilter(Declaration.Name) then begin
+        if SymbolsCategory = nil then
+          SymbolsCategory := NewCategory(SInspectorCategorySymbols);
         AddCodeRow(SymbolsCategory, Declaration.Name, ckConstant, I);
       end;
-      for var I := 0 to Section.GlobalVariableCount-1 do begin
-        const Declaration = Section.GlobalVariables[I];
+    end;
+    for var I := 0 to Section.GlobalVariableCount-1 do begin
+      const Declaration = Section.GlobalVariables[I];
+      if NameMatchesFilter(Declaration.Name) then begin
+        if SymbolsCategory = nil then
+          SymbolsCategory := NewCategory(SInspectorCategorySymbols);
         AddCodeRow(SymbolsCategory, Declaration.Name, ckGlobalVariable, I);
       end;
     end;
@@ -1478,14 +1611,18 @@ procedure TInspector.UpdateFromCaret;
   end;
 
   procedure ExpandParentsKeptByChildMatch(const AParent: TJvCustomInspectorItem);
-  { Make sure the category and Flags parent row are expanded when a row or
-    flag was found through the filter }
+  { Make sure a parent row is expanded when one of its rows was found through
+    the filter }
   begin
     for var I := 0 to AParent.Count-1 do begin
       const Item = AParent.Items[I];
       if Item.Count > 0 then begin
-        if (Item is TJvInspectorCustomCategoryItem) or
-           not NameMatchesFilter(Item.DisplayName) then
+        var Row: TInspectorRow;
+        const LabelRow = (Item is TJvInspectorCustomCategoryItem) or
+          (TryGetRow(Item, Row) and (Row.CodeKind in
+           [ckRoutineParametersLabel, ckRoutineLocalsLabel,
+            ckInterfaceMethodParametersLabel]));
+        if LabelRow or not NameMatchesFilter(Item.DisplayName) then
           Item.Expanded := True;
         ExpandParentsKeptByChildMatch(Item);
       end;
