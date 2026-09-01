@@ -14,7 +14,7 @@ unit IDE.Inspector;
 interface
 
 uses
-  Windows, Messages, Classes, Graphics, Controls, StdCtrls, Generics.Collections,
+  Windows, Messages, Classes, Graphics, Controls, ImgList, StdCtrls, Generics.Collections,
   JvInspector, ModernColors, NewStaticText, ScintEdit,
   IDE.LiveScriptObjectFactory, IDE.ScriptModel, IDE.ScriptModel.Metadata, IDE.ScriptModel.Metadata.Extra;
 
@@ -93,6 +93,7 @@ type
       FJvInspector: TJvInspector;
       FMessagesWnd: HWND;
       FNoteText: TNewStaticText;
+      FGlyphImageList: TCustomImageList;
       FFactory: TLiveScriptObjectFactory;
       FOnGetBaseDir: TInspectorGetBaseDirEvent;
       FOnGetSignTools: TInspectorGetSignToolsEvent;
@@ -144,6 +145,8 @@ type
     procedure RowGetAsString(Sender: TJvCustomInspectorItem; var Value: String); overload;
     procedure RowSetAsOrdinal(Sender: TJvCustomInspectorItem; var Value: Int64);
     procedure RowSetAsString(Sender: TJvCustomInspectorItem; var Value: String);
+    procedure RowGetNameGlyph(Item: TJvCustomInspectorItem; var Glyph: TInspectorGlyph);
+    procedure RowGetValueGlyph(Item: TJvCustomInspectorItem; var Glyph: TInspectorGlyph);
     procedure RowRemove(const ARow: TInspectorRow);
     procedure ChoiceRowGetValueList(Item: TJvCustomInspectorItem; Values: TStrings);
     procedure DestDirRowGetValueList(Item: TJvCustomInspectorItem; Values: TStrings);
@@ -178,6 +181,7 @@ type
   public
     constructor Create(const AJvInspector: TJvInspector;
       const ANoteText: TNewStaticText;
+      const AGlyphImageList: TCustomImageList;
       const AFactory: TLiveScriptObjectFactory;
       const AShowAllKnownDirectives, AFollowCaret: Boolean;
       const AOnGetBaseDir: TInspectorGetBaseDirEvent;
@@ -220,7 +224,8 @@ uses
   SysUtils, UITypes, Themes, Forms, Generics.Defaults,
   BrowseFunc, NewUxTheme, PathFunc,
   Shared.CommonFunc, Shared.CommonFunc.Vcl, Shared.Struct,
-  IDE.HelperFunc, IDE.Messages, IDE.LocalizeFunc;
+  IDE.HelperFunc, IDE.Messages, IDE.LocalizeFunc, IDE.ImagesModule,
+  IDE.ScriptModel.Metadata.Extra.WordLists;
 
 type
   EInspectorValueRejected = class(EScriptModelError);
@@ -258,6 +263,7 @@ end;
 
 constructor TInspector.Create(const AJvInspector: TJvInspector;
   const ANoteText: TNewStaticText;
+  const AGlyphImageList: TCustomImageList;
   const AFactory: TLiveScriptObjectFactory;
   const AShowAllKnownDirectives, AFollowCaret: Boolean;
   const AOnGetBaseDir: TInspectorGetBaseDirEvent;
@@ -268,6 +274,7 @@ begin
   inherited Create;
 
   FNoteText := ANoteText;
+  FGlyphImageList := AGlyphImageList;
   FFactory := AFactory;
   FOnGetBaseDir := AOnGetBaseDir;
   FOnGetSignTools := AOnGetSignTools;
@@ -304,6 +311,8 @@ begin
   FJvInspector.OnSetAsOrdinal := RowSetAsOrdinal;
   FJvInspector.OnSetAsString := RowSetAsString;
   FJvInspector.OnGetValueList := ChoiceRowGetValueList;
+  FJvInspector.OnGetNameGlyph := RowGetNameGlyph;
+  FJvInspector.OnGetValueGlyph := RowGetValueGlyph;
 end;
 
 destructor TInspector.Destroy;
@@ -2442,7 +2451,7 @@ procedure TInspector.RowSetAsString(Sender: TJvCustomInspectorItem;
   inspector's selection or end the edit. Setting FInEdit below makes
   UpdateFromCaret exit early while the memo is being changed. }
 
-  procedure ValidateValue(const ARowName, AValue: String;
+  procedure ValidateValue(const ARowName: String;
     const ADefinition: TMemberDefinition);
   { Does not trim: the script model preserves surrounding whitespace by quoting
     the value, so validation must include the whitespace }
@@ -2487,14 +2496,14 @@ begin
            FLiveParameterSectionEntries.Valid then begin
           var Definition: TMemberDefinition;
           if FLiveParameterSectionEntries.PrimaryEntry.TryGetDefinition(Row.Name, Definition) then
-            ValidateValue(Row.Name, Value, Definition);
+            ValidateValue(Row.Name, Definition);
           FLiveParameterSectionEntries.SetValue(Row.Name, Row.Index, Value);
         end;
       rkKey:
         if (FLiveKeyValueSection <> nil) and FLiveKeyValueSection.Valid then begin
           var Definition: TMemberDefinition;
           if FLiveKeyValueSection.Section.TryGetDefinition(Row.Name, Definition) then
-            ValidateValue(Row.Name, Value, Definition);
+            ValidateValue(Row.Name, Definition);
           FLiveKeyValueSection.SetValue(Row.Name, Row.Index, Value);
         end;
     else
@@ -2504,6 +2513,82 @@ begin
     FInEdit := False;
   end;
   InvalidateChangedRows;
+end;
+
+procedure TInspector.RowGetNameGlyph(Item: TJvCustomInspectorItem;
+  var Glyph: TInspectorGlyph);
+
+  function TryGetCodeRowWordType(const ARow: TInspectorRow;
+    out AWordType: TAutoCompleteWordType): Boolean;
+  begin
+    Result := True;
+    case ARow.CodeKind of
+      ckRoutine, ckInterfaceMethod:
+        AWordType := awtScriptFunction;
+      ckInterface:
+        AWordType := awtScriptInterface;
+      ckType:
+        if (FLiveCodeSection <> nil) and
+           (ARow.Index < FLiveCodeSection.Section.TypeCount) and
+           (FLiveCodeSection.Section.Types[ARow.Index].TypeText = 'interface') then
+          AWordType := awtScriptInterface
+        else
+          AWordType := awtScriptType;
+      ckConstant:
+        AWordType := awtScriptConstant;
+      ckGlobalVariable:
+        AWordType := awtScriptVariable;
+      ckRoutineParameter, ckInterfaceMethodParameter:
+        AWordType := awtScriptFunctionParameter;
+      ckRoutineLocal, ckRoutineResult, ckInterfaceMethodResult:
+        AWordType := awtScriptFunctionVariable;
+    else
+      Result := False; { The Parameters and Locals label rows }
+    end;
+  end;
+
+begin
+  var Row: TInspectorRow;
+  var WordType: TAutoCompleteWordType;
+  if not TryGetRow(Item, Row) or (Row.Kind <> rkCode) or
+     not TryGetCodeRowWordType(Row, WordType) then
+    Exit;
+
+  Glyph.Kind := igkImage;
+  Glyph.ImageList := FGlyphImageList;
+  Glyph.ImageName := TImagesModule.AutoCompleteWordTypeImageName(WordType);
+end;
+
+procedure TInspector.RowGetValueGlyph(Item: TJvCustomInspectorItem;
+  var Glyph: TInspectorGlyph);
+begin
+  var Row: TInspectorRow;
+  if not TryGetRow(Item, Row) then
+    Exit;
+
+  var Definition: TMemberDefinition;
+  var Known := False;
+  case Row.Kind of
+    rkParameter:
+      if (FLiveParameterSectionEntries <> nil) and FLiveParameterSectionEntries.Valid then
+        Known := FLiveParameterSectionEntries.PrimaryEntry.TryGetDefinition(Row.Name, Definition);
+    rkKey:
+      if (FLiveKeyValueSection <> nil) and FLiveKeyValueSection.Valid then
+        Known := FLiveKeyValueSection.Section.TryGetDefinition(Row.Name, Definition);
+  end;
+  if not Known or (Definition.ValueKind <> mvkColor) then
+    Exit;
+
+  { Values holding a constant are skipped before parsing, like ValidateValue does }
+  const Value = RowGetAsString(Row);
+  if (Value = '') or (Pos('{', Value) <> 0) then
+    Exit;
+
+  var Color: TColor;
+  if NewTryStringToColor(Value, Color) and (Color <> clNone) then begin
+    Glyph.Kind := igkColor;
+    Glyph.Color := Color;
+  end;
 end;
 
 procedure TInspector.RowRemove(const ARow: TInspectorRow);
