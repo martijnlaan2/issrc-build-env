@@ -2453,63 +2453,16 @@ var
   IsRedirectionGuardEnabled: Boolean;
 
 procedure RedirectionGuardConfigure(const AEnable: Boolean);
-const
-  ProcessRedirectionTrustPolicy = TProcessMitigationPolicy(16);
-  EnforceRedirectionTrust = 1;
-  AuditRedirectionTrust = 2;
-var
-  GetProcessMitigationPolicyFunc: function(hProcess: THandle;
-    MitigationPolicy: TProcessMitigationPolicy; lpBuffer: Pointer;
-    dwLength: SIZE_T): BOOL; stdcall;
-  SetProcessMitigationPolicyFunc: function(MitigationPolicy: TProcessMitigationPolicy;
-    lpBuffer: PVOID; dwLength: SIZE_T): BOOL; stdcall;
-
-  function GetCurrentMode: String;
-  begin
-    var CurFlags: DWORD;
-    if GetProcessMitigationPolicyFunc(GetCurrentProcess,
-       ProcessRedirectionTrustPolicy, @CurFlags, SizeOf(CurFlags)) then begin
-      case CurFlags of
-        0: Result := 'Disabled';
-        EnforceRedirectionTrust: Result := 'Enforce';
-        AuditRedirectionTrust: Result := 'Audit';
-      else
-        Result := Format('Unknown (%u)', [CurFlags]);
-      end;
-    end else begin
-      const ErrorCode = GetLastError;
-      Result := Format('(GetProcessMitigationPolicy failed with error code %u)',
-        [ErrorCode]);
-    end;
-  end;
-
 begin
-  const KernelModule = GetModuleHandle(kernel32);
-  GetProcessMitigationPolicyFunc := GetProcAddress(KernelModule,
-    PAnsiChar('GetProcessMitigationPolicy'));
-  SetProcessMitigationPolicyFunc := GetProcAddress(KernelModule,
-    PAnsiChar('SetProcessMitigationPolicy'));
-  if not Assigned(GetProcessMitigationPolicyFunc) or
-     not Assigned(SetProcessMitigationPolicyFunc) then begin
-    Log('RedirectionGuard: Get/SetProcessMitigationPolicy functions unavailable.');
-    Exit;
-  end;
-
+  var CurModeAsString: String;
+  TRedirectionGuardMode.GetCurrentMode(CurModeAsString);
   LogFmt('RedirectionGuard: Initial mode for current process: %s',
-    [GetCurrentMode]);
+    [CurModeAsString]);
 
-  if AEnable then begin
-    const Flags: DWORD = EnforceRedirectionTrust;
-    if SetProcessMitigationPolicyFunc(ProcessRedirectionTrustPolicy, @Flags, SizeOf(Flags)) then begin
-      IsRedirectionGuardEnabled := True;
-      Log('RedirectionGuard: Mode changed to Enforce.');
-    end else begin
-      const ErrorCode = GetLastError;
-      LogFmt('RedirectionGuard: Could not change mode to Enforce. ' +
-        '(SetProcessMitigationPolicy failed with error code %u)',
-        [ErrorCode]);
-    end;
-  end else
+  if AEnable then
+    IsRedirectionGuardEnabled := TRedirectionGuardMode.Create(
+      TRedirectionGuardMode.EnforceRedirectionTrustFlag).Activate
+  else
     Log('RedirectionGuard: Not changing mode.');
 end;
 

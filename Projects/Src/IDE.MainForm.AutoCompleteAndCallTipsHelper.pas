@@ -92,6 +92,7 @@ class function TMainFormAutoCompleteAndCallTipsHelper._InitiateAutoCompleteOrCal
 begin
   if PositionBeforeWordStartPos < WordStartLinePos then
     Exit(True);
+  AMemo.StyleNeeded(PositionBeforeWordStartPos); { Make sure the typed character has been styled }
   const Style = AMemo.GetStyleAtPosition(PositionBeforeWordStartPos);
   if ISPPExpressionContext then
     Result := not TInnoSetupStyler.IsCommentOrISPPStringStyle(Style)
@@ -278,15 +279,6 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
     Result := (CharsBefore <= 1) and not CaretInsideWord;
   end;
 
-  function StyleAllowsAutoStart(const LinePos, WordStartPos: Integer;
-    const ISPPExpressionContext: Boolean): Boolean;
-  begin
-    const PositionBeforeWordStartPos = AMemo.GetPositionBefore(WordStartPos);
-    AMemo.StyleNeeded(PositionBeforeWordStartPos); { Make sure the typed character has been styled }
-    Result := _InitiateAutoCompleteOrCallTipAllowedAtPos(AMemo, LinePos,
-      PositionBeforeWordStartPos, ISPPExpressionContext);
-  end;
-
   function CanAutoCompleteValue(const Value: String): Boolean;
   begin
     for var C in Value do
@@ -357,6 +349,7 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
     Result := False;
     Res := Default(TLineScanResult);
     var I := WordStartPos;
+    var FoundWhitespace := False;
     while I > LinePos do begin
       I := AMemo.GetPositionBefore(I);
       if I < LinePos then
@@ -422,13 +415,15 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
             we check for the expected style before '=', which is stKeyword or stComment,
             and only continue if we don't find that. }
           if not TInnoSetupStyler.IsCommentOrKeywordStyle(AMemo.GetStyleAtPosition(I)) then begin
-            Res.FoundMultipleSetupDirectiveValues := True;
+            if FoundWhitespace then
+              Res.FoundMultipleSetupDirectiveValues := True;
             I := AMemo.GetWordStartPosition(I, True);
           end else
             Exit;
         end else
           Exit; { Non-whitespace which should not be there }
-      end;
+      end else
+        FoundWhitespace := True;
     end;
     Result := True;
   end;
@@ -516,10 +511,11 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
     if (Key = ' ') and OnlyWhiteSpaceBeforeWord(LinePos, WordStartPos) then
       Exit;
 
-    if (Key <> #0) and not StyleAllowsAutoStart(LinePos, WordStartPos, False) then
-      Exit;
-
     const PositionBeforeWordStartPos = AMemo.GetPositionBefore(WordStartPos);
+
+    if (Key <> #0) and not _InitiateAutoCompleteOrCallTipAllowedAtPos(AMemo, LinePos,
+         PositionBeforeWordStartPos, False) then
+      Exit;
 
     { Autocomplete event functions if the current word on the line has
       exactly 1 space before it which has the word 'function' or
@@ -681,7 +677,7 @@ begin
       inside the identifier }
     if (Key <> #0) and
        (not CanAutoStartAtWord(CharsBefore, AMemo.GetByteAtPosition(CaretPos) in ISPPIdentChars) or
-        not StyleAllowsAutoStart(LinePos, WordStartPos, True)) then
+        not _InitiateAutoCompleteOrCallTipAllowedAtPos(AMemo, LinePos, AMemo.GetPositionBefore(WordStartPos), True)) then
       Exit;
     WordList := ISPPExpressionAutoCompleteWordList;
   end else if FMemosStyler.ISPPInstalled and IsPragmaContext then begin
@@ -691,7 +687,7 @@ begin
     CharsBefore := CaretPos - WordStartPos;
     if (Key <> #0) and
        (not CanAutoStartAtWord(CharsBefore, WordEndPos > CaretPos) or
-        not StyleAllowsAutoStart(LinePos, WordStartPos, True)) then
+        not _InitiateAutoCompleteOrCallTipAllowedAtPos(AMemo, LinePos, AMemo.GetPositionBefore(WordStartPos), True)) then
       Exit;
     WordList := ISPPPragmaAutoCompleteWordList;
     FillupChars := ' ';
