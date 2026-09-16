@@ -111,10 +111,16 @@ class function TMainFormAutoCompleteAndCallTipsHelper.IsInISPPLineContext(
       Result := AMemo.GetPositionAfter(Result);
   end;
 
+  function IsScopeClause(const StartPos, EndPos: Integer): Boolean;
+  begin
+    const S = AMemo.GetTextRange(StartPos, EndPos);
+    Result := SameText(S, 'public') or SameText(S, 'protected') or SameText(S, 'private');
+  end;
+
 begin
   { Allow autocompletion if the text before ScanEndPos on the line is an
     ISPP directive context because it starts with for example "#define X ",
-    "#define X=", "#:X ", "#:X=", "#emit ", "#=", "#dim X[" or "#pragma ".
+    "#define X=", "#:X ", "#:X=", "#emit ", "#=", "#dim X[", "#for {" or "#pragma ".
     IsPragmaContext is set to True for "#pragma ". }
   Result := False;
   IsPragmaContext := False;
@@ -168,7 +174,13 @@ begin
         IsPragmaContext := Pos = ScanEndPos;
         Exit(IsPragmaContext);
       end;
-      
+
+      { Check for #for: its expressions only start after the required '{' }
+      if SameText(Directive, 'for') then begin
+        Pos := SkipChars(Pos, WhitespaceChars);
+        Exit((Pos < ScanEndPos) and (AMemo.GetByteAtPosition(Pos) = '{'));
+      end;
+
       { Check for expression-supporting directives }
       ExpectIdent := SameText(Directive, 'define') or SameText(Directive, 'dim') or SameText(Directive, 'redim');
       if not ExpectIdent and not SameText(Directive, 'if') and not SameText(Directive, 'elif') and
@@ -190,9 +202,19 @@ begin
     Exit;
 
   { Skip the identifier (not using GetWordEndPosition because '[' is a word char) }
+  const IdentStartPos = Pos;
   Pos := SkipChars(Pos, ISPPIdentChars);
   if Pos >= ScanEndPos then
     Exit;
+  if IsScopeClause(IdentStartPos, Pos) then begin
+    { That was a scope clause, skip the actual identifier (and the whitespace before it) }
+    Pos := SkipChars(Pos, WhitespaceChars);
+    if Pos >= ScanEndPos then
+      Exit;
+    Pos := SkipChars(Pos, ISPPIdentChars);
+    if Pos >= ScanEndPos then
+      Exit;
+  end;
 
   { For define: skip optional parameter list }
   if SameText(Directive, 'define') and (AMemo.GetByteAtPosition(Pos) = '(') then begin
@@ -854,9 +876,11 @@ begin
   FCallTipState.CurrentCallTipWord := '';
   var LineText := AMemo.RawCaretLineText;
   var Current := AMemo.CaretColumn;
-  var CallTipWordCharacters := AMemo.WordCharsAsSet;
+  var CallTipWordCharacters: TSysCharSet;
   if ISPPExpressionContext then
-    Exclude(CallTipWordCharacters, '['); { Also see InitiateAutoComplete }
+    CallTipWordCharacters := ISPPIdentChars { Also see the ISPP CharsBefore scan in InitiateAutoComplete }
+  else
+    CallTipWordCharacters := PascalIdentChars;
 
   {$ZEROBASEDSTRINGS ON}
   repeat
