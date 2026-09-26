@@ -1666,7 +1666,7 @@ begin
       end;
     SCN_CHARADDED:
       begin
-        if Assigned(FOnCharAdded) then
+        if Assigned(FOnCharAdded) and (N.ch <= Ord(High(AnsiChar))) then
           FOnCharAdded(Self, AnsiChar(N.ch));
       end;
     SCN_MARGINCLICK:
@@ -2666,7 +2666,7 @@ begin
     SetStyleAttr(FAutoCompleteStyle, DefaultAttr, True);
     Call(SCI_AUTOCSETSTYLE, FAutoCompleteStyle, 0);
   end else
-    Call(SCI_AUTOCSETSTYLE, 0, 0);
+    Call(SCI_AUTOCSETSTYLE, STYLE_DEFAULT, 0);
 end;
 
 function TScintEdit.WordAtCaret: String;
