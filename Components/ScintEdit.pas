@@ -40,7 +40,7 @@ type
     var Info: TScintHintInfo) of object;
   TScintEditMarginClickEvent = procedure(Sender: TObject; MarginNumber: Integer;
     Line: Integer) of object;
-  TScintEditUpdate = (suContent, suSelection, suVScroll, suHScroll);
+  TScintEditUpdate = (suContent, suSelection, suVScroll, suHScroll, suText, suLineCount);
   TScintEditUpdates = set of TScintEditUpdate;
   TScintEditUpdateUIEvent = procedure(Sender: TObject; Updated: TScintEditUpdates) of object;
   TScintFindOption = (sfoMatchCase, sfoWholeWord, sfoRegEx);
@@ -1706,7 +1706,7 @@ begin
       begin
         if Assigned(FOnZoom) then
           FOnZoom(Self);
-        if FLineNumbers then
+        if FLineNumbers or FFoldLevelNumbersOrLineState then
           UpdateLineNumbersWidth;
       end;
   end;
@@ -2205,6 +2205,7 @@ begin
       Call(SCI_CLEARDOCUMENTSTYLE, 0, 0);
       Call(SCI_STARTSTYLING, 0, 0);
       UpdateStyleAttributes;
+      UpdateLineNumbersWidth;
     end;
   end;
 end;
@@ -2702,6 +2703,7 @@ procedure TScintEdit.CMFontChanged(var Message: TMessage);
 begin
   inherited;
   UpdateStyleAttributes;
+  UpdateLineNumbersWidth;
 end;
 
 procedure TScintEdit.CMHintShow(var Message: TCMHintShow);
