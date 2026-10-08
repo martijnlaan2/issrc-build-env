@@ -153,7 +153,7 @@ DiskSpaceGBLabel=Pelo menos [gb] GB de espaço livre em disco são requeridos.
 DiskSpaceMBLabel=Pelo menos [mb] MB de espaço livre em disco são requeridos.
 CannotInstallToNetworkDrive=O instalador não pode instalar em um drive de rede.
 CannotInstallToUNCPath=O instalador não pode instalar em um caminho UNC.
-InvalidPath=Você deve inserir um caminho completo com a letra do drive; por exemplo:%n%nC:\APP%n%nou um caminho UNC no formato:%n%n\\server\share
+InvalidPath=Você deve inserir um caminho completo com a letra do drive; por exemplo:%n%nC:\App%n%nou um caminho UNC no formato:%n%n\\server\share
 InvalidDrive=O drive ou compartilhamento UNC que você selecionou não existe ou não está acessível. Por favor, selecione outro.
 DiskSpaceWarningTitle=Sem Espaço em Disco o Bastante
 DiskSpaceWarning=O instalador requer pelo menos %1 KB de espaço livre para instalar, mas o drive selecionado só tem %2 KB disponíveis.%n%nVocê quer continuar de qualquer maneira?
@@ -211,7 +211,7 @@ ReadyMemoTasks=Tarefas adicionais:
 ; *** TDownloadWizardPage wizard page and DownloadTemporaryFile
 DownloadingLabel2=Baixando arquivos...
 ButtonStopDownload=&Parar download
-StopDownload=Tem certeza que deseja parar o download?
+StopDownload=Você tem certeza de que deseja parar o download?
 ErrorDownloadAborted=Download abortado
 ErrorDownloadFailed=Download falhou: %1 %2
 ErrorDownloadSizeFailed=Falha ao obter o tamanho: %1 %2
@@ -221,7 +221,7 @@ ErrorFileSize=Tamanho de arquivo inválido: esperado %1, encontrado %2
 ; *** TExtractionWizardPage wizard page and ExtractArchive
 ExtractingLabel=Extraindo arquivos...
 ButtonStopExtraction=&Parar extração
-StopExtraction=Tem certeza de que deseja parar a extração?
+StopExtraction=Você tem certeza de que deseja parar a extração?
 ErrorExtractionAborted=Extração abortada
 ErrorExtractionFailed=Extração falhou: %1
 
@@ -240,7 +240,7 @@ ApplicationsFound2=Os aplicativos a seguir estão usando arquivos que precisam s
 CloseApplications=&Fechar os aplicativos automaticamente
 DontCloseApplications=&Não fechar os aplicativos
 ErrorCloseApplications=O instalador foi incapaz de fechar automaticamente todos os aplicativos. É recomendado que você feche todos os aplicativos usando os arquivos que precisam ser atualizados pelo instalador antes de continuar.
-PrepareToInstallNeedsRestart=O instalador deve reiniciar seu computador. Depois de reiniciar o computador, execute o instalador novamente para completar a instalação do [name].%n%nVocê deseja reiniciar agora?
+PrepareToInstallNeedsRestart=O instalador deve reiniciar seu computador. Após reiniciar seu computador, execute o instalador novamente para completar a instalação do [name].%n%nVocê gostaria de reiniciar agora?
 
 ; *** "Installing" wizard page
 WizardInstalling=Instalando
@@ -250,7 +250,7 @@ InstallingLabel=Por favor, espere enquanto o instalador instala o [name] no seu 
 FinishedHeadingLabel=Completando o Assistente do Instalador do [name]
 FinishedLabelNoIcons=O instalador terminou de instalar o [name] no seu computador.
 FinishedLabel=O instalador terminou de instalar o [name] no seu computador. O aplicativo pode ser iniciado selecionando os atalhos instalados.
-ClickFinish=Clique em Concluir para sair do Instalador.
+ClickFinish=Clique em Concluir para sair do instalador.
 FinishedRestartLabel=Para completar a instalação do [name], o instalador deve reiniciar seu computador. Você gostaria de reiniciar agora?
 FinishedRestartMessage=Para completar a instalação do [name], o instalador deve reiniciar seu computador.%n%nVocê gostaria de reiniciar agora?
 ShowReadmeCheck=Sim, eu gostaria de visualizar o arquivo README
@@ -271,11 +271,11 @@ SelectDirectoryLabel=Por favor, especifique o local do próximo disco.
 ; *** Installation phase messages
 SetupAborted=A instalação não foi completada.%n%nPor favor, corrija o problema e execute o instalador novamente.
 AbortRetryIgnoreSelectAction=Selecionar ação
-AbortRetryIgnoreRetry=&Tentar Novamente
+AbortRetryIgnoreRetry=&Tentar novamente
 AbortRetryIgnoreIgnore=&Ignorar o erro e continuar
 AbortRetryIgnoreCancel=Cancelar instalação
 RetryCancelSelectAction=Selecionar ação
-RetryCancelRetry=&Tentar Novamente
+RetryCancelRetry=&Tentar novamente
 RetryCancelCancel=Cancelar
 
 ; *** Installation status messages
@@ -366,7 +366,7 @@ UninstallNotFound=O arquivo "%1" não existe. Não consegue desinstalar.
 UninstallOpenError=O arquivo "%1" não pôde ser aberto. Não consegue desinstalar
 UninstallUnsupportedVer=O arquivo do log da desinstalação "%1" está num formato não reconhecido por esta versão do desinstalador. Não consegue desinstalar
 UninstallUnknownEntry=Uma entrada desconhecida (%1) foi encontrada no log da desinstalação
-ConfirmUninstall=Você tem certeza que você quer remover completamente o %1 e todos os seus componentes?
+ConfirmUninstall=Você tem certeza de que deseja remover completamente o %1 e todos os seus componentes?
 UninstallOnlyOnWin64=Esta instalação só pode ser desinstalada em Windows 64 bits.
 OnlyAdminCanUninstall=Esta instalação só pode ser desinstalada por um usuário com privilégios administrativos.
 UninstallStatusLabel=Por favor, espere enquanto o %1 é removido do seu computador.
@@ -377,7 +377,7 @@ UninstallDataCorrupted=O arquivo "%1" está corrompido. Não consegue desinstala
 
 ; *** Uninstallation phase messages
 ConfirmDeleteSharedFileTitle=Remover Arquivo Compartilhado?
-ConfirmDeleteSharedFile2=O sistema indica que o seguinte arquivo compartilhado não está mais em uso por quaisquer programas. Você gostaria que a Desinstalação removesse este arquivo compartilhado?%n%nSe quaisquer programas ainda estão usando este arquivo e ele é removido, esses programas podem não funcionar apropriadamente. Se você não tiver certeza, escolha Não. Deixar o arquivo no seu sistema não causará qualquer dano.
+ConfirmDeleteSharedFile2=O sistema indica que o seguinte arquivo compartilhado não está mais em uso por quaisquer programas. Você gostaria que o desinstalador removesse este arquivo compartilhado?%n%nSe quaisquer programas ainda estão usando este arquivo e ele é removido, esses programas podem não funcionar apropriadamente. Se você não tiver certeza, escolha Não. Deixar o arquivo no seu sistema não causará qualquer dano.
 SharedFileNameLabel=Nome do arquivo:
 SharedFileLocationLabel=Local:
 WizardUninstalling=Status da Desinstalação
