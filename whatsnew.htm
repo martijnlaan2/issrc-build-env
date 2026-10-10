@@ -155,10 +155,12 @@ For conditions of distribution and use, see <tt><a href="files/is/license.txt">L
   <li>The <tt>[Setup]</tt> section directives which take a color now accept all standard web color names defined by CSS, such as <tt>orange</tt> and <tt>cornflowerblue</tt>, as well as the short <tt>#<i>rgb</i></tt> form.</li>
   <li>Pascal Scripting:
   <ul>
+    <li>Support functions <tt>FileSize</tt> and <tt>FileSize64</tt> no longer need read access to the file. For example, they now also work for a file which another process has open exclusively.</li>
     <li>Support function <tt>StrToColor</tt> now accepts all values accepted by the <tt>[Setup]</tt> section directives which take a color, in addition to the <tt>#<i>rrggbb</i></tt> form it already accepted.</li>
     <li>Buttons of type <tt>TBitmapButton</tt> can now also be pressed with Enter, instead of only with Space, and take part in default button handling. They now descend from <tt>TButtonControl</tt> instead of <tt>TCustomControl</tt>, and new properties <tt>Cancel</tt> (which allows pressing them with Esc), <tt>Default</tt>, and <tt>ModalResult</tt> were added.</li>
   </ul>
   </li>
+  <li><i>Fix:</i> ISPP support function <tt>FileSize</tt> returned 0 for a directory and the size of the first matching file for a file name with wildcards, instead of -1 as documented, and 0 for a symbolic link, instead of the size of its target.</li>
   <li>Updated the 7-Zip, LZMA SDK, and Scintilla source code used by Inno Setup to the latest versions.</li>
   <li>Other minor improvements and fixes.</li>
 </ul>
@@ -194,6 +196,8 @@ For conditions of distribution and use, see <tt><a href="files/is/license.txt">L
   <li>On the <i>Preparing to Install</i> wizard page, after an error, clicking Back and then Install again could place the options to close or not close the applications partly or fully outside the page (broken since 5.5.0).</li>
   <li>Pascal Scripting and ISPP support function <tt>ComparePackedVersion</tt> returned the wrong result if one of the two versions had a major version of 32768 or higher (broken since 6.6.0).</li>
   <li>ISPP support function <tt>ReadReg</tt> returned a negative number for <tt>REG_DWORD</tt> values of 0x80000000 or higher, for example -1 instead of 4294967295 for 0xFFFFFFFF (broken since 6.1.0).</li>
+  <li>ISPP support functions <tt>GetPackedVersion</tt> and <tt>GetVersionNumbers</tt> failed with an error for files without version info, instead of returning an empty string as documented.</li>
+  <li>ISPP support functions <tt>FindNext</tt>, <tt>FindGetFileName</tt>, and <tt>FindClose</tt> failed with an access violation instead of an invalid handle error when given 0, the result of <tt>FindFirst</tt> if no file is found.</li>
   <li>Pascal Scripting:
   <ul>
     <li>When a COM object or a variant array was passed as an argument to a method of a <a href="https://jrsoftware.org/ishelp/index.php?topic=scriptautomation">COM Automation object</a>, such as in <tt>ParentNode.appendChild(ChildNode)</tt>, or assigned to a property of one, it was released one time too many. This could cause access violations, for example when using MSXML after installing a September 2026 Windows update with a new MSXML version, such as KB5124007 or KB5124008.</li>
@@ -1243,7 +1247,7 @@ issigtool --key-file="MyKey.ispublickey" verify "MyProg.dll"</code></pre>
   </li>
 </ul>
 
-<p>Note: The official Icelandic translation has been reclassified as unofficial due to the absence of a maintainer.  <b>[Update: An official Icelandic translation is <a href="https://raw.github.com/jrsoftware/issrc/main/Files/Languages/Icelandic.isl">Icelandic</a>available again</a>.]</b></p>
+<p>Note: The official Icelandic translation has been reclassified as unofficial due to the absence of a maintainer. <b>[Update: An official <a href="https://raw.github.com/jrsoftware/issrc/main/Files/Languages/Icelandic.isl">Icelandic translation</a> is available again.]</b></p>
 
 </details>
 <details>
