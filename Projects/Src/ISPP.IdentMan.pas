@@ -100,7 +100,7 @@ type
       const ParserOptions: TIsppParserOptions; Params: array of TIsppMacroParam;
       Scope: TDefineScope);
     procedure DefineVariable(const Name: string; Index: Integer;
-      const Value: TIsppVariant; Scope: TDefineScope);
+      const Value: TIsppVariant; Scope: TDefineScope; const IndexSpecified: Boolean = False);
     procedure Delete(const Name: string; Scope: TDefineScope);
     procedure DimVariable(const Name: string; Length: Integer; Scope: TDefineScope; var ReDim: Boolean);
     function GetIdent(const Name: string; out CallContext: ICallContext): TIdentType;
@@ -466,7 +466,7 @@ begin
               FMacro.DeclPos.FileName,
               FMacro.DeclPos.Line, E.Position, E.Message])
           else
-            Msg := Format(SErrorExecutingMacro, [FMacro.Name,
+            Msg := Format(SErrorExecutingMacroMainScript, [FMacro.Name,
               FMacro.DeclPos.Line, E.Position, E.Message]);
           E.Message := Msg;
           E.Position := 0;
@@ -772,14 +772,15 @@ begin
 end;
 
 procedure TIdentManager.DefineVariable(const Name: string; Index: Integer;
-  const Value: TIsppVariant; Scope: TDefineScope);
+  const Value: TIsppVariant; Scope: TDefineScope; const IndexSpecified: Boolean);
 var
   V: PVariable;
   Ident: PIdent;
 begin
   if Scope = dsAny then Scope := dsPublic;
+  const HasIndex = (Index <> -1) or IndexSpecified;
   Ident := Find(Name, Scope);
-  if (Ident <> nil) and (Ident.IdentType = itVariable) and (PVariable(Ident).Dim <> 0) then
+  if HasIndex and (Ident <> nil) and (Ident.IdentType = itVariable) and (PVariable(Ident).Dim <> 0) then
   begin
     V := PVariable(Ident);
     if (Index < 0) or (Index >= V.Dim) then
@@ -788,8 +789,13 @@ begin
   end
   else
   begin
-    if Index <> -1 then
-      raise EIdentError.CreateFmt(SUndeclaredIdentifier, [Name]);
+    if HasIndex then
+    begin
+      if Ident <> nil then
+        raise EIdentError.CreateFmt(SIdentifierIsNotAnArray, [Name])
+      else
+        raise EIdentError.CreateFmt(SUndeclaredIdentifier, [Name]);
+    end;
     Delete(Name, Scope);
     V := AllocMem(SizeOf(TVariable));
     try
