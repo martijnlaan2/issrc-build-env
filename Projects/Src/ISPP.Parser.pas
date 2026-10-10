@@ -167,7 +167,7 @@ function TParser.Factor(DoEval: Boolean): TIsppVariant;
             end;
           tkCloseParen, tkCloseBracket, tkCloseBrace:
             begin
-              NextToken;
+              NextTokenExpect([Brackets[CallContext.GroupingStyle, True]]);
               if ArgFound then CallContext.Add(ArgName, V);
               V := NULL;
               Break
@@ -339,7 +339,7 @@ begin
         evInt: MakeInt(Op2, 0);
         evStr: MakeStr(Op2, '');
       end;
-  if Op1.Typ <> Op2.Typ then
+  if (Op1.Typ <> Op2.Typ) or not (Op1.Typ in [evInt, evStr]) then
     Error(SOperatorNotApplicableToThisOpera);
   AsBool := False;
   with Result do
