@@ -13,10 +13,12 @@
 { For debugging purposes, remove the 'x' to have it link the compiler code into
   this program and not depend on ISCmplr.dll. You will also need to add the
   ..\Components and Src folders to the Delphi Compiler Search path in the project
-  options. Also see ISCC's STATICCOMPILER and Compiler.Compile's STATICPREPROC. }
+  options. Also see ISCC's STATICCOMPILER and Compiler.SetupCompiler's
+  STATICPREPROC. }
 
 {$IFDEF STATICCOMPILER}
 {$R ..\Res\ISCmplr.images.res}
+{$R ..\Res\ISCmplr.images.dark.res}
 {$ENDIF}
 
 interface
@@ -2215,7 +2217,10 @@ procedure TMainForm.OpenFile(AMemo: TIDEScintFileEdit; AFilename: String;
   begin
     AMemo.Call(SCI_SETSEL, FilePosition.Selection.AnchorPos, FilePosition.Selection.CaretPos);
     const CurTop = AMemo.TopLine;
-    const LineTop = AMemo.GetVisibleLineFromDocLine(FilePosition.ScrollPosition);
+    { The reloaded file may have fewer lines. SciTE does not clamp because SCI_VISIBLEFROMDOCLINE
+      clamps, but our GetVisibleLineFromDocLine raises on an out-of-range line. }
+    const ScrollPosition = Min(FilePosition.ScrollPosition, AMemo.Lines.Count - 1);
+    const LineTop = AMemo.GetVisibleLineFromDocLine(ScrollPosition);
     AMemo.Call(SCI_LINESCROLL, 0, LineTop - CurTop);
     AMemo.ChooseCaretX;
   end;

@@ -1601,7 +1601,7 @@ function TSetupCompiler.CheckConst(const S: String; const MinVersion: TSetupVers
 { Returns True if S contains constants. Aborts compile if they are invalid. }
 
   function CheckEnvConst(C: String): Boolean;
-  { based on ExpandEnvConst in Setup.MainFunc.pas }
+  { based on ExpandEnvConst in Setup.MainFunc }
   var
     I: Integer;
     VarName, Default: String;
@@ -1623,7 +1623,7 @@ function TSetupCompiler.CheckConst(const S: String; const MinVersion: TSetupVers
   end;
 
   function CheckRegConst(C: String): Boolean;
-  { based on ExpandRegConst in Setup.MainFunc.pas }
+  { based on ExpandRegConst in Setup.MainFunc }
   type
     TKeyNameConst = packed record
       KeyName: String;
@@ -1688,7 +1688,7 @@ function TSetupCompiler.CheckConst(const S: String; const MinVersion: TSetupVers
   end;
 
   function CheckIniConst(C: String): Boolean;
-  { based on ExpandIniConst in Setup.MainFunc.pas }
+  { based on ExpandIniConst in Setup.MainFunc }
   var
     Z, Filename, Section, Key, Default: String;
     I: Integer;
@@ -2328,9 +2328,8 @@ procedure TSetupCompiler.ProcessPermissionsParameter(ParamData: String;
     DOMAIN_ALIAS_RID_ADMINS = $00000220;
     DOMAIN_ALIAS_RID_USERS = $00000221;
     DOMAIN_ALIAS_RID_GUESTS = $00000222;
-    DOMAIN_ALIAS_RID_POWER_USERS = $00000223;
     DOMAIN_ALIAS_RID_IIS_IUSRS = $00000238;
-    KnownSids: array[0..10] of TKnownSid = (
+    KnownSids: array[0..9] of TKnownSid = (
       (Name: 'admins';
        Sid: (Authority: (Value: (0, 0, 0, 0, 0, SECURITY_NT_AUTHORITY));
              SubAuthCount: 2;
@@ -2359,10 +2358,6 @@ procedure TSetupCompiler.ProcessPermissionsParameter(ParamData: String;
        Sid: (Authority: (Value: (0, 0, 0, 0, 0, SECURITY_NT_AUTHORITY));
              SubAuthCount: 1;
              SubAuth: (SECURITY_NETWORK_SERVICE_RID, 0))),
-      (Name: 'powerusers';
-       Sid: (Authority: (Value: (0, 0, 0, 0, 0, SECURITY_NT_AUTHORITY));
-             SubAuthCount: 2;
-             SubAuth: (SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_POWER_USERS))),
       (Name: 'service';
        Sid: (Authority: (Value: (0, 0, 0, 0, 0, SECURITY_NT_AUTHORITY));
              SubAuthCount: 1;
@@ -3291,8 +3286,6 @@ begin
     ssPrivilegesRequired: begin
         if CompareText(Value, 'none') = 0 then
           SetupHeader.PrivilegesRequired := prNone
-        else if CompareText(Value, 'poweruser') = 0 then
-          SetupHeader.PrivilegesRequired := prPowerUser
         else if CompareText(Value, 'admin') = 0 then
           SetupHeader.PrivilegesRequired := prAdmin
         else if CompareText(Value, 'lowest') = 0 then
@@ -4632,7 +4625,7 @@ const
     'deletekey', 'deletevalue', 'noerror', 'dontcreatekey');
   AccessMasks: array[0..2] of TNameAndAccessMask = (
     (Name: 'full'; Mask: $F003F),
-    (Name: 'modify'; Mask: $3001F), { <- same access that Power Users get by default on HKLM\SOFTWARE }
+    (Name: 'modify'; Mask: $3001F),
     (Name: 'read'; Mask: $20019));
 
   function ConvertBinaryString(const S: String): String;
@@ -7196,7 +7189,7 @@ const
      SCompilerVerificationFileNameIncorrect, SCompilerVerificationFileSizeIncorrect,
      SCompilerVerificationFileHashIncorrect);
 begin
-  { Also see Setup.Install for a similar function }
+  { Also see Setup.ISSigVerifyFunc's VerificationError for a similar function }
   AbortCompileFmt(SCompilerSourceFileVerificationFailed,
     [AFilename, Format(Messages[AError], [PathExtractName(ASigFilename)])]); { Not all messages actually have a %s parameter but that's OK }
 end;
@@ -7837,7 +7830,7 @@ var
           if FLExtraInfo.Verification.Typ = fvHash then
             ExpectedFileHash := FLExtraInfo.Verification.Hash
           else if FLExtraInfo.Verification.Typ = fvISSig then begin
-            { See Setup.Install's CopySourceFileToDestFile for similar code }
+            { See Setup.ISSigVerifyFunc's DoISSigVerify for similar code }
             if Length(ISSigAvailableKeys) = 0 then { shouldn't fail: flag stripped already }
               AbortCompileFmt(SCompilerCompressInternalError, ['Length(ISSigAvailableKeys) = 0']);
             var ExpectedFileName: String;
@@ -8337,7 +8330,6 @@ var
   SetupMemoryFile: TMemoryFile;
   AppNameHasConsts, AppVersionHasConsts, AppPublisherHasConsts,
     AppCopyrightHasConsts, AppIdHasConsts, Uninstallable: Boolean;
-  PrivilegesRequiredValue: String;
   GetActiveProcessorGroupCountFunc: function: WORD; stdcall;
 begin
   { Sanity check: A single TSetupCompiler instance cannot be used to do
@@ -8892,7 +8884,7 @@ begin
 
       This means the Unicode compiler has to do an extra phase: following the logic above
       it first determines the final language code page for each language, storing these
-      into an extra list called PreDataList, and then it continues as normal while using
+      into an extra list called PreLangDataList, and then it continues as normal while using
       the final language code page for any conversions needed.
 
       Note: it must avoid caching the .isl files while determining the code pages, since
@@ -8903,16 +8895,16 @@ begin
       ReadDefaultMessages calls EnumMessages for Default.isl's [Messages], with Ext set to -2.
       These messages are stored in DefaultLangData to be used as defaults for missing messages
       later on. EnumLangOptions isn't called, the defaults will (at run-time) be displayed
-      using the code page of the language with the missing messages. EnumMessages for
+      using the code page of the language with the missing messages. EnumCustomMessages for
       Default.isl's [CustomMessages] also isn't called at this point, missing custom messages
       are handled differently.
 
       2. Read [Languages] section and the .isl files the entries reference:
 
       EnumLanguages is called for the script. For each [Languages] entry its parameters
-      are read and for the MessagesFiles parameter ReadMessagesFromFiles is called. For
+      are read and for the MessagesFile parameter ReadMessagesFromFiles is called. For
       each file ReadMessagesFromFiles first calls EnumLangOptions, then EnumMessages for
-      [Messages], and finally another EnumMessages for [CustomMessages], all with Ext set
+      [Messages], and finally EnumCustomMessages for [CustomMessages], all with Ext set
       to the index of the language.
 
       All the [LangOptions] and [Messages] data is stored in single structures per language,
@@ -8934,7 +8926,7 @@ begin
       Note this is just like the script creator creating an entry for Default.isl.
 
       ReadMessagesFromScript then first calls EnumLangOptions, then EnumMessages for
-      [Messages], and finally another EnumMessages for [CustomMessages] for the script.
+      [Messages], and finally EnumCustomMessages for [CustomMessages] for the script.
       Note this is just like ReadMessagesFromFiles does for files, except that Ext is set
       to -1. This causes it to accept language identifiers ('en.LanguageCodePage=...'):
       if the identifier is set the read data is stored only for that language in the
@@ -9054,14 +9046,9 @@ begin
     CallIdleProc;
 
     if UsedUserAreasWarning and (UsedUserAreas.Count > 0) and
-       (SetupHeader.PrivilegesRequired in [prPowerUser, prAdmin]) then begin
-      if SetupHeader.PrivilegesRequired = prPowerUser then
-        PrivilegesRequiredValue := 'poweruser'
-      else
-        PrivilegesRequiredValue := 'admin';
+       (SetupHeader.PrivilegesRequired = prAdmin) then
       WarningsList.Add(Format(SCompilerUsedUserAreasWarning, ['Setup',
-        'PrivilegesRequired', PrivilegesRequiredValue, UsedUserAreas.CommaText]));
-    end;
+        'PrivilegesRequired', 'admin', UsedUserAreas.CommaText]));
 
     var DllNameExtension: String;
     if SetupArchitecture = sa64bit then

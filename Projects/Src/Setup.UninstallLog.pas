@@ -121,7 +121,7 @@ type
   PUninstallLogFlags = ^TUninstallLogFlags;
   TUninstallLogFlags = set of (ufAdminInstalled, ufDontCheckRecCRCs,
     ufDoNotUse0, ufAlwaysRestart, ufChangesEnvironment, ufWin64,
-    ufPowerUserInstalled, ufAdminInstallMode,
+    ufPowerUserInstalled { no longer written }, ufAdminInstallMode,
     ufDoNotUse1, ufDoNotUse2, ufDoNotUse3, ufDoNotUse4, ufDoNotUse5,
     { ^ these and also ufDoNotUse0 cannot be used again, were used for ufWizardModern,
         ufWizardDarkStyleDark, ufWizardDarkStyleDynamic, ufWizardBorderStyled,
@@ -179,11 +179,11 @@ function ReadUninstallLogFlags(const F: TFile; const Filename: String): TUninsta
 implementation
 
 uses
-  Messages, ShlObj, AnsiStrings, Character,
+  ShlObj, AnsiStrings, Character,
   UnsignedFunc, PathFunc,
   Shared.Struct, Shared.SetupTypes, Shared.SetupMessageIDs,
   SetupLdrAndSetup.Messages,
-  Setup.InstFunc, Setup.InstFunc.Ole, Setup.RedirFunc, Compression.Base,
+  Setup.InstFunc, Setup.InstFunc.Ole, Compression.Base,
   Setup.LoggingFunc, Setup.RegDLL, Setup.DotNetFunc, Setup.PathRedir;
 
 type
@@ -1205,7 +1205,7 @@ procedure TUninstallLog.Save(const Filename: String;
   const Append, UpdateUninstallLogAppName: Boolean);
 { Saves all undo data to Filename. If Append is True, it appends the current
   undo data to the end of the existing file. When Append is True, it assumes
-  compatibility has already been verified with the Test method. }
+  compatibility has already been verified with the CanAppend method. }
 var
   F: TFile;
   Buffer: array[0..4095] of Byte;

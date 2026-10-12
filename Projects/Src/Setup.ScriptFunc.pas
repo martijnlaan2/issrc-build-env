@@ -21,7 +21,7 @@ implementation
 uses
   Windows,
   Forms, SysUtils, Classes, Graphics, ActiveX, Generics.Collections, Math,
-  uPSUtils, PathFunc, ISSigFunc, ECDSA, BrowseFunc, MD5, SHA1, SHA256, BitmapButton, BitmapImage,
+  uPSUtils, PathFunc, ISSigFunc, BrowseFunc, MD5, SHA1, SHA256, BitmapButton, BitmapImage,
   PSStackHelper, UnsignedFunc,
   Shared.Struct, Setup.WizardForm.CustomPages, Setup.MainFunc, Shared.CommonFunc.Vcl,
   Shared.CommonFunc, Shared.FileClass, SetupLdrAndSetup.InstFunc,
@@ -761,10 +761,6 @@ var
     RegisterScriptFunc(['ISADMIN', 'ISADMINLOGGEDON'], procedure(const Caller: TPSExec; const OrgName: AnsiString; const Stack: TPSStack; const PStart: Integer)
     begin
       Stack.SetBool(PStart, IsAdmin);
-    end);
-    RegisterScriptFunc('ISPOWERUSERLOGGEDON', procedure(const Caller: TPSExec; const OrgName: AnsiString; const Stack: TPSStack; const PStart: Integer)
-    begin
-      Stack.SetBool(PStart, IsPowerUserLoggedOn);
     end);
     RegisterScriptFUnc('ISADMININSTALLMODE', procedure(const Caller: TPSExec; const OrgName: AnsiString; const Stack: TPSStack; const PStart: Integer)
     begin

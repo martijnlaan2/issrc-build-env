@@ -63,9 +63,6 @@ type
     Ext: NativeInt;
   end;
 
-  PActualParams = ^TActualParams;
-  TActualParams = array of TVariable;
-
   IInternalFuncParams = interface(IIsppFuncParams)
     function Get(Index: NativeInt): PIsppVariant;
     function ResPtr: PIsppVariant;
@@ -100,7 +97,7 @@ type
       const ParserOptions: TIsppParserOptions; Params: array of TIsppMacroParam;
       Scope: TDefineScope);
     procedure DefineVariable(const Name: string; Index: Integer;
-      const Value: TIsppVariant; Scope: TDefineScope);
+      const Value: TIsppVariant; Scope: TDefineScope; const IndexSpecified: Boolean = False);
     procedure Delete(const Name: string; Scope: TDefineScope);
     procedure DimVariable(const Name: string; Length: Integer; Scope: TDefineScope; var ReDim: Boolean);
     function GetIdent(const Name: string; out CallContext: ICallContext): TIdentType;
@@ -418,7 +415,6 @@ begin
     if not FList[I].Defined then
       if not (pfHasDefault in FMacro.Params[I].ParamFlags) then
         ErrorNotSpecified(FMacro.Params[I].Name)
-        //raise EMacroError.CreateFmt(SNoReqParam, [FMacro.Params[I].Name])
       else
       begin
         FList[I].Value.Name := FMacro.Params[I].Name;
@@ -439,7 +435,7 @@ begin
             FMacro.DeclPos.FileName,
             FMacro.DeclPos.Line, E.Position, E.Message])
         else
-          Msg := Format(SErrorExecutingMacro, [FMacro.Name,
+          Msg := Format(SErrorExecutingMacroMainScript, [FMacro.Name,
             FMacro.DeclPos.Line, E.Position, E.Message]);
         E.Message := Msg;
         E.Position := 0;
@@ -572,9 +568,6 @@ type
     function Get(Index: NativeInt): PIsppVariant;
     function ResPtr: PIsppVariant;
     { IIsppFuncResult }
-    procedure SetAsInt(Value: Int64); stdcall;
-    procedure SetAsString(Value: PChar); stdcall;
-    procedure SetAsNull; stdcall;
     procedure RaiseError(Message: PChar); stdcall;
     { ICallContext }
     procedure Add(const Name: string; const Value: TIsppVariant);
@@ -653,21 +646,6 @@ begin
   Result := @FResult;
 end;
 
-procedure TFuncCallContext.SetAsInt(Value: Int64);
-begin
-  MakeInt(FResult, Value);
-end;
-
-procedure TFuncCallContext.SetAsNull;
-begin
-  FResult := NULL;
-end;
-
-procedure TFuncCallContext.SetAsString(Value: PChar);
-begin
-  MakeStr(FResult, Value);
-end;
-
 { TIdentManager }
 
 constructor TIdentManager.Create(const CustomIdents: IIdentManager; FuncSender: NativeInt);
@@ -742,14 +720,15 @@ begin
 end;
 
 procedure TIdentManager.DefineVariable(const Name: string; Index: Integer;
-  const Value: TIsppVariant; Scope: TDefineScope);
+  const Value: TIsppVariant; Scope: TDefineScope; const IndexSpecified: Boolean);
 var
   V: PVariable;
   Ident: PIdent;
 begin
   if Scope = dsAny then Scope := dsPublic;
+  const HasIndex = (Index <> -1) or IndexSpecified;
   Ident := Find(Name, Scope);
-  if (Ident <> nil) and (Ident.IdentType = itVariable) and (PVariable(Ident).Dim <> 0) then
+  if HasIndex and (Ident <> nil) and (Ident.IdentType = itVariable) and (PVariable(Ident).Dim <> 0) then
   begin
     V := PVariable(Ident);
     if (Index < 0) or (Index >= V.Dim) then
@@ -758,8 +737,13 @@ begin
   end
   else
   begin
-    if Index <> -1 then
-      raise EIdentError.CreateFmt(SUndeclaredIdentifier, [Name]);
+    if HasIndex then
+    begin
+      if Ident <> nil then
+        raise EIdentError.CreateFmt(SIdentifierIsNotAnArray, [Name])
+      else
+        raise EIdentError.CreateFmt(SUndeclaredIdentifier, [Name]);
+    end;
     Delete(Name, Scope);
     V := AllocMem(SizeOf(TVariable));
     try
@@ -927,7 +911,7 @@ begin
         itMacro: CallContext := TMacroCallContext.Create(MacroIdents, PMacro(P));
         itFunc: CallContext := TFuncCallContext.Create(FFuncSender, PFunc(P));
       else
-        Assert(False)
+        raise Exception.Create('Internal error: unexpected IdentType');
       end;
     end
     else

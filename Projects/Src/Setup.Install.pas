@@ -147,7 +147,7 @@ var
     Result := I = 0;
   end;
 
-  { Also see Setup.MainFunc.pas }
+  { Also see Setup.MainFunc }
   function ExistingInstallationAt(const RegView: TRegView; const RootKey: HKEY): Boolean;
   var
     K: HKEY;
@@ -358,7 +358,7 @@ begin
       SetDWordValue(H2, 'EstimatedSize', DWORD(EstimatedSize));
     end;
 
-    { Also see SetCodePreviousData in Setup.ScriptFunc.HelperFunc.pas }
+    { Also see SetCodePreviousData in Setup.ScriptFunc.HelperFunc }
     if CodeRunner <> nil then begin
       try
         CodeRunner.RunProcedures('RegisterPreviousData', [Integer(H2)], False);
@@ -2759,10 +2759,7 @@ begin
       if IsWin64 then
         Include(UninstLog.Flags, ufWin64);
       if IsAdmin then { Setup or [Code] might have done administrative actions, even if IsAdminInstallMode is False }
-        Include(UninstLog.Flags, ufAdminInstalled)
-      else if IsPowerUserOrAdmin then
-        { Note: This flag is only set in 5.1.9 and later }
-        Include(UninstLog.Flags, ufPowerUserInstalled);
+        Include(UninstLog.Flags, ufAdminInstalled);
       if shUninstallRestartComputer in SetupHeader.Options then
         Include(UninstLog.Flags, ufAlwaysRestart);
       if ChangesEnvironment then
