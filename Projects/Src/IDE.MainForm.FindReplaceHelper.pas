@@ -43,7 +43,7 @@ implementation
 
 uses
   Windows, Messages,
-  Classes, SysUtils, StrUtils,  Menus,
+  SysUtils, StrUtils,
   ScintEdit,
   Shared.CommonFunc, Shared.CommonFunc.Vcl,
   IDE.Messages, IDE.LocalizeFunc, IDE.HelperFunc, IDE.ScintStylerInnoSetup;
@@ -339,6 +339,13 @@ begin
     Exit;
 
   FLastReplaceText := ReplaceDialog.ReplaceText;
+
+  { The Replace dialog is modeless, so the active memo can be read-only }
+  if FActiveMemo.ReadOnly then begin
+    SysUtils.Beep;
+    Exit; { Replace All would loop endlessly }
+  end;
+
   var ReplaceMode := RegExToReplaceMode(FLastFindRegEx);
 
   if frReplaceAll in FLastFindOptions then begin
