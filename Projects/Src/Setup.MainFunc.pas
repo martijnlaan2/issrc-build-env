@@ -1340,9 +1340,10 @@ begin
 end;
 
 function ExpandExternalSourceFilename(const FileEntry: PSetupFileEntry): String;
+{ Returns '' only if the SkipIfSourceDoesntExist flag is set }
 begin
   Result := ExpandConst(FileEntry^.SourceFilename);
-  if Result = '' then { when allowed ApplyPathRedirRules would throw its exception }
+  if (Result = '') and not(foSkipIfSourceDoesntExist in FileEntry^.Options) then { when allowed ApplyPathRedirRules would throw its exception }
     InternalErrorFmt('The "Source" parameter value "%s" expanded to an empty string',
       [FileEntry^.SourceFilename]);
 end;
@@ -2030,7 +2031,10 @@ begin
             if not EnumFilesProc(ApplyPathRedirRules(Is64Bit, ExpandConst(CurFile^.DestName), tpCurrent), Param) then
               Exit(False);
           end else begin
-            SourceWildcard := ApplyPathRedirRules(Is64Bit, ExpandExternalSourceFilename(CurFile), tpCurrent);
+            const ExpandedSourceFilename = ExpandExternalSourceFilename(CurFile);
+            if ExpandedSourceFilename = '' then
+              Continue;
+            SourceWildcard := ApplyPathRedirRules(Is64Bit, ExpandedSourceFilename, tpCurrent);
             Excludes.DelimitedText := CurFile^.Excludes;
             if foExtractArchive in CurFile^.Options then begin
               try
@@ -4136,10 +4140,12 @@ begin
 
     if not(roShellExec in RunEntry.Options) then begin
       if not(roSkipIfDoesntExist in RunEntry.Options) or
-         NewFileExists(ApplyPathRedirRules(RunEntry64Bit, ExpandedFilenameBeforeRedir, tpCurrent)) then begin
+         ((ExpandedFilenameBeforeRedir <> '') and
+          NewFileExists(ApplyPathRedirRules(RunEntry64Bit, ExpandedFilenameBeforeRedir, tpCurrent))) then begin
+        const LogOutputFlag = roLogOutput in RunEntry.Options;
         var OutputReader: TCreateProcessOutputReader := nil;
         try
-          if roLogOutput in RunEntry.Options then begin
+          if LogOutputFlag then begin
             if (RunEntry.OnLog <> '') and (CodeRunner <> nil) then
               OutputReader := TCreateProcessOutputReader.Create(RunExecLogOnLog, NativeInt(PChar(RunEntry.OnLog)))
             else if GetLogActive then
@@ -4148,7 +4154,7 @@ begin
           var ErrorCode: DWORD;
           if not InstExecEx(RunAsOriginalUser, RunEntry64Bit and not IsCurrentProcess64Bit,
              ExpandedFilename, ExpandedParameters, ExpandedWorkingDir,
-             Wait, RunEntry.ShowCmd, ProcessMessagesProc, OutputReader, ErrorCode) then
+             Wait, RunEntry.ShowCmd, LogOutputFlag, ProcessMessagesProc, OutputReader, ErrorCode) then
             raise Exception.Create(FmtSetupMessage1(msgErrorExecutingProgram, ExpandedFilename) +
               SNewLine2 + FmtSetupMessage(msgErrorFunctionFailedWithMessage,
               ['CreateProcess', IntToStr(ErrorCode), Win32ErrorString(ErrorCode)]));
