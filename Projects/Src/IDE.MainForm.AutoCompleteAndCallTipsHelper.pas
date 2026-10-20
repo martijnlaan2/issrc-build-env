@@ -78,7 +78,7 @@ begin
   while (Pos < ScanEndPos) and (AMemo.GetByteAtPosition(Pos) <= ' ') do
     Pos := AMemo.GetPositionAfter(Pos);
 
-  { Require '#' as first non-whitespace character }
+  { Require '#' as first non-whitespace character. Also see InitiateAutoComplete (scCode). }
   if (Pos >= ScanEndPos) or (AMemo.GetByteAtPosition(Pos) <> '#') then
     Exit;
   Pos := AMemo.GetPositionAfter(Pos);
@@ -195,6 +195,17 @@ procedure TMainFormAutoCompleteAndCallTipsHelper.InitiateAutoComplete(const AMem
     Result := True;
   end;
 
+  function SkipWhiteSpaceBefore(const AMemo: TScintEdit; const LinePos, Pos: Integer): Integer;
+  begin
+    Result := Pos;
+    while Result > LinePos do begin
+      const PosBefore = AMemo.GetPositionBefore(Result);
+      if AMemo.GetByteAtPosition(PosBefore) > ' ' then
+        Break;
+      Result := PosBefore;
+    end;
+  end;
+
 begin
   if AMemo.AutoCompleteActive or AMemo.ReadOnly then
     Exit;
@@ -301,6 +312,10 @@ begin
         begin
           const Section = TInnoSetupStyler.GetSectionFromLineState(AMemo.Lines.State[Line]);
           if Section = scCode then begin
+            { Only initiate autocompletion for non-ISPP directive lines. Also see IsInISPPLineContext. }
+            if AMemo.GetByteAtPosition(AMemo.GetLineIndentPosition(Line)) = '#' then
+              Exit;
+
             { Space can only initiate autocompletion after non whitespace }
             if (Key = ' ') and OnlyWhiteSpaceBeforeWord(AMemo, LinePos, WordStartPos) then
               Exit;
@@ -363,7 +378,7 @@ begin
                 TInnoSetupStyler.IsSymbolStyle(AMemo.GetStyleAtPosition(I)) then begin { Make sure it's an stSymbol ';' or ':' and not one inside a quoted string or comment }
                 FoundSemicolon := C = ';';
                 if not FoundSemicolon then begin
-                  const ParameterWordEndPos = I;
+                  const ParameterWordEndPos = SkipWhiteSpaceBefore(AMemo, LinePos, I);
                   const ParameterWordStartPos = AMemo.GetWordStartPosition(ParameterWordEndPos, True);
                   const ParameterWord = AMemo.GetTextRange(ParameterWordStartPos, ParameterWordEndPos);
                   FoundFlagsOrType := SameText(ParameterWord, 'Flags') or
@@ -378,13 +393,14 @@ begin
                 { Verify that a word (language or directive name) precedes the '.' or '=', then check for
                   any non-whitespace characters before the word. Among other things, this ensures
                   we're not inside a comment. }
-                const NameStartPos = AMemo.GetWordStartPosition(I, True);
-                if (NameStartPos >= I) or not OnlyWhiteSpaceBeforeWord(AMemo, LinePos, NameStartPos) then
+                var NameEndPos := I;
+                if Section = scSetup then
+                  NameEndPos := SkipWhiteSpaceBefore(AMemo, LinePos, NameEndPos);
+                const NameStartPos = AMemo.GetWordStartPosition(NameEndPos, True);
+                if (NameStartPos >= NameEndPos) or not OnlyWhiteSpaceBeforeWord(AMemo, LinePos, NameStartPos) then
                   Exit;
-                if Section = scSetup then begin
-                  const NameEndPos = AMemo.GetWordEndPosition(NameStartPos, True);
+                if Section = scSetup then
                   FoundSetupDirectiveName := AMemo.GetTextRange(NameStartPos, NameEndPos);
-                end;
                 Break;
               end else if C > ' ' then begin
                 if IsParamSection and not (Section in [scInstallDelete, scUninstallDelete]) and
@@ -413,6 +429,9 @@ begin
                   Exit; { Non-whitespace which should not be there }
               end;
             end;
+            { Only initiate autocompletion for multiple values when a [Setup] directive was found }
+            if FoundMultipleSetupDirectiveValues and (FoundSetupDirectiveName = '') then
+              Exit;
             { Space can only initiate autocompletion after ';' or 'Flags:' or 'Type:' or a [Setup] directive }
             if (Key = ' ') and not (FoundSemicolon or FoundFlagsOrType or (FoundSetupDirectiveName <> '')) then
               Exit;
