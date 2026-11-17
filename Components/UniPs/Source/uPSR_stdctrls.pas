@@ -30,7 +30,7 @@ procedure RIRegister_stdctrls(cl: TPSRuntimeClassImporter);
 
 implementation
 uses
-  sysutils, classes{$IFDEF CLX}, QControls, QStdCtrls, QGraphics{$ELSE}, controls, stdctrls, Graphics{$ENDIF}{$IFDEF FPC},buttons{$ENDIF};
+  sysutils, classes, controls, stdctrls, Graphics;
 
 procedure RIRegisterTCUSTOMGROUPBOX(Cl: TPSRuntimeClassImporter);
 begin
@@ -42,18 +42,14 @@ procedure RIRegisterTGROUPBOX(Cl: TPSRuntimeClassImporter);
 begin
   Cl.Add(TGROUPBOX);
 end;
-{$IFNDEF CLX}
 procedure TCUSTOMLABELCANVAS_R(Self: TCUSTOMLABEL; var T: TCanvas); begin T := Self.CANVAS; end;
-{$ENDIF}
 
 procedure RIRegisterTCUSTOMLABEL(Cl: TPSRuntimeClassImporter);
 begin
   with Cl.Add(TCUSTOMLABEL) do
   begin
     {$IFNDEF PS_MINIVCL}
-{$IFNDEF CLX}
     RegisterPropertyHelper(@TCUSTOMLABELCANVAS_R, nil, 'Canvas');
-{$ENDIF}
     {$ENDIF}
   end;
 end;
@@ -91,10 +87,8 @@ begin
     RegisterMethod(@TCUSTOMEDIT.COPYTOCLIPBOARD, 'CopyToClipboard');
     RegisterMethod(@TCUSTOMEDIT.CUTTOCLIPBOARD, 'CutToClipboard');
 		RegisterMethod(@TCUSTOMEDIT.PASTEFROMCLIPBOARD, 'PasteFromClipboard');
-		{$IFNDEF FPC}
 		RegisterMethod(@TCUSTOMEDIT.GETSELTEXTBUF, 'GetSelTextBuf');
     RegisterMethod(@TCUSTOMEDIT.SETSELTEXTBUF, 'SetSelTextBuf');
-		{$ENDIF}{FPC}
     {$ENDIF}
   end;
 end;
@@ -105,17 +99,15 @@ begin
 end;
 
 
-procedure TCUSTOMMEMOLINES_R(Self: {$IFDEF CLX}TMemo{$ELSE}TCUSTOMMEMO{$ENDIF}; var T: TSTRINGS); begin T := Self.LINES; end;
-procedure TCUSTOMMEMOLINES_W(Self: {$IFDEF CLX}TMemo{$ELSE}TCUSTOMMEMO{$ENDIF}; T: TSTRINGS); begin Self.LINES := T; end;
+procedure TCUSTOMMEMOLINES_R(Self: TCUSTOMMEMO; var T: TSTRINGS); begin T := Self.LINES; end;
+procedure TCUSTOMMEMOLINES_W(Self: TCUSTOMMEMO; T: TSTRINGS); begin Self.LINES := T; end;
 
 
 procedure RIRegisterTCUSTOMMEMO(Cl: TPSRuntimeClassImporter);
 begin
   with Cl.Add(TCUSTOMMEMO) do
   begin
-    {$IFNDEF CLX}
     RegisterPropertyHelper(@TCUSTOMMEMOLINES_R, @TCUSTOMMEMOLINES_W, 'Lines');
-    {$ENDIF}
   end;
 end;
 
@@ -124,9 +116,6 @@ procedure RIRegisterTMEMO(Cl: TPSRuntimeClassImporter);
 begin
   with Cl.Add(TMEMO) do
   begin
-    {$IFDEF CLX}
-    RegisterPropertyHelper(@TCUSTOMMEMOLINES_R, @TCUSTOMMEMOLINES_W, 'Lines');
-    {$ENDIF}
   end;
 end;
 

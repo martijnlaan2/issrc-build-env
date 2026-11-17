@@ -20,9 +20,7 @@ procedure SIRegisterTWinControl(Cl: TPSPascalCompiler);
 procedure SIRegisterTGraphicControl(cl: TPSPascalCompiler); 
 procedure SIRegisterTCustomControl(cl: TPSPascalCompiler); 
 procedure SIRegisterTDragObject(cl: TPSPascalCompiler);
-{$IFDEF DELPHI4UP}
 procedure SIRegisterTSizeConstraints(cl: TPSPascalCompiler);
-{$ENDIF}
 
 procedure SIRegister_Controls(Cl: TPSPascalCompiler);
 
@@ -56,27 +54,19 @@ begin
     RegisterProperty('Enabled', 'Boolean', iptrw);
     RegisterProperty('Cursor', 'TCursor', iptrw);
   
-    {$IFDEF DELPHI23UP}
     RegisterProperty('StyleElements', 'TStyleElements', iptrw);
-    {$ENDIF}
-    {$IFDEF DELPHI26UP}
     RegisterProperty('StyleName', 'string', iptrw);
-    {$ENDIF}
 
     {$IFNDEF PS_MINIVCL}
     RegisterMethod('function Dragging: Boolean;');
     RegisterMethod('function HasParent: Boolean');
     RegisterMethod('function ClientToScreen(Point: TPoint): TPoint');
-    {$IFNDEF FPC}
     RegisterMethod('procedure BeginDrag(Immediate: Boolean)');
     RegisterMethod('procedure EndDrag(Drop: Boolean)');
-    {$ENDIF}
-    {$IFNDEF CLX}
     RegisterMethod('function GetTextBuf(Buffer: PChar; BufSize: Integer): Integer');
     RegisterMethod('function GetTextLen: Integer');
     RegisterMethod('procedure SetTextBuf(Buffer: PChar)');
     RegisterMethod('function Perform(Msg: Cardinal; WParam: NativeUInt; LParam: NativeInt): NativeInt');
-    {$ENDIF}
     RegisterMethod('function ScreenToClient(Point: TPoint): TPoint');
     {$ENDIF}
   end;
@@ -92,9 +82,7 @@ begin
       RegisterProperty('Parent', 'TWinControl', iptRW);
     end;
 
-    {$IFNDEF CLX}
     RegisterProperty('Handle', 'HWND', iptR);
-    {$ENDIF}
     RegisterProperty('Showing', 'Boolean', iptR);
     RegisterProperty('TabOrder', 'Integer', iptRW);
     RegisterProperty('TabStop', 'Boolean', iptRW);
@@ -108,14 +96,10 @@ begin
     RegisterMethod('procedure HandleNeeded;');
     RegisterMethod('procedure EnableAlign;');
     RegisterMethod('procedure RemoveControl(AControl: TControl);');
-    {$IFNDEF FPC}
     RegisterMethod('procedure InsertControl(AControl: TControl);');
     RegisterMethod('procedure ScaleBy(M, D: Integer);');
     RegisterMethod('procedure ScrollBy(DeltaX, DeltaY: Integer);');
-    {$IFNDEF CLX}
     RegisterMethod('procedure PaintTo(DC: HDC; X,Y: Integer)');
-    {$ENDIF}
-    {$ENDIF}
     RegisterMethod('procedure Realign;');
     RegisterMethod('procedure SetFocus; virtual;');
 
@@ -140,12 +124,7 @@ end;
 
 procedure SIRegister_Controls_TypesAndConsts(Cl: TPSPascalCompiler);
 begin
-{$IFNDEF FPC}
   Cl.addTypeS('TEShiftState','(ssShift, ssAlt, ssCtrl, ssLeft, ssRight, ssMiddle, ssDouble)');
-  {$ELSE}
-  Cl.addTypeS('TEShiftState','(ssShift, ssAlt, ssCtrl, ssLeft, ssRight, ssMiddle, ssDouble,' +
-  'ssMeta, ssSuper, ssHyper, ssAltGr, ssCaps, ssNum,ssScroll,ssTriple,ssQuad)');
-  {$ENDIF}
   Cl.addTypeS('TShiftState','set of TEShiftState');
   cl.AddTypeS('TMouseButton', '(mbLeft, mbRight, mbMiddle)');
   cl.AddTypeS('TDragMode', '(dmManual, dmAutomatic)');
@@ -162,29 +141,19 @@ begin
   if cl.FindType('HDC') = nil then
     cl.AddTypeS('HDC', 'NativeUInt');
   {$IFNDEF PS_MINIVCL}
-  {$IFNDEF FPC}
   if cl.FindType('THandle') = nil then
     cl.AddTypeS('THandle', 'NativeUInt');
-  {$ENDIF}
   {$ENDIF}
 
   cl.AddTypeS('TEndDragEvent', 'procedure(Sender, Target: TObject; X, Y: Integer)');
 
   cl.addTypeS('TAlign', '(alNone, alTop, alBottom, alLeft, alRight, alClient)');
 
-  {$IFDEF DELPHI23UP}
   cl.addTypeS('TStyleElement', '(seFont, seClient, seBorder)');
   cl.addTypeS('TStyleElements', 'set of TStyleElement');
-  {$ENDIF}
 
-  {$IFDEF DELPHI4UP}
   cl.addTypeS('TAnchorKind', '(akLeft, akTop, akRight, akBottom)');
   cl.addTypeS('TAnchors','set of TAnchorKind');
-  {$ENDIF}
-  {$IFDEF FPC}
-  cl.addTypeS('TAnchorKind', '(akTop, akLeft, akRight, akBottom)');
-  cl.addTypeS('TAnchors','set of TAnchorKind');
-  {$ENDIF}
   cl.AddTypeS('TModalResult', 'Integer');
   cl.AddTypeS('TCursor', 'Integer');
   cl.AddTypeS('TPoint', 'record X,Y: LongInt; end;');
@@ -220,15 +189,9 @@ begin
   cl.AddConstantN('crNo', 'Integer').Value.ts32 := -18;
   cl.AddConstantN('crAppStart', 'Integer').Value.ts32 := -19;
   cl.AddConstantN('crHelp', 'Integer').Value.ts32 := -20;
-{$IFDEF DELPHI3UP}
   cl.AddConstantN('crHandPoint', 'Integer').Value.ts32 := -21;
-{$ENDIF}
-{$IFDEF DELPHI4UP}
   cl.AddConstantN('crSizeAll', 'Integer').Value.ts32 := -22;
-{$ENDIF}
-{$IFDEF DELPHI2009UP}
   cl.AddTypeS('TBevelKind', '(bkNone, bkTile, bkSoft, bkFlat)');
-{$ENDIF}
 end;
 
 procedure SIRegisterTDragObject(cl: TPSPascalCompiler);
@@ -236,16 +199,11 @@ begin
   with CL.AddClassN(CL.FindClass('TObject'),'TDragObject') do
   begin
 {$IFNDEF PS_MINIVCL}
-{$IFDEF DELPHI4UP}
     RegisterMethod('procedure Assign(Source: TDragObject)');
-{$ENDIF}
-{$IFNDEF FPC}
     RegisterMethod('function GetName: string');
     RegisterMethod('function Instance: THandle');
-{$ENDIF}
     RegisterMethod('procedure HideDragImage');
     RegisterMethod('procedure ShowDragImage');
-{$IFDEF DELPHI4UP}
     RegisterProperty('Cancelling', 'Boolean', iptrw);
     RegisterProperty('DragHandle', 'HWND', iptrw);
     RegisterProperty('DragPos', 'TPoint', iptrw);
@@ -253,12 +211,10 @@ begin
     RegisterProperty('MouseDeltaX', 'Double', iptr);
     RegisterProperty('MouseDeltaY', 'Double', iptr);
 {$ENDIF}
-{$ENDIF}
   end;
   Cl.AddTypeS('TStartDragEvent', 'procedure (Sender: TObject; var DragObject: TDragObject)');
 end;
 
-{$IFDEF DELPHI4UP}
 procedure SIRegisterTSizeConstraints(cl: TPSPascalCompiler);
 begin
   cl.AddTypeS('TConstraintSize', 'Integer');
@@ -270,15 +226,12 @@ begin
     RegisterProperty('MinWidth', 'TConstraintSize', iptrw);
   end;
 end;
-{$ENDIF}
 
 procedure SIRegister_Controls(Cl: TPSPascalCompiler);
 begin
   SIRegister_Controls_TypesAndConsts(cl);
   SIRegisterTDragObject(cl);
-{$IFDEF DELPHI4UP}
   SIRegisterTSizeConstraints(cl);
-{$ENDIF}
   SIRegisterTControl(Cl);
   SIRegisterTWinControl(Cl);
   SIRegisterTGraphicControl(cl);

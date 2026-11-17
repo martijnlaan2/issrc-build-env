@@ -16,26 +16,18 @@ procedure RIRegisterTBEVEL(Cl: TPSRuntimeClassImporter);
 procedure RIRegisterTTIMER(Cl: TPSRuntimeClassImporter);
 procedure RIRegisterTCUSTOMPANEL(Cl: TPSRuntimeClassImporter);
 procedure RIRegisterTPANEL(Cl: TPSRuntimeClassImporter);
-{$IFNDEF CLX}
 procedure RIRegisterTPAGE(Cl: TPSRuntimeClassImporter);
 procedure RIRegisterTNOTEBOOK(Cl: TPSRuntimeClassImporter);
-{$IFNDEF FPC}procedure RIRegisterTHEADER(Cl: TPSRuntimeClassImporter);{$ENDIF}
-{$ENDIF}
+procedure RIRegisterTHEADER(Cl: TPSRuntimeClassImporter);
 procedure RIRegisterTCUSTOMRADIOGROUP(Cl: TPSRuntimeClassImporter);
 procedure RIRegisterTRADIOGROUP(Cl: TPSRuntimeClassImporter);
-{$IFDEF DELPHI14UP}
 procedure RIRegisterTCUSTOMLINKLABEL(Cl: TPSRuntimeClassImporter);
 procedure RIRegisterTLINKLABEL(Cl: TPSRuntimeClassImporter);
-{$ENDIF}
 
 implementation
 
 uses
-  {$IFDEF CLX}
-  QExtCtrls, QGraphics;
-  {$ELSE}
   ExtCtrls, Graphics;
-  {$ENDIF}
 
 procedure RIRegisterTSHAPE(Cl: TPSRuntimeClassImporter);
 begin
@@ -86,7 +78,6 @@ procedure RIRegisterTPANEL(Cl: TPSRuntimeClassImporter);
 begin
   Cl.Add(TPANEL);
 end;
-{$IFNDEF CLX}
 procedure RIRegisterTPAGE(Cl: TPSRuntimeClassImporter);
 begin
   Cl.Add(TPAGE);
@@ -97,7 +88,6 @@ begin
   Cl.Add(TNOTEBOOK);
 end;
 
-{$IFNDEF FPC}
 procedure THEADERSECTIONWIDTH_R(Self: THEADER; var T: INTEGER; t1: INTEGER); begin T := Self.SECTIONWIDTH[t1]; end;
 procedure THEADERSECTIONWIDTH_W(Self: THEADER; T: INTEGER; t1: INTEGER); begin Self.SECTIONWIDTH[t1] := T; end;
 
@@ -108,8 +98,6 @@ begin
 		RegisterPropertyHelper(@THEADERSECTIONWIDTH_R, @THEADERSECTIONWIDTH_W, 'SectionWidth');
 	end;
 end;
-{$ENDIF}
-{$ENDIF}
 
 procedure RIRegisterTCUSTOMRADIOGROUP(Cl: TPSRuntimeClassImporter);
 begin
@@ -120,8 +108,6 @@ procedure RIRegisterTRADIOGROUP(Cl: TPSRuntimeClassImporter);
 begin
   Cl.Add(TRADIOGROUP);
 end;
-
-{$IFDEF DELPHI14UP}
 
 procedure TCUSTOMLINKLABELALIGNMENT_R(Self: TCUSTOMLINKLABEL; var T: TCustomLinkLabel.TLinkAlignment); begin T := Self.ALIGNMENT; end;
 procedure TCUSTOMLINKLABELALIGNMENT_W(Self: TCUSTOMLINKLABEL; T: TCustomLinkLabel.TLinkAlignment); begin
@@ -150,8 +136,6 @@ begin
   Cl.Add(TLINKLABEL);
 end;
 
-{$ENDIF}
-
 procedure RIRegister_ExtCtrls(cl: TPSRuntimeClassImporter);
 begin
   {$IFNDEF PS_MINIVCL}
@@ -164,24 +148,16 @@ begin
   RIRegisterTTIMER(Cl);
   {$ENDIF}
   RIRegisterTCUSTOMPANEL(Cl);
-  {$IFNDEF CLX}
   RIRegisterTPANEL(Cl);
-  {$ENDIF}
   {$IFNDEF PS_MINIVCL}
-  {$IFNDEF CLX}
   RIRegisterTPAGE(Cl);
 	RIRegisterTNOTEBOOK(Cl);
-  {$IFNDEF FPC}
 	RIRegisterTHEADER(Cl);
-  {$ENDIF}{FPC}
-  {$ENDIF}
   RIRegisterTCUSTOMRADIOGROUP(Cl);
   RIRegisterTRADIOGROUP(Cl);
   {$ENDIF}
-  {$IFDEF DELPHI14UP}
   RIRegisterTCUSTOMLINKLABEL(Cl);
   RIRegisterTLINKLABEL(Cl);
-  {$ENDIF}
 end;
 
 end.

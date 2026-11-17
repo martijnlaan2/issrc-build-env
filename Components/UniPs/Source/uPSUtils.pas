@@ -3,7 +3,7 @@ unit uPSUtils;
 
 interface
 uses
-  Classes, SysUtils {$IFDEF VER130}, Windows {$ENDIF};
+  Classes, SysUtils;
 
 const
 
@@ -23,21 +23,9 @@ const
 
   PSAddrNegativeStackStart = 1073741824;
 type
-  {$IFDEF FPC}
-    {$IFDEF FPC_UNICODE}
-    tbtString = AnsiString;
-    tbtPChar  = PAnsiChar;
-    tbtChar   = AnsiChar;
-    {$ELSE}
-    tbtString = string;
-    tbtPChar  = PChar;
-    tbtChar   = Char;
-    {$ENDIF}
-  {$ELSE}
-  tbtString = {$IFDEF DELPHI2009UP}AnsiString{$ELSE}string{$ENDIF};
-  tbtPChar  = {$IFDEF DELPHI2009UP}PAnsiChar{$ELSE}PChar{$ENDIF};
-  tbtChar   = {$IFDEF DELPHI4UP}AnsiChar{$ELSE}CHAR{$ENDIF};
-  {$ENDIF}
+  tbtString = AnsiString;
+  tbtPChar  = PAnsiChar;
+  tbtChar   = AnsiChar;
 
   TPSBaseType = Byte;
 
@@ -332,25 +320,12 @@ type
 {$IFNDEF PS_NOWIDESTRING}
   tbtWideString = WideString;
 
-  tbtUnicodeString =
-    {$IFDEF FPC}
-      UnicodeString
-    {$ELSE}
-      {$IFDEF UNICODE}UnicodeString{$ELSE}WideString{$ENDIF}
-    {$ENDIF};
+  tbtUnicodeString = UnicodeString;
 
   tbtWideChar = WideChar;
-  tbtNativeString = {$IFDEF DELPHI2009UP}tbtUnicodeString{$ELSE}tbtString{$ENDIF};
+  tbtNativeString = tbtUnicodeString;
 {$ENDIF}
-{$IFDEF FPC}
-  IPointer = PtrUInt;
-{$ELSE}
-  {$IFDEF DELPHI2009UP}
-    IPointer = NativeUInt;
-  {$ELSE}
-    IPointer = Cardinal;
-  {$ENDIF}
-{$ENDIF}
+  IPointer = NativeUInt;
   TPSCallingConvention = (cdRegister, cdPascal, cdCdecl, cdStdCall, cdSafeCall);
 
 
@@ -590,7 +565,7 @@ type
   TPSPascalParser = class(TObject)
   protected
     FData: TbtString;
-    FText: {$IFDEF DELPHI4UP}PAnsiChar{$ELSE}PChar{$ENDIF};
+    FText: PAnsiChar;
     FLastEnterPos, FRow, FRealPosition, FTokenLength: Cardinal;
     FTokenId: TPSPasToken;
     FToken: TbtString;
@@ -653,52 +628,10 @@ const
   FMaxCheckCount = (FCapacityInc div 4) * 64;
 {$ENDIF}
 
-{$IFDEF VER130}
-function WideUpperCase(const S: WideString): WideString;
-function WideLowerCase(const S: WideString): WideString;
-{$ENDIF}
 implementation
 
-{$IFDEF DELPHI3UP }
 resourceString
-{$ELSE }
-const
-{$ENDIF }
   RPS_InvalidFloat = 'Invalid float';
-
-{$IFDEF VER130}
-
-function WideUpperCase(const S: WideString): WideString;
-var
-  Len: Integer;
-begin
-  // CharUpperBuffW is stubbed out on Win9x platofmrs
-  if Win32Platform = VER_PLATFORM_WIN32_NT then
-  begin
-    Len := Length(S);
-    SetString(Result, PWideChar(S), Len);
-    if Len > 0 then CharUpperBuffW(Pointer(Result), Len);
-  end
-  else
-    Result := AnsiUpperCase(S);
-end;
-
-function WideLowerCase(const S: WideString): WideString;
-var
-  Len: Integer;
-begin
-  // CharLowerBuffW is stubbed out on Win9x platofmrs
-  if Win32Platform = VER_PLATFORM_WIN32_NT then
-  begin
-    Len := Length(S);
-    SetString(Result, PWideChar(S), Len);
-    if Len > 0 then CharLowerBuffW(Pointer(Result), Len);
-  end
-  else
-    Result := AnsiLowerCase(S);
-end;
-
-{$ENDIF}
 
 
 function MakeHash(const s: TbtString): Longint;
@@ -767,40 +700,17 @@ begin
 end;
 //-------------------------------------------------------------------
 
-{$IFDEF FPC}{$DEFINE PS_HAVEFORMATSETTINGS}{$ENDIF}
-{$IFDEF DELPHIXEUP}{$DEFINE PS_HAVEFORMATSETTINGS}{$ENDIF}
-
-{$IFDEF PS_HAVEFORMATSETTINGS}
 var
   DotFormatSettings: TFormatSettings;
-{$ENDIF}
 
 function FloatToStr(E: Extended): TbtString;
-{$IFNDEF PS_HAVEFORMATSETTINGS}
-var
-  s: tbtstring;
-{$ENDIF}
 begin
-{$IFDEF PS_HAVEFORMATSETTINGS}
   Result := TbtString(SysUtils.FloatToStr(E, DotFormatSettings));
-{$ELSE}
-  Str(e:0:12, s);
-  Result := s;
-{$ENDIF}
 end;
 
 function CurrToStr(C: Currency): TbtString;
-{$IFNDEF PS_HAVEFORMATSETTINGS}
-var
-  s: tbtstring;
-{$ENDIF}
 begin
-{$IFDEF PS_HAVEFORMATSETTINGS}
   Result := TbtString(SysUtils.CurrToStr(C, DotFormatSettings));
-{$ELSE}
-  Str(c:0:4, s);
-  Result := s;
-{$ENDIF}
 end;
 
 function StrToInt(const S: TbtString): LongInt;
@@ -1255,7 +1165,7 @@ var
   var
     ct, ci: Cardinal;
     hs: Boolean;
-    p: {$IFDEF DELPHI4UP}PAnsiChar{$ELSE}PChar{$ENDIF};
+    p: PAnsiChar;
   begin
     ParseToken := iNoError;
     ct := CurrTokenPos;
@@ -1274,7 +1184,7 @@ var
           CurrTokenLen := ci - ct;
 
           FLastUpToken := _GetToken(CurrTokenPos, CurrtokenLen);
-          p := {$IFDEF DELPHI4UP}PAnsiChar{$ELSE}pchar{$ENDIF}(FLastUpToken);
+          p := PAnsiChar(FLastUpToken);
           while p^<>#0 do
           begin
             if p^ in [#97..#122] then
@@ -1779,15 +1689,13 @@ begin
   fUnitName := FastUpperCase(Value);
 end;
 
-{$IFDEF PS_HAVEFORMATSETTINGS}
 initialization
-  DotFormatSettings := {$IFDEF FPC}DefaultFormatSettings{$ELSE}FormatSettings{$ENDIF};
+  DotFormatSettings := FormatSettings;
   { Always use a dot, like Str and Val do }
   DotFormatSettings.DecimalSeparator := '.';
   { FPC's FloatToStr and CurrToStr use ThousandSeparator to decide whether to remove
     a minus sign. #0 never occurs in their output, so then it has no effect, like with Str. }
   DotFormatSettings.ThousandSeparator := #0;
-{$ENDIF}
 end.
 
 

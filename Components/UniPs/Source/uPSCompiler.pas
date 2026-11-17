@@ -2,8 +2,7 @@ unit uPSCompiler;
 {$I PascalScript.inc}
 interface
 uses
-  {$IFNDEF DELPHI3UP}{$IFNDEF PS_NOINTERFACES}{$IFNDEF LINUX}Windows, Ole2,{$ENDIF}
-  {$ENDIF}{$ENDIF}SysUtils, uPSUtils;
+  SysUtils, uPSUtils;
 
 
 type
@@ -1773,13 +1772,9 @@ procedure DisposeVariant(p: PIfRVariant);
 
 implementation
 
-uses {$IFDEF DELPHI5}ComObj, {$ENDIF}{$IFDEF PS_FPC_HAS_COM}ComObj, {$ENDIF}Classes, typInfo;
+uses Classes, typInfo;
 
-{$IFDEF DELPHI3UP}
 resourceString
-{$ELSE}
-const
-{$ENDIF}
 
   RPS_OnUseEventOnly = 'This function can only be called from within the OnUses event';
   RPS_UnableToRegisterFunction = 'Unable to register function %s';
@@ -1853,10 +1848,6 @@ const
   RPS_AbstractClass = 'Abstract Class Construction';
   RPS_UnknownWarning = 'Unknown warning';
 
-  {$IFDEF DEBUG }
-  RPS_UnableToRegister = 'Unable to register %s';
-  {$ENDIF}
-
   RPS_NotArrayProperty = 'Not an array property : ''%s''';
   RPS_NotProperty = 'Not a property : ''%s''';
   RPS_UnknownProperty = 'Unknown Property : ''%s''';
@@ -1897,19 +1888,12 @@ begin
   BlockWriteData(BlockInfo, l, 4);
 end;
 
-{$IFDEF CPU64}
-{$IFDEF TExtended80Rec_present}
-  { ^ This combination is not True on FPC }
-  {$DEFINE CPU64_and_TExtended80Rec_present}
-{$ENDIF}
-{$ENDIF}
-
 function BlockWriteVariant(BlockInfo: TPSBlockInfo; p: PIfRVariant{$IFNDEF PS_NOINT64}; const ExecIs64Bit: Boolean{$ENDIF}): Boolean;
 var
   du8: tbtu8;
   du16: tbtu16;
   {$IFNDEF PS_NOINT64}
-  {$IFDEF CPU64_and_TExtended80Rec_present}
+  {$IFDEF CPU64}
   TempReallyExtended: TExtended80Rec;
   {$ENDIF}
   {$IFNDEF CPU64}
@@ -1951,16 +1935,12 @@ begin
         BlockWriteData(BlockInfo, p^.textended, sizeof(tbtExtended));
         {$ENDIF}
       end else begin
-        {$IFDEF CPU64_and_TExtended80Rec_present}
+        {$IFDEF CPU64}
         { On 32-bit Exec, Extended is not an alias for Double, so write a real Extended instead, using TExtended80Rec }
         TempReallyExtended := TExtended80Rec(p^.textended);
         BlockWriteData(BlockInfo, TempReallyExtended, sizeof(TExtended80Rec));
         {$ELSE}
-        {$IFDEF CPU64}
-          Result := False; { 64-bit compiler cannot write 10 byte Extended for 32-bit exec without having TExtended80Rec }
-        {$ELSE}
-          BlockWriteData(BlockInfo, p^.textended, sizeof(tbtExtended));
-        {$ENDIF}
+        BlockWriteData(BlockInfo, p^.textended, sizeof(tbtExtended));
         {$ENDIF}
       end;
       {$ELSE}
@@ -2000,12 +1980,6 @@ begin
   {$IFNDEF PS_NOINT64}
   bts64: BlockWriteData(BlockInfo, p^.ts64, SizeOf(tbts64));
   btU64: BlockWriteData(BlockInfo, p^.tu64, SizeOf(tbtu64));
-  {$ENDIF}
-  {$IFDEF DEBUG}
-  {$IFNDEF FPC}
-  else
-      asm int 3; end;
-  {$ENDIF}
   {$ENDIF}
   end;
 end;
@@ -2532,9 +2506,6 @@ begin
   Parser := TPSPascalParser.Create;
   Parser.SetText(Header);
   Decl := TPSParametersDecl.Create;
-{$IFNDEF DELPHI_TOKYO_UP}
-  x := nil;
-{$ENDIF}
   try
     if Parser.CurrTokenId = CSTII_Function then
       IsFunction := True
@@ -4887,16 +4858,7 @@ begin
   {$ENDIF}
   if @FOnTranslateLineInfo <> nil then
     FOnTranslateLineInfo(Self, Pos, Row, Col, S);
-  {$IFDEF FPC}
-  WriteDebugData(#4 + s + #1);
-  WriteDebugData(Ps_mi2s(ProcNo));
-  WriteDebugData(Ps_mi2s(Length(Proc.Data)));
-  WriteDebugData(Ps_mi2s(Pos));
-  WriteDebugData(Ps_mi2s(Row));
-  WriteDebugData(Ps_mi2s(Col));
-  {$ELSE}
   WriteDebugData(#4 + s + #1 + PS_mi2s(ProcNo) + PS_mi2s(Length(Proc.Data)) + PS_mi2s(Pos) + PS_mi2s(Row)+ PS_mi2s(Col));
-  {$ENDIF}
 end;
 
 procedure TPSPascalCompiler.Debug_WriteParams(ProcNo: Cardinal; Proc: TPSInternalProcedure);
@@ -5674,7 +5636,7 @@ function TPSPascalCompiler.ReadString: PIfRVariant;
       begin
         if UTF8Decode then
         begin
-        temp3 := temp3 + {$IFNDEF PS_NOWIDESTRING}{$IFDEF DELPHI6UP}System.{$IFDEF DELPHI2009UP}UTF8ToWidestring{$ELSE}UTF8Decode{$ENDIF}{$ENDIF}{$ENDIF}(PString(FParser.GetToken));
+        temp3 := temp3 + {$IFNDEF PS_NOWIDESTRING}System.UTF8ToWidestring{$ENDIF}(PString(FParser.GetToken));
         {$IFNDEF PS_NOWIDESTRING}wchar:=true;{$ENDIF}
         end else
           temp3 := temp3 + {$IFNDEF PS_NOWIDESTRING}tbtUnicodestring{$ENDIF}(PString(FParser.GetToken));
@@ -5794,9 +5756,6 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
   var
     x: TPSProcVar;
   begin
-{$IFDEF DEBUG}
-    if (mtype = nil) or (not mtype.Used) then asm int 3; end;
-{$ENDIF}
     x := TPSProcVar.Create;
     {$IFDEF PS_USESSUPPORT}
     x.DeclareUnit:=fModule;
@@ -5977,9 +5936,6 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
       begin
         Val := IVar;
         ExpectedType := GetTypeNo(BlockInfo, ivar);
-{$IFDEF DEBUG}
-        if not ExpectedType.Used then asm int 3; end;
-{$ENDIF}
         ParamMode := pmInOut;
       end;
       Result := ProcessFunction2(ProcNo, Par, nil);
@@ -6252,11 +6208,7 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
       AfterWriteOutRec(BVal.FVal2);
       if FBooleanShortCircuit and (IsBoolean(BVal.aType)) and (JOver <> JEnd) then
       begin
-        {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-        unaligned(Cardinal((@BlockInfo.Proc.FData[jover+1])^)) := Cardinal(Length(BlockInfo.Proc.FData)) - jend;
-	{$else}
         Cardinal((@BlockInfo.Proc.FData[jover+1])^) := Cardinal(Length(BlockInfo.Proc.FData)) - jend;
-	{$endif}
       end;
       AfterWriteOutRec(Output);
     end;
@@ -6851,7 +6803,7 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
         begin
           if (u.BaseType = btString) {$IFNDEF PS_NOWIDESTRING} or
             (u.BaseType = btWideString) or (u.BaseType = btUnicodeString) {$ENDIF}
-            {$IFDEF PS_HAVEVARIANT}or (u.BaseType = btVariant){$ENDIF} then
+            or (u.BaseType = btVariant) then
           begin
              FParser.Next;
             tmp := Calc(CSTI_CloseBlock);
@@ -6879,9 +6831,8 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
                 x := nil;
                 exit;
               end;
-              {$IFDEF PS_HAVEVARIANT}if (u.BaseType = btVariant) then
+              if (u.BaseType = btVariant) then
                 l := FindProc('VarArraySet') else
-              {$ENDIF}
               {$IFNDEF PS_NOWIDESTRING}
               if (u.BaseType = btWideString) or (u.BaseType = btUnicodeString) then
                 l := FindProc('WStrSet')
@@ -6907,17 +6858,11 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
               begin
                 Val := tmp;
                 ExpectedType := GetTypeNo(BlockInfo, tmp);
-{$IFDEF DEBUG}
-                if not ExpectedType.Used then asm int 3; end;
-{$ENDIF}
               end;
               with tmp3.Parameters.Add do
               begin
                 Val := x;
                 ExpectedType := GetTypeNo(BlockInfo, x);
-{$IFDEF DEBUG}
-                if not ExpectedType.Used then asm int 3; end;
-{$ENDIF}
                 ParamMode := pmInOut;
               end;
               x := tmp3;
@@ -6929,7 +6874,7 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
                 x := nil;
                 exit;
               end;
-              {$IFDEF PS_HAVEVARIANT}if (u.BaseType <> btVariant) then {$ENDIF}
+              if (u.BaseType <> btVariant) then
               begin
                 if (GetTypeNo(BlockInfo, Tmp).BaseType <> btChar)
                 {$IFNDEF PS_NOWIDESTRING} and (GetTypeno(BlockInfo, Tmp).BaseType <> btWideChar) {$ENDIF} then
@@ -6943,17 +6888,12 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
                 end;
               end;
               param.Val := tmp;
-              {$IFDEF PS_HAVEVARIANT}
               if u.BaseType = btVariant then
-                Param.ExpectedType := u else{$ENDIF}
+                Param.ExpectedType := u else
               Param.ExpectedType := GetTypeNo(BlockInfo, tmp);
-{$IFDEF DEBUG}
-              if not Param.ExpectedType.Used then asm int 3; end;
-{$ENDIF}
             end else begin
-              {$IFDEF PS_HAVEVARIANT}if (u.BaseType = btVariant) then
+              if (u.BaseType = btVariant) then
                 l := FindProc('VarArrayGet') else
-              {$ENDIF}
               {$IFNDEF PS_NOWIDESTRING}
               if (u.BaseType = btWideString) or (u.BaseType = btUnicodeString) then
                 l := FindProc('WStrGet')
@@ -6969,9 +6909,8 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
                 exit;
               end;
               tmp3 := TPSValueProcNo.Create;
-              {$IFDEF PS_HAVEVARIANT}if (u.BaseType = btVariant) then
+              if (u.BaseType = btVariant) then
                 tmp3.ResultType := FindBaseType(btVariant) else
-              {$ENDIF}
               {$IFNDEF PS_NOWIDESTRING}
               if (u.BaseType = btWideString) or (u.BaseType = btUnicodeString) then
                 tmp3.ResultType := FindBaseType(btWideChar)
@@ -6985,9 +6924,6 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
               begin
                 Val := x;
                 ExpectedType := GetTypeNo(BlockInfo, x);
-{$IFDEF DEBUG}
-                if not ExpectedType.Used then asm int 3; end;
-{$ENDIF}
 
                 if x is TPSValueVar then
                   ParamMode := pmInOut
@@ -6998,9 +6934,6 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
               begin
                 Val := tmp;
                 ExpectedType := GetTypeNo(BlockInfo, tmp);
-{$IFDEF DEBUG}
-                if not ExpectedType.Used then asm int 3; end;
-{$ENDIF}
               end;
               x := tmp3;
             end;
@@ -7071,7 +7004,7 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
           end;
         end
         else if ((FParser.CurrTokenId = CSTI_Period) or (ImplicitPeriod))
-         {$IFDEF PS_HAVEVARIANT}and not (u.BaseType = btVariant){$ENDIF}
+         and not (u.BaseType = btVariant)
         then
         begin
           if not ImplicitPeriod then
@@ -7140,11 +7073,7 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
               u := rr.aType;
             end;
           end
-          {$IFDEF PS_HAVEVARIANT}
           else if (u.BaseType = btVariant) then break else
-          {$ELSE}
-          ;
-          {$ENDIF}
 
           begin
             x.Free;
@@ -7396,9 +7325,6 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
             begin
               Val := Tempp;
               ExpectedType := at2ut(Decl.Result);
-{$IFDEF DEBUG}
-              if not ExpectedType.Used then asm int 3; end;
-{$ENDIF}
             end;
 
             if not TPSClassType(FType).cl.Property_Set(Idx, Procno) then
@@ -7688,16 +7614,10 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
           begin
             Val := Temp;
             ExpectedType := GetTypeNo(BlockInfo, temp);
-{$IFDEF DEBUG}
-            if not ExpectedType.Used then asm int 3; end;
-{$ENDIF}
           end;
           with TPSValueProcNo(Result).Parameters.Add do
           begin
             ExpectedType := at2ut(FindBaseType(btu32));
-{$IFDEF DEBUG}
-            if not ExpectedType.Used then asm int 3; end;
-{$ENDIF}
             Val := TPSValueData.Create;
             with TPSValueData(val) do
             begin
@@ -8125,9 +8045,6 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
         begin
           Val := p;
           ExpectedType := GetTypeNo(BlockInfo, p);
-{$IFDEF DEBUG}
-          if not ExpectedType.Used then asm int 3; end;
-{$ENDIF}
           FParamMode := pmIn;
         end;
         Result := Temp;
@@ -10471,36 +10388,20 @@ begin
     AfterWriteOutRec(VariableVar);
     BlockWriteByte(BlockInfo, Cm_G);
     BlockWriteLong(BlockInfo, Longint(NPos - Length(BlockInfo.Proc.Data) - 4));
-    {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-    unaligned(Longint((@BlockInfo.Proc.Data[EPos + 1])^)) := Length(BlockInfo.Proc.Data) - RPos;
-    {$else}
     Longint((@BlockInfo.Proc.Data[EPos + 1])^) := Length(BlockInfo.Proc.Data) - RPos;
-    {$endif}
     if ExitCheckEmitted then
     begin
-      {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-      unaligned(Longint((@BlockInfo.Proc.Data[EPos2 + 1])^)) := Length(BlockInfo.Proc.Data) - RPos2;
-      {$else}
       Longint((@BlockInfo.Proc.Data[EPos2 + 1])^) := Length(BlockInfo.Proc.Data) - RPos2;
-      {$endif}
     end;
     for i := 0 to FBreakOffsets.Count -1 do
     begin
       EPos := IPointer(FBreakOffsets[I]);
-      {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-      unaligned(Longint((@BlockInfo.Proc.Data[EPos - 3])^)) := Length(BlockInfo.Proc.Data) - Longint(EPos);
-      {$else}
       Longint((@BlockInfo.Proc.Data[EPos - 3])^) := Length(BlockInfo.Proc.Data) - Longint(EPos);
-      {$endif}
     end;
     for i := 0 to FContinueOffsets.Count -1 do
     begin
       EPos := IPointer(FContinueOffsets[I]);
-      {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-      unaligned(Longint((@BlockInfo.Proc.Data[EPos - 3])^)) := Longint(FPos) - Longint(EPos);
-      {$else}
       Longint((@BlockInfo.Proc.Data[EPos - 3])^) := Longint(FPos) - Longint(EPos);
-      {$endif}
     end;
     FBreakOffsets.Free;
     FContinueOffsets.Free;
@@ -10608,28 +10509,16 @@ begin
     Debug_WriteLine(BlockInfo);
     BlockWriteByte(BlockInfo, Cm_G);
     BlockWriteLong(BlockInfo, Longint(SPos) - Length(BlockInfo.Proc.Data) - 4);
-    {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-    unaligned(Longint((@BlockInfo.Proc.Data[EPos - 3])^)) := Length(BlockInfo.Proc.Data) - Longint(EPos) - 5;
-    {$else}
     Longint((@BlockInfo.Proc.Data[EPos - 3])^) := Length(BlockInfo.Proc.Data) - Longint(EPos) - 5;
-    {$endif}
     for i := 0 to FBreakOffsets.Count -1 do
     begin
       EPos := Cardinal(FBreakOffsets[I]);
-      {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-      unaligned(Longint((@BlockInfo.Proc.Data[EPos - 3])^)) := Length(BlockInfo.Proc.Data) - Longint(EPos);
-      {$else}
       Longint((@BlockInfo.Proc.Data[EPos - 3])^) := Length(BlockInfo.Proc.Data) - Longint(EPos);
-      {$endif}
     end;
     for i := 0 to FContinueOffsets.Count -1 do
     begin
       EPos := Cardinal(FContinueOffsets[I]);
-      {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-      unaligned(Longint((@BlockInfo.Proc.Data[EPos - 3])^)) := Longint(SPos) - Longint(EPos);
-      {$else}
       Longint((@BlockInfo.Proc.Data[EPos - 3])^) := Longint(SPos) - Longint(EPos);
-      {$endif}
     end;
     FBreakOffsets.Free;
     FContinueOffsets.Free;
@@ -10750,30 +10639,17 @@ begin
 
       exit;
     end;
-    {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-    unaligned(Longint((@BlockInfo.Proc.Data[EPos - 3])^)) := Longint(SPos) -
-      Length(BlockInfo.Proc.Data);
-    {$else}
     Longint((@BlockInfo.Proc.Data[EPos - 3])^) := Longint(SPos) -
       Length(BlockInfo.Proc.Data);
-    {$endif}
     for i := 0 to FBreakOffsets.Count -1 do
     begin
       EPos := Cardinal(FBreakOffsets[I]);
-      {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-      unaligned(Longint((@BlockInfo.Proc.Data[EPos - 3])^)) := Length(BlockInfo. Proc.Data) - Longint(EPos);
-      {$else}
       Longint((@BlockInfo.Proc.Data[EPos - 3])^) := Length(BlockInfo. Proc.Data) - Longint(EPos);
-      {$endif}
     end;
     for i := 0 to FContinueOffsets.Count -1 do
     begin
       EPos := Cardinal(FContinueOffsets[I]);
-      {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-      unaligned(Longint((@BlockInfo.Proc.Data[EPos - 3])^)) := Longint(CPos) - Longint(EPos);
-      {$else}
       Longint((@BlockInfo.Proc.Data[EPos - 3])^) := Longint(CPos) - Longint(EPos);
-      {$endif}
     end;
     FBreakOffsets.Free;
     FContinueOffsets.Free;
@@ -10849,11 +10725,7 @@ begin
       BlockWriteByte(BlockInfo, Cm_G);
       BlockWriteLong(BlockInfo, $12345678);
       EPos := Length(BlockInfo.Proc.Data);
-      {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-      unaligned(Longint((@BlockInfo.Proc.Data[SPos - 3])^)) := Length(BlockInfo.Proc.Data) - Longint(SPos);
-      {$else}
       Longint((@BlockInfo.Proc.Data[SPos - 3])^) := Length(BlockInfo.Proc.Data) - Longint(SPos);
-      {$endif}
       FParser.Next;
       Block := TPSBlockInfo.Create(BlockInfo);
       Block.SubType := tOneLiner;
@@ -10863,19 +10735,11 @@ begin
         exit;
       end;
       Block.Free;
-      {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-      unaligned(Longint((@BlockInfo.Proc.Data[EPos - 3])^)) := Length(BlockInfo.Proc.Data) - Longint(EPos);
-      {$else}
       Longint((@BlockInfo.Proc.Data[EPos - 3])^) := Length(BlockInfo.Proc.Data) - Longint(EPos);
-      {$endif}
     end
     else
     begin
-      {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-      unaligned(Longint((@BlockInfo.Proc.Data[SPos - 3])^)) := Length(BlockInfo.Proc.Data) - Longint(SPos) + 5 - 5;
-      {$else}
       Longint((@BlockInfo.Proc.Data[SPos - 3])^) := Length(BlockInfo.Proc.Data) - Longint(SPos) + 5 - 5;
-      {$endif}
     end;
     Result := True;
   end; {ProcessIf}
@@ -11133,11 +10997,7 @@ begin
       BlockWriteByte(BlockInfo, Cm_G);
       BlockWriteLong(BlockInfo, $12345678);
       EndReloc.Add(Pointer(Length(BlockInfo.Proc.Data)));
-      {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-      unaligned(Cardinal((@BlockInfo.Proc.Data[CurrP - 3])^)) := Cardinal(Length(BlockInfo.Proc.Data)) - CurrP - 5;
-      {$else}
       Cardinal((@BlockInfo.Proc.Data[CurrP - 3])^) := Cardinal(Length(BlockInfo.Proc.Data)) - CurrP - 5;
-      {$endif}
       if FParser.CurrTokenID = CSTI_Semicolon then FParser.Next;
       if FParser.CurrTokenID = CSTII_Else then
       begin
@@ -11169,11 +11029,7 @@ begin
     FParser.Next;
     for i := 0 to EndReloc.Count -1 do
     begin
-      {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-      unaligned(Cardinal((@BlockInfo.Proc.Data[Cardinal(EndReloc[I])- 3])^)) := Cardinal(Length(BlockInfo.Proc.Data)) - Cardinal(EndReloc[I]);
-      {$else}
       Cardinal((@BlockInfo.Proc.Data[Cardinal(EndReloc[I])- 3])^) := Cardinal(Length(BlockInfo.Proc.Data)) - Cardinal(EndReloc[I]);
-      {$endif}
     end;
     CalcItem.Free;
     TempRec.Free;
@@ -11184,11 +11040,7 @@ begin
       begin
         if Cardinal(FContinueOffsets[i]) >= SPos then
         begin
-          {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-          unaligned(Byte((@BlockInfo.Proc.Data[Longint(FContinueOffsets[i]) - 4])^)) := Cm_P2G;
-	  {$else}
           Byte((@BlockInfo.Proc.Data[Longint(FContinueOffsets[i]) - 4])^) := Cm_P2G;
-	  {$endif}
         end;
       end;
     end;
@@ -11198,11 +11050,7 @@ begin
       begin
         if Cardinal(FBreakOffsets[i]) >= SPos then
         begin
-          {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
-          unaligned(Byte((@BlockInfo.Proc.Data[Longint(FBreakOffsets[i]) - 4])^)) := Cm_P2G;
-	  {$else}
           Byte((@BlockInfo.Proc.Data[Longint(FBreakOffsets[i]) - 4])^) := Cm_P2G;
-	  {$endif}
         end;
       end;
     end;
@@ -11968,7 +11816,7 @@ var
     var
       BaseType: TPSBaseType; { Just so we can't end up with an empty var block }
       {$IFNDEF PS_NOINT64}
-      {$IFDEF CPU64_and_TExtended80Rec_present}
+      {$IFDEF CPU64}
       TempReallyExtended: TExtended80Rec;
       {$ENDIF}
       {$IFNDEF CPU64}
@@ -12011,16 +11859,12 @@ var
             WriteData(p^.textended, sizeof(tbtExtended));
             {$ENDIF}
           end else begin
-            {$IFDEF CPU64_and_TExtended80Rec_present}
+            {$IFDEF CPU64}
             { On 32-bit Exec, Extended is not an alias for Double, so write a real Extended instead, using TExtended80Rec }
             TempReallyExtended := TExtended80Rec(p^.textended);
             WriteData(TempReallyExtended, sizeof(TExtended80Rec));
             {$ELSE}
-            {$IFDEF CPU64}
-              Result := False;
-            {$ELSE}
-              WriteData(p^.textended, sizeof(tbtExtended));
-            {$ENDIF}
+            WriteData(p^.textended, sizeof(tbtExtended));
             {$ENDIF}
           end;
           {$ELSE}
@@ -12054,10 +11898,6 @@ var
       {$IFNDEF PS_NOINT64}
       bts64: WriteData(p^.ts64, SizeOf(tbts64));
       btU64: WriteData(p^.tu64, SizeOf(tbtu64));
-      {$ENDIF}
-      {$IFDEF DEBUG}
-      else
-          asm int 3; end;
       {$ENDIF}
       end;
     end;
@@ -13098,13 +12938,8 @@ begin
   {$ENDIF}
   AddType('AnsiString', btString);
   {$IFNDEF PS_NOWIDESTRING}
-    {$IFDEF DELPHI2009UP}
-    AddType('string', btUnicodeString);
-    AddType('NativeString', btUnicodeString);
-    {$ELSE}
-    AddType('string', btString);
-    AddType('NativeString', btString);
-    {$ENDIF}
+  AddType('string', btUnicodeString);
+  AddType('NativeString', btUnicodeString);
   {$ELSE}
   AddType('string', btString);
   AddType('NativeString', btString);
@@ -13919,29 +13754,21 @@ begin
   AddConstantN('varBoolean', 'Word').Value.tu16 := varboolean;
   AddConstantN('varVariant', 'Word').Value.tu16 := varvariant;
   AddConstantN('varUnknown', 'Word').Value.tu16 := varunknown;
-{$IFDEF DELPHI6UP}
   AddConstantN('varShortInt', 'Word').Value.tu16 := varshortint;
   AddConstantN('varByte', 'Word').Value.tu16 := varbyte;
   AddConstantN('varWord', 'Word').Value.tu16 := varword;
   AddConstantN('varLongWord', 'Word').Value.tu16 := varlongword;
   AddConstantN('varInt64', 'Word').Value.tu16 := varint64;
-{$ENDIF}
-{$IFDEF DELPHI5UP}
   AddConstantN('varStrArg', 'Word').Value.tu16 := varstrarg;
   AddConstantN('varAny', 'Word').Value.tu16 := varany;
-{$ENDIF}
   AddConstantN('varString', 'Word').Value.tu16 := varstring;
   AddConstantN('varTypeMask', 'Word').Value.tu16 := vartypemask;
   AddConstantN('varArray', 'Word').Value.tu16 := vararray;
   AddConstantN('varByRef', 'Word').Value.tu16 := varByRef;
-{$IFDEF UNICODE}
   AddConstantN('varUString', 'Word').Value.tu16 := varUString;
-{$ENDIF}
   AddDelphiFunction('function Unassigned: Variant;');
   AddDelphiFunction('function VarIsEmpty(const V: Variant): Boolean;');
-{$IFDEF DELPHI7UP}
   AddDelphiFunction('function VarIsClear(const V: Variant): Boolean;');
-{$ENDIF}
   AddDelphiFunction('function Null: Variant;');
   AddDelphiFunction('function VarIsNull(const V: Variant): Boolean;');
   AddDelphiFunction('function VarType(const V: Variant): TVarType;');
@@ -14303,9 +14130,6 @@ var
 
 begin
   pDecl := TPSParametersDecl.Create;
-{$IFNDEF DELPHI_TOKYO_UP}
-  p := nil;
-{$ENDIF}
   try
     if not ParseMethod(Self, '', Decl, DOrgName, pDecl, FT) then
       Raise EPSCompilerException.CreateFmt(RPS_UnableToRegisterFunction, [Decl]);
@@ -15245,13 +15069,6 @@ destructor TPSValueAllocatedStackVar.Destroy;
 var
   pv: TPSProcVar;
 begin
-  {$IFDEF DEBUG}
-  if Cardinal(LocalVarNo +1) <> proc.ProcVars.Count then
-  begin
-    Abort;
-    exit;
-  end;
-  {$ENDIF}
   if Proc <> nil then
   begin
     pv := Proc.ProcVars[Proc.ProcVars.Count -1];
@@ -15647,7 +15464,6 @@ begin
     if not ParseMethod(FOwner, FClassName, Decl, DOrgName, DDecl, FT) then
     begin
       Result := False;
-      {$IFDEF DEBUG} raise EPSCompilerException.CreateFmt(RPS_UnableToRegister, [Decl]); {$ENDIF}
       exit;
     end;
     if ft = mftConstructor then
@@ -15708,7 +15524,7 @@ begin
   GetPropInfos(fclass.ClassInfo, p);
   for i := Count -1 downto 0 do
   begin
-    if p^[i]^.PropType^.Kind in [tkLString, tkInteger, tkChar, tkEnumeration, tkFloat, tkString, tkSet, tkClass, tkMethod{$IFNDEF PS_NOWIDESTRING}, tkWString{$ENDIF}{$IFDEF DELPHI2009UP}, tkUString{$ENDIF}] then
+    if p^[i]^.PropType^.Kind in [tkLString, tkInteger, tkChar, tkEnumeration, tkFloat, tkString, tkSet, tkClass, tkMethod{$IFNDEF PS_NOWIDESTRING}, tkWString{$ENDIF}, tkUString] then
     begin
       if (p^[i]^.GetProc <> nil) then
       begin

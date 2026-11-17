@@ -38,9 +38,7 @@ procedure SIRegisterTSCROLLINGWINCONTROL(Cl: TPSPascalCompiler);
 begin
   with Cl.AddClassN(cl.FindClass('TWinControl'), 'TScrollingWinControl') do
   begin
-    {$IFNDEF FPC}
     RegisterMethod('procedure ScrollInView(AControl: TControl)');
-    {$ENDIF}
     RegisterProperty('HorzScrollBar', 'TControlScrollBar', iptrw);
     RegisterProperty('VertScrollBar', 'TControlScrollBar', iptrw);
   end;
@@ -50,14 +48,8 @@ procedure SIRegisterTSCROLLBOX(Cl: TPSPascalCompiler);
 begin
   with Cl.AddClassN(cl.FindClass('TScrollingWinControl'), 'TScrollBox') do
   begin
-    {$IFDEF DELPHI4UP}
     RegisterProperty('Anchors', 'TAnchors', iptrw);
     RegisterProperty('Constraints', 'TSizeConstraints', iptrw);
-    {$ENDIF}
-    {$IFDEF FPC}
-    RegisterProperty('Anchors', 'TAnchors', iptrw);
-    RegisterProperty('Constraints', 'TSizeConstraints', iptrw);
-    {$ENDIF}
     RegisterProperty('BorderStyle', 'TBorderStyle', iptrw);
     RegisterProperty('Color', 'TColor', iptrw);
     RegisterProperty('Font', 'TFont', iptrw);
@@ -91,11 +83,7 @@ procedure SIRegisterTFORM(Cl: TPSPascalCompiler);
 begin
  with Cl.AddClassN(cl.FindClass('TScrollingWinControl'), 'TForm') do
   begin
-    {$IFDEF DELPHI4UP}
     RegisterMethod('constructor CreateNew(AOwner: TComponent; Dummy: Integer)');
-    {$ELSE}
-    RegisterMethod('constructor CreateNew(AOwner: TComponent)');
-    {$ENDIF}
     RegisterMethod('procedure Close');
     RegisterMethod('procedure Hide');
     RegisterMethod('procedure Show');
@@ -103,14 +91,8 @@ begin
     RegisterMethod('procedure Release');
     RegisterProperty('Active', 'Boolean', iptr);
     RegisterProperty('ActiveControl', 'TWinControl', iptrw);
-    {$IFDEF DELPHI4UP}
     RegisterProperty('Anchors', 'TAnchors', iptrw);
     RegisterProperty('Constraints', 'TSizeConstraints', iptrw);
-    {$ENDIF}
-    {$IFDEF FPC}
-    RegisterProperty('Anchors', 'TAnchors', iptrw);
-    RegisterProperty('Constraints', 'TSizeConstraints', iptrw);
-    {$ENDIF}
     RegisterProperty('BorderIcons', 'TBorderIcons', iptrw);
     RegisterProperty('BorderStyle', 'TFormBorderStyle', iptrw);
     RegisterProperty('Caption', 'NativeString', iptrw);
@@ -119,10 +101,8 @@ begin
     RegisterProperty('Font', 'TFont', iptrw);
     RegisterProperty('FormStyle', 'TFormStyle', iptrw);
     RegisterProperty('KeyPreview', 'Boolean', iptrw);
-    {$IFDEF DELPHI_SEATTLE_UP}
     RegisterProperty('PopupMode', 'TPopupMode', iptrw);
     RegisterProperty('PopupParent', 'TForm', iptrw);
-    {$ENDIF}
     RegisterProperty('Position', 'TPosition', iptrw);
     RegisterProperty('OnActivate', 'TNotifyEvent', iptrw);
     RegisterProperty('OnClick', 'TNotifyEvent', iptrw);
@@ -141,15 +121,12 @@ begin
 
 
     {$IFNDEF PS_MINIVCL}
-    {$IFNDEF CLX}
     RegisterMethod('procedure ArrangeIcons');
     RegisterMethod('procedure Print');
     RegisterMethod('procedure SendCancelMode(Sender: TControl)');
     RegisterProperty('ActiveOleControl', 'TWinControl', iptrw);
     RegisterProperty('ClientHandle', 'HWND', iptr);
     RegisterProperty('TileMode', 'TTileMode', iptrw);
-    {$ENDIF}
-    {$IFNDEF FPC}
     RegisterMethod('procedure Cascade');
     RegisterMethod('procedure Next');
     RegisterMethod('procedure Previous');
@@ -158,7 +135,6 @@ begin
     RegisterProperty('DropTarget', 'Boolean', iptrw);
     RegisterProperty('MDIChildCount', 'Integer', iptr);
     RegisterProperty('MDIChildren', 'TForm Integer', iptr);
-    {$ENDIF}
     RegisterMethod('function CloseQuery: Boolean');
     RegisterMethod('procedure DefocusControl(Control: TWinControl; Removing: Boolean)');
     RegisterMethod('procedure FocusControl(Control: TWinControl)');
@@ -193,40 +169,28 @@ begin
 {$IFDEF PS_PANSICHAR}
     RegisterMethod('function MessageBox(Text,Caption: PAnsiChar; Flags: Longint): Integer');
 {$ELSE}
-{$IFDEF UNICODE}
     RegisterMethod('function MessageBox(Text,Caption: string; Flags: Longint): Integer');
-  {$ELSE}
-    RegisterMethod('function MessageBox(Text,Caption: PChar; Flags: Longint): Integer');
-  {$ENDIF}
 {$ENDIF}
-    {$IFNDEF FPC}
     RegisterMethod('procedure Minimize');
     RegisterMethod('procedure Restore');
     RegisterProperty('Active', 'Boolean', iptr);
-    {$ENDIF}
     RegisterMethod('procedure ProcessMessages');
     RegisterMethod('procedure Terminate');
     RegisterProperty('ExeName', 'NativeString', iptr);
-    {$IFNDEF CLX}
     RegisterProperty('Handle', 'HWND', iptrw);
     RegisterProperty('UpdateFormatSettings', 'Boolean', iptrw);
-    {$ENDIF}
     RegisterProperty('Hint', 'NativeString', iptrw);
     RegisterProperty('MainForm', 'TForm', iptr);
     RegisterProperty('ShowHint', 'Boolean', iptrw);
     RegisterProperty('ShowMainForm', 'Boolean', iptrw);
     RegisterProperty('Terminated', 'Boolean', iptr);
     RegisterProperty('Title', 'NativeString', iptrw);
-    {$IFNDEF FPC}
     RegisterProperty('OnActivate', 'TNotifyEvent', iptrw);
     RegisterProperty('OnDeactivate', 'TNotifyEvent', iptrw);
-    {$ENDIF}
     RegisterProperty('OnIdle', 'TIdleEvent', iptrw);
     RegisterProperty('OnHint', 'TNotifyEvent', iptrw);
-    {$IFNDEF FPC}
     RegisterProperty('OnMinimize', 'TNotifyEvent', iptrw);
     RegisterProperty('OnRestore', 'TNotifyEvent', iptrw);
-    {$ENDIF}
 
     {$IFNDEF PS_MINIVCL}
     RegisterMethod('procedure ControlDestroyed(Control: TControl)');
@@ -234,22 +198,14 @@ begin
     RegisterMethod('procedure HandleMessage');
     RegisterMethod('procedure HideHint');
     RegisterMethod('procedure Initialize');
-    {$IFNDEF FPC}
     RegisterMethod('procedure NormalizeTopMosts');
     RegisterMethod('procedure RestoreTopMosts');
-    {$ENDIF}
     RegisterMethod('procedure Run');
-    {$IFNDEF CLX}
-    {$IFNDEF FPC}
     RegisterMethod('function HelpCommand(Command: Integer; Data: NativeInt): Boolean');
-    {$ENDIF}
     RegisterMethod('function HelpContext(Context: THelpContext): Boolean');
-    {$IFNDEF FPC}
     RegisterMethod('function HelpJump(JumpID: NativeString): Boolean');
-    {$ENDIF}
     RegisterProperty('DialogHandle', 'HWND', iptrw);
     RegisterMethod('procedure CreateHandle');
-    {$ENDIF}
     RegisterProperty('HelpFile', 'NativeString', iptrw);
     RegisterProperty('HintColor', 'TColor', iptrw);
     RegisterProperty('HintPause', 'Integer', iptrw);
@@ -270,9 +226,7 @@ begin
   cl.AddTypeS('TBorderStyle', 'TFormBorderStyle');
   cl.AddTypeS('TWindowState', '(wsNormal, wsMinimized, wsMaximized)');
   cl.AddTypeS('TFormStyle', '(fsNormal, fsMDIChild, fsMDIForm, fsStayOnTop)');
-  {$IFDEF DELPHI_SEATTLE_UP}
   cl.AddTypeS('TPopupMode', '(pmNone, pmAuto, pmExplicit)');
-  {$ENDIF}
   cl.AddTypeS('TPosition', '(poDesigned, poDefault, poDefaultPosOnly, poDefaultSizeOnly, poScreenCenter, poDesktopCenter, poMainFormCenter, poOwnerFormCenter)');
   cl.AddTypeS('TPrintScale', '(poNone, poProportional, poPrintToFit)');
   cl.AddTypeS('TCloseAction', '(caNone, caHide, caFree, caMinimize)');
@@ -281,10 +235,8 @@ begin
   cl.AddTypeS('TBorderIcon' ,'(biSystemMenu, biMinimize, biMaximize, biHelp)');
   cl.AddTypeS('TBorderIcons', 'set of TBorderIcon');
   cl.AddTypeS('THelpContext', 'LongInt');
-  {$IFNDEF CLX}
   if cl.FindType('HWND') = nil then
     cl.AddTypeS('HWND', 'NativeUInt');
-  {$ENDIF}
 end;
 
 procedure SIRegister_Forms(Cl: TPSPascalCompiler);
@@ -294,7 +246,6 @@ begin
   {$IFNDEF PS_MINIVCL}
   SIRegisterTCONTROLSCROLLBAR(cl);
   {$ENDIF}
-  // Keep TScrollingWinControl enabled on FPC even though uPSR_forms has it disabled for unknown reasons, because TScrollBox and TForm still need the base class
   SIRegisterTScrollingWinControl(cl);
   {$IFNDEF PS_MINIVCL}
   SIRegisterTSCROLLBOX(cl);

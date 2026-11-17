@@ -21,14 +21,12 @@ procedure RIRegisterTCUSTOMMEMORYSTREAM(Cl: TPSRuntimeClassImporter);
 procedure RIRegisterTMEMORYSTREAM(Cl: TPSRuntimeClassImporter);
 procedure RIRegisterTRESOURCESTREAM(Cl: TPSRuntimeClassImporter);
 procedure RIRegisterTPARSER(Cl: TPSRuntimeClassImporter);
-{$IFDEF DELPHI3UP}
 procedure RIRegisterTOWNEDCOLLECTION(Cl: TPSRuntimeClassImporter);
-{$ENDIF}
 procedure RIRegisterTCOLLECTION(Cl: TPSRuntimeClassImporter);
 procedure RIRegisterTCOLLECTIONITEM(Cl: TPSRuntimeClassImporter);
 {$ENDIF}
 
-procedure RIRegister_Classes(Cl: TPSRuntimeClassImporter; Streams: Boolean{$IFDEF D4PLUS}=True{$ENDIF});
+procedure RIRegister_Classes(Cl: TPSRuntimeClassImporter; Streams: Boolean);
 
 implementation
 uses
@@ -38,10 +36,8 @@ procedure TStringsCapacityR(Self: TStrings; var T: Longint); begin T := Self.Cap
 procedure TStringsCapacityW(Self: TStrings; T: Longint); begin Self.Capacity := T; end;
 procedure TStringsDelimiterR(Self: TStrings; var T: char); begin T := Self.Delimiter; end;
 procedure TStringsDelimiterW(Self: TStrings; T: char); begin Self.Delimiter:= T; end;
-{$IFDEF DELPHI2006UP}
 procedure TStringsStrictDelimiterR(Self: TStrings; var T: boolean); begin T := Self.StrictDelimiter; end;
 procedure TStringsStrictDelimiterW(Self: TStrings; T: boolean); begin Self.StrictDelimiter:= T; end;
-{$ENDIF}
 procedure TStringsDelimitedTextR(Self: TStrings; var T: string); begin T := Self.DelimitedText; end;
 procedure TStringsDelimitedTextW(Self: TStrings; T: string); begin Self.DelimitedText:= T; end;
 procedure TStringsNameValueSeparatorR(Self: TStrings; var T: char); begin T := Self.NameValueSeparator; end;
@@ -101,9 +97,7 @@ procedure RIRegisterTStrings(cl: TPSRuntimeClassImporter; Streams: Boolean); // 
 begin
   with Cl.Add(TStrings) do
   begin
-{$IFDEF DELPHI2005UP}
     RegisterConstructor(@TStrings.CREATE, 'Create');
-{$ENDIF}
 
     RegisterVirtualMethod(@TStrings.Add, 'Add');
     RegisterMethod(@TStrings.Append, 'Append');
@@ -114,9 +108,7 @@ begin
     RegisterVirtualAbstractMethod(TStringList, @TStringList.Insert, 'Insert');
     RegisterPropertyHelper(@TStringsCapacityR, @TStringsCapacityW, 'Capacity');
     RegisterPropertyHelper(@TStringsDelimiterR, @TStringsDelimiterW, 'DELIMITER');
-{$IFDEF DELPHI2006UP}
     RegisterPropertyHelper(@TStringsStrictDelimiterR, @TStringsStrictDelimiterW, 'StrictDelimiter');
-{$ENDIF}
     RegisterPropertyHelper(@TStringsDelimitedTextR, @TStringsDelimitedTextW, 'DelimitedText');
     RegisterPropertyHelper(@TStringsNameValueSeparatorR, @TStringsNameValueSeparatorW, 'NameValueSeparator');
     RegisterPropertyHelper(@TStringsQuoteCharR, @TStringsQuoteCharW, 'QuoteChar');
@@ -172,9 +164,7 @@ procedure RIRegisterTSTRINGLIST(Cl: TPSRuntimeClassImporter);
 begin
   with Cl.Add(TSTRINGLIST) do
   begin
-{$IFDEF DELPHI2005UP}
     RegisterConstructor(@TStringList.CREATE, 'Create');
-{$ENDIF}
     RegisterVirtualMethod(@TSTRINGLIST.FIND, 'Find');
     RegisterVirtualMethod(@TSTRINGLIST.SORT, 'Sort');
     RegisterPropertyHelper(@TSTRINGLISTCASESENSITIVE_R, @TSTRINGLISTCASESENSITIVE_W, 'CaseSensitive');
@@ -205,9 +195,7 @@ end;
 procedure TSTREAMPOSITION_R(Self: TSTREAM; var T: LONGINT); begin t := Self.POSITION; end;
 procedure TSTREAMPOSITION_W(Self: TSTREAM; T: LONGINT); begin Self.POSITION := t; end;
 procedure TSTREAMSIZE_R(Self: TSTREAM; var T: LONGINT); begin t := Self.SIZE; end;
-{$IFDEF DELPHI3UP}
 procedure TSTREAMSIZE_W(Self: TSTREAM; T: LONGINT); begin Self.SIZE := t; end;
-{$ENDIF}
 
 procedure RIRegisterTSTREAM(Cl: TPSRuntimeClassImporter);
 begin
@@ -223,7 +211,7 @@ begin
     RegisterMethod(@TSTREAM.WRITEBUFFER, 'WriteBuffer');
     RegisterMethod(@TSTREAM.COPYFROM, 'CopyFrom');
     RegisterPropertyHelper(@TSTREAMPOSITION_R, @TSTREAMPOSITION_W, 'Position');
-    RegisterPropertyHelper(@TSTREAMSIZE_R, {$IFDEF DELPHI3UP}@TSTREAMSIZE_W, {$ELSE}nil, {$ENDIF}'Size');
+    RegisterPropertyHelper(@TSTREAMSIZE_R, @TSTREAMSIZE_W, 'Size');
   end;
 end;
 
@@ -238,44 +226,24 @@ begin
   end;
 end;
 
-{$IFDEF FPC}
-// mh: because FPC doesn't handle pointers to overloaded functions
-function TFileStreamCreate(filename: string; mode: word): TFileStream;
-begin
-  result := TFilestream.Create(filename, mode);
-end;
-{$ENDIF}
-
 procedure RIRegisterTFILESTREAM(Cl: TPSRuntimeClassImporter);
 begin
   with Cl.Add(TFILESTREAM) do
   begin
-    {$IFDEF FPC}
-    RegisterConstructor(@TFileStreamCreate, 'Create');
-    {$ELSE}
     RegisterConstructor(@TFILESTREAM.CREATE, 'Create');
-    {$ENDIF}
   end;
 end;
 
-{$IFDEF UNICODE}
-  {$IFNDEF FPC}
-    {$DEFINE STRINGSTREAMFIX}
-  {$ENDIF}
-{$ENDIF}
-
-{$IFDEF STRINGSTREAMFIX}
 function TStringStreamCreateString(AHidden1: Pointer; AHidden2: Byte; const AString: string): TStringStream;
 begin
   Result := TStringStream.Create(AString);
 end;
-{$ENDIF}
 
 procedure RIRegisterTSTRINGSTREAM(Cl: TPSRuntimeClassImporter);
 begin
   with Cl.Add(TSTRINGSTREAM) do
   begin
-    RegisterConstructor({$IFDEF STRINGSTREAMFIX}@TStringStreamCreateString{$ELSE}@TSTRINGSTREAM.CREATE{$ENDIF}, 'Create');
+    RegisterConstructor(@TStringStreamCreateString, 'Create');
   end;
 end;
 
@@ -340,23 +308,17 @@ begin Self.ITEMS[t1] := T; end;
 procedure TCOLLECTIONITEMS_R(Self: TCOLLECTION; var T: TCOLLECTIONITEM; const t1: INTEGER);
 begin T := Self.ITEMS[t1]; end;
 
-{$IFDEF DELPHI3UP}
 procedure TCOLLECTIONITEMCLASS_R(Self: TCOLLECTION; var T: TCOLLECTIONITEMCLASS);
 begin T := Self.ITEMCLASS; end;
-{$ENDIF}
 
 procedure TCOLLECTIONCOUNT_R(Self: TCOLLECTION; var T: INTEGER);
 begin T := Self.COUNT; end;
 
-{$IFDEF DELPHI3UP}
 procedure TCOLLECTIONITEMDISPLAYNAME_W(Self: TCOLLECTIONITEM; const T: STRING);
 begin Self.DISPLAYNAME := T; end;
-{$ENDIF}
 
-{$IFDEF DELPHI3UP}
 procedure TCOLLECTIONITEMDISPLAYNAME_R(Self: TCOLLECTIONITEM; var T: STRING);
 begin T := Self.DISPLAYNAME; end;
-{$ENDIF}
 
 procedure TCOLLECTIONITEMINDEX_W(Self: TCOLLECTIONITEM; const T: INTEGER);
 begin Self.INDEX := T; end;
@@ -364,10 +326,8 @@ begin Self.INDEX := T; end;
 procedure TCOLLECTIONITEMINDEX_R(Self: TCOLLECTIONITEM; var T: INTEGER);
 begin T := Self.INDEX; end;
 
-{$IFDEF DELPHI3UP}
 procedure TCOLLECTIONITEMID_R(Self: TCOLLECTIONITEM; var T: INTEGER);
 begin T := Self.ID; end;
-{$ENDIF}
 
 procedure TCOLLECTIONITEMCOLLECTION_W(Self: TCOLLECTIONITEM; const T: TCOLLECTION);
 begin Self.COLLECTION := T; end;
@@ -375,7 +335,6 @@ begin Self.COLLECTION := T; end;
 procedure TCOLLECTIONITEMCOLLECTION_R(Self: TCOLLECTIONITEM; var T: TCOLLECTION);
 begin T := Self.COLLECTION; end;
 
-{$IFDEF DELPHI3UP}
 procedure RIRegisterTOWNEDCOLLECTION(Cl: TPSRuntimeClassImporter);
 Begin
 with Cl.Add(TOWNEDCOLLECTION) do
@@ -383,23 +342,22 @@ with Cl.Add(TOWNEDCOLLECTION) do
   RegisterConstructor(@TOWNEDCOLLECTION.CREATE, 'Create');
   end;
 end;
-{$ENDIF}
 
 procedure RIRegisterTCOLLECTION(Cl: TPSRuntimeClassImporter);
 Begin
 with Cl.Add(TCOLLECTION) do
   begin
   RegisterConstructor(@TCOLLECTION.CREATE, 'Create');
-{$IFDEF DELPHI6UP}  {$IFNDEF FPC} RegisterMethod(@TCOLLECTION.OWNER, 'Owner'); {$ENDIF} {$ENDIF} // no owner in FPC
+  RegisterMethod(@TCOLLECTION.OWNER, 'Owner');
   RegisterMethod(@TCOLLECTION.ADD, 'Add');
   RegisterVirtualMethod(@TCOLLECTION.BEGINUPDATE, 'BeginUpdate');
   RegisterMethod(@TCOLLECTION.CLEAR, 'Clear');
-{$IFDEF DELPHI5UP}  RegisterMethod(@TCOLLECTION.DELETE, 'Delete'); {$ENDIF}
+  RegisterMethod(@TCOLLECTION.DELETE, 'Delete');
   RegisterVirtualMethod(@TCOLLECTION.ENDUPDATE, 'EndUpdate');
-{$IFDEF DELPHI3UP}  RegisterMethod(@TCOLLECTION.FINDITEMID, 'FindItemID'); {$ENDIF}
-{$IFDEF DELPHI3UP}  RegisterMethod(@TCOLLECTION.INSERT, 'Insert'); {$ENDIF}
+  RegisterMethod(@TCOLLECTION.FINDITEMID, 'FindItemID');
+  RegisterMethod(@TCOLLECTION.INSERT, 'Insert');
   RegisterPropertyHelper(@TCOLLECTIONCOUNT_R,nil,'Count');
-{$IFDEF DELPHI3UP}  RegisterPropertyHelper(@TCOLLECTIONITEMCLASS_R,nil,'ItemClass'); {$ENDIF}
+  RegisterPropertyHelper(@TCOLLECTIONITEMCLASS_R,nil,'ItemClass');
   RegisterPropertyHelper(@TCOLLECTIONITEMS_R,@TCOLLECTIONITEMS_W,'Items');
   end;
 end;
@@ -410,9 +368,9 @@ with Cl.Add(TCOLLECTIONITEM) do
   begin
   RegisterVirtualConstructor(@TCOLLECTIONITEM.CREATE, 'Create');
   RegisterPropertyHelper(@TCOLLECTIONITEMCOLLECTION_R,@TCOLLECTIONITEMCOLLECTION_W,'Collection');
-{$IFDEF DELPHI3UP}  RegisterPropertyHelper(@TCOLLECTIONITEMID_R,nil,'ID'); {$ENDIF}
+  RegisterPropertyHelper(@TCOLLECTIONITEMID_R,nil,'ID');
   RegisterPropertyHelper(@TCOLLECTIONITEMINDEX_R,@TCOLLECTIONITEMINDEX_W,'Index');
-{$IFDEF DELPHI3UP}  RegisterPropertyHelper(@TCOLLECTIONITEMDISPLAYNAME_R,@TCOLLECTIONITEMDISPLAYNAME_W,'DisplayName'); {$ENDIF}
+  RegisterPropertyHelper(@TCOLLECTIONITEMDISPLAYNAME_R,@TCOLLECTIONITEMDISPLAYNAME_W,'DisplayName');
   end;
 end;
 {$ENDIF}
@@ -441,9 +399,7 @@ begin
   RIRegisterTPARSER(Cl);
   RIRegisterTCOLLECTIONITEM(Cl);
   RIRegisterTCOLLECTION(Cl);
-  {$IFDEF DELPHI3UP}
   RIRegisterTOWNEDCOLLECTION(Cl);
-  {$ENDIF}
   {$ENDIF}
 end;
 
